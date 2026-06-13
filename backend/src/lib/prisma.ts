@@ -4,23 +4,23 @@ import { PrismaClient as PostgresPrismaClient } from "../generated/prisma/client
 import { PrismaClient as SqlitePrismaClient } from "../generated/prisma-sqlite/client.js";
 import { env } from "../config/env.js";
 
-/** Shared API type — both schemas use the same models, so one client type is enough for routes. */
-export type AppPrismaClient = PostgresPrismaClient;
+/** Use SQLite client types — both schemas share the same models. Regenerate both with `npm run prisma:generate`. */
+export type AppPrismaClient = SqlitePrismaClient;
 
 let prisma: AppPrismaClient | null = null;
 
-function createOnlineClient(): PostgresPrismaClient {
+function createOnlineClient(): AppPrismaClient {
   if (!env.databaseUrl) {
     throw new Error("DATABASE_URL is required when MODE=online");
   }
 
   const adapter = new PrismaPg({ connectionString: env.databaseUrl });
-  return new PostgresPrismaClient({ adapter });
+  return new PostgresPrismaClient({ adapter }) as unknown as AppPrismaClient;
 }
 
 function createOfflineClient(): AppPrismaClient {
   const adapter = new PrismaBetterSqlite3({ url: env.sqliteDatabaseUrl });
-  return new SqlitePrismaClient({ adapter }) as AppPrismaClient;
+  return new SqlitePrismaClient({ adapter });
 }
 
 export function initPrisma(): AppPrismaClient {

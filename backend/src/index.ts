@@ -2,7 +2,15 @@ import "dotenv/config";
 import express, { Request, Response, Application } from "express";
 import cors from "cors";
 import { validateEnv, env } from "./config/env.js";
+import { HttpStatus } from "./constants/httpStatus.js";
+import { ApiMessages } from "./constants/messages.js";
 import { disconnectPrisma, getDatabaseInfo, getPrisma, initPrisma } from "./lib/prisma.js";
+import { errorHandler } from "./middleware/error.middleware.js";
+import { notFoundHandler } from "./middleware/notFound.middleware.js";
+import router from "./routes/index.js";
+import { ApiResponse } from "./utils/ApiResponse.js";
+import { AppError } from "./utils/AppError.js";
+import { asyncHandler } from "./utils/asyncHandler.js";
 
 validateEnv();
 
@@ -13,58 +21,28 @@ app.use(express.json());
 
 initPrisma();
 
-app.get("/", (_req: Request, res: Response) => {
-  res.json({
-    message: "School Management System API",
-    mode: env.mode,
-    database: getDatabaseInfo().provider,
-  });
-});
+app.get(
+  "/health",
+  asyncHandler(async (_req: Request, res: Response) => {
+    try {
+      await getPrisma().$queryRaw`SELECT 1`;
+      return ApiResponse.success(res, {
+        message: "Service is healthy",
+        data: getDatabaseInfo(),
+      });
+    } catch (error) {
+      throw new AppError(
+        error instanceof Error ? error.message : ApiMessages.DB_UNAVAILABLE,
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
+    }
+  })
+);
 
-app.get("/health", async (_req: Request, res: Response) => {
-  try {
-    await getPrisma().$queryRaw`SELECT 1`;
-    res.json({ status: "ok", ...getDatabaseInfo() });
-  } catch (error) {
-    res.status(503).json({
-      status: "error",
-      ...getDatabaseInfo(),
-      message: error instanceof Error ? error.message : "Database connection failed",
-    });
-  }
-});
-app.post("/create-user", async (req: Request, res: Response) => {
-  const { email, name, phone } = req.body;
-  if (!email) {
-    return res.status(400).json({ message: "Email is required" });
-  }
-  const userData: { email: string; name?: string; phone?: string } = { email };
-  if (name) userData.name = name;
-  if (phone) userData.phone = phone;
-  try {
-    const user = await getPrisma().user.create({
-      data: userData,
-    });
-    res.json(user);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      message: error instanceof Error ? error.message : "Failed to create user",
-    });
-  }
-});
-app.get("/get-users", async (_req: Request, res: Response) => {
-  try {
-    const users = await getPrisma().user.findMany({
-      orderBy: { id: "asc" },
-    });
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({
-      message: error instanceof Error ? error.message : "Failed to fetch users",
-    });
-  }
-});
+app.use("/api", router);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 app.listen(env.port, () => {
   const db = getDatabaseInfo();
