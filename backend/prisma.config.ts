@@ -3,12 +3,17 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+const mode = process.env.MODE === "offline" ? "offline" : "online";
+
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  schema: mode === "offline" ? "prisma/schema.sqlite.prisma" : "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url:
+      mode === "offline"
+        ? process.env.SQLITE_DATABASE_URL ?? "file:./data/school.db"
+        : process.env.DATABASE_URL,
   },
 });
