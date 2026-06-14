@@ -11,6 +11,7 @@ export const ApiMessages = {
   SCHOOL_EXISTS: "School with this email already exists",
   SCHOOL_REGISTERED: "School registered successfully",
   USER_REGISTERED: "User registered successfully",
+  EMPLOYEE_REGISTERED: "Employee registered successfully",
   LOGIN_SUCCESS: "Login successful",
   INVALID_CREDENTIALS: "Invalid email or password",
   UNAUTHORIZED: "Unauthorized access",
