@@ -76,6 +76,39 @@ export async function deleteMultipleFiles(storageKeys: string[]): Promise<void> 
   await Promise.all(storageKeys.map((key) => removeFile(key)));
 }
 
+/** Extract storage key from a public file URL saved in DB */
+export function getStorageKeyFromUrl(fileUrl: string): string | null {
+  const base = env.publicUploadBaseUrl.replace(/\/$/, "") + "/";
+  if (!fileUrl.startsWith(base)) return null;
+  return fileUrl.slice(base.length).replace(/\\/g, "/");
+}
+
+/** Delete files by their public URLs (logoUrl, coverUrl, etc.) */
+export async function deleteFilesByUrls(
+  urls: (string | null | undefined)[]
+): Promise<void> {
+  const keys = urls
+    .map((url) => (url ? getStorageKeyFromUrl(url) : null))
+    .filter((key): key is string => Boolean(key));
+
+  if (keys.length > 0) {
+    await deleteMultipleFiles(keys);
+  }
+}
+
+/** Delete all uploaded files for a school (offline: removes school folder) */
+export async function deleteSchoolStorage(schoolId: string): Promise<void> {
+  if (isOfflineStorage()) {
+    const dir = path.join(getUploadRoot(), schoolId);
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    return;
+  }
+
+  // TODO: delete S3 prefix when online storage is enabled
+}
+
 // ─── Internal (online/offline switch lives here only) ───────────────────────
 
 function getUploadRoot(): string {

@@ -2,7 +2,7 @@ import type { Request } from "express";
 import { HttpStatus } from "../../constants/httpStatus.js";
 import { ApiMessages } from "../../constants/messages.js";
 import { getPrisma } from "../../lib/prisma.js";
-import { uploadImage } from "../../lib/storage.js";
+import { deleteFilesByUrls, deleteSchoolStorage, uploadImage } from "../../lib/storage.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { AppError } from "../../utils/AppError.js";
 import type { Response } from "express";
@@ -87,9 +87,16 @@ const deleteSchool = async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   assertOwnSchool(req, id);
 
+  const school = await getPrisma().school.findUnique({ where: { id } });
+  if (!school) {
+    throw new AppError(ApiMessages.SCHOOL_NOT_FOUND, HttpStatus.NOT_FOUND);
+  }
+
+  await deleteFilesByUrls([school.logoUrl, school.coverUrl]);
+  await deleteSchoolStorage(id);
   await getPrisma().school.delete({ where: { id } });
 
-  return ApiResponse.success(res, { message: ApiMessages.SUCCESS });
+  return ApiResponse.success(res, { message: ApiMessages.DELETE_SUCCESS });
 };
 
 /** Admin gets own school — no :id needed, safer */
