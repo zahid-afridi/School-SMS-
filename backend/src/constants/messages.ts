@@ -22,4 +22,12 @@ export const ApiMessages = {
   SCHOOL_INACTIVE: "School account is deactivated",
   DB_UNAVAILABLE: "Database connection failed",
   SCHOOL_NOT_FOUND: "School not found",
+  NO_FILE_UPLOADED: "No file uploaded",
+  INVALID_FILE_TYPE: "Invalid file type",
+  FILE_TOO_LARGE: "File size exceeds the allowed limit",
+  INVALID_MULTIPART: "Invalid form-data. Use multipart/form-data and attach file(s).",
+  UPLOAD_FAILED: "File upload failed",
+  ONLINE_STORAGE_NOT_CONFIGURED: "Online file storage is not configured",
+  UPLOAD_SUCCESS: "File uploaded successfully",
+  DELETE_SUCCESS: "File deleted successfully",
 } as const;

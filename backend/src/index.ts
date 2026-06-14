@@ -1,9 +1,11 @@
 import "dotenv/config";
+import path from "node:path";
 import express, { Request, Response, Application } from "express";
 import cors from "cors";
-import { validateEnv, env } from "./config/env.js";
+import { validateEnv, env, isOfflineStorage } from "./config/env.js";
 import { HttpStatus } from "./constants/httpStatus.js";
 import { ApiMessages } from "./constants/messages.js";
+import { initStorage, getStorageInfo } from "./lib/storage.js";
 import { disconnectPrisma, getDatabaseInfo, getPrisma, initPrisma } from "./lib/prisma.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import { notFoundHandler } from "./middleware/notFound.middleware.js";
@@ -13,6 +15,7 @@ import { AppError } from "./utils/AppError.js";
 import { asyncHandler } from "./utils/asyncHandler.js";
 
 validateEnv();
+initStorage();
 
 const app: Application = express();
 
@@ -20,6 +23,10 @@ app.use(cors());
 app.use(express.json());
 
 initPrisma();
+
+if (isOfflineStorage()) {
+  app.use("/uploads", express.static(path.resolve(env.uploadDir)));
+}
 
 app.get(
   "/health",
@@ -46,8 +53,10 @@ app.use(errorHandler);
 
 app.listen(env.port, () => {
   const db = getDatabaseInfo();
+  const storage = getStorageInfo();
   console.log(`Server running on http://localhost:${env.port}`);
   console.log(`Mode: ${db.mode} (${db.provider})`);
+  console.log(`Storage: ${storage.provider}${storage.uploadDir ? ` → ${storage.uploadDir}` : ""}`);
 });
 
 process.on("SIGINT", async () => {
