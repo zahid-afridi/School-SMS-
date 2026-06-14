@@ -58,3 +58,11 @@ export const uploadSingleImage = wrapMulter(imageMulter.single("image"));
 export const uploadManyImages = wrapMulter(imageMulter.array("images", 10));
 export const uploadSingleFile = wrapMulter(fileMulter.single("file"));
 export const uploadManyFiles = wrapMulter(fileMulter.array("files", 10));
+
+/** School update: optional logo + cover images (form fields: logo, cover) */
+export const parseSchoolImages = wrapMulter(
+  imageMulter.fields([
+    { name: "logo", maxCount: 1 },
+    { name: "cover", maxCount: 1 },
+  ])
+);

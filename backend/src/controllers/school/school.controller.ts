@@ -2,6 +2,7 @@ import type { Request } from "express";
 import { HttpStatus } from "../../constants/httpStatus.js";
 import { ApiMessages } from "../../constants/messages.js";
 import { getPrisma } from "../../lib/prisma.js";
+import { uploadImage } from "../../lib/storage.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { AppError } from "../../utils/AppError.js";
 import type { Response } from "express";
@@ -46,9 +47,34 @@ const updateSchool = async (req: Request, res: Response) => {
   assertOwnSchool(req, id);
 
   const { name, address, phone, email, website } = req.body;
+  const files = req.files as {
+    logo?: Express.Multer.File[];
+    cover?: Express.Multer.File[];
+  };
+
+  const updateData: {
+    name?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    website?: string;
+    logoUrl?: string;
+    coverUrl?: string;
+  } = { name, address, phone, email, website };
+
+  if (files?.logo?.[0]) {
+    const saved = await uploadImage(files.logo[0], id);
+    updateData.logoUrl = saved.url;
+  }
+
+  if (files?.cover?.[0]) {
+    const saved = await uploadImage(files.cover[0], id);
+    updateData.coverUrl = saved.url;
+  }
+
   const school = await getPrisma().school.update({
     where: { id },
-    data: { name, address, phone, email, website },
+    data: updateData,
   });
 
   return ApiResponse.success(res, {
