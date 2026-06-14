@@ -21,4 +21,5 @@ export const ApiMessages = {
   ACCOUNT_INACTIVE: "Your account has been deactivated",
   SCHOOL_INACTIVE: "School account is deactivated",
   DB_UNAVAILABLE: "Database connection failed",
+  SCHOOL_NOT_FOUND: "School not found",
 } as const;
