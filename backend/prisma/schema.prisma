@@ -55,6 +55,7 @@ model School {
 
   users     User[]
   employees Employee[]
+  classes   Class[]
 
   @@index([name])
 }
@@ -114,9 +115,25 @@ model Employee {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  classes Class[]
 
   @@unique([schoolId, employeeCode])
   @@index([schoolId])
   @@index([designation])
   @@index([status])
+}
+
+model Class {
+  id             String    @id @default(uuid())
+  className      String
+  montlyFee      Float
+  classTeacherId String?
+  classTeacher   Employee? @relation(fields: [classTeacherId], references: [id], onDelete: SetNull)
+  schoolId       String
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([schoolId])
+  @@index([classTeacherId])
 }
