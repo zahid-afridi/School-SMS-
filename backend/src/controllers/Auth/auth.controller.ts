@@ -6,19 +6,28 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 import { AppError } from "../../utils/AppError.js";
 import { signToken } from "../../utils/jwt.js";
 import { hashPassword, verifyPassword } from "../../utils/Password.js";
-import { validateRequired } from "../../utils/validate.js";
+import { validateEnum, validateRequired } from "../../utils/validate.js";
+
+const REGISTER_ROLES = ["ADMIN", "SUPER_ADMIN"] as const;
+type RegisterRole = (typeof REGISTER_ROLES)[number];
 
 const userSelect = {
   id: true,
   email: true,
-  firstName: true,
-  lastName: true,
+  username: true,
   role: true,
   schoolId: true,
   isActive: true,
   isVerified: true,
   createdAt: true,
   updatedAt: true,
+  employee: {
+    select: {
+      id: true,
+      employeeCode: true,
+      designation: true,
+    },
+  },
   school: {
     select: {
       id: true,
@@ -30,71 +39,63 @@ const userSelect = {
   },
 } as const;
 
-/**
- * SaaS onboarding: creates a new school + first ADMIN user (school owner).
- * Teachers and students are NOT created here — school admin adds them later.
- */
-export const registerSchool = async (req: Request, res: Response) => {
-  const {
-    schoolName,
-    schoolEmail,
-    schoolPhone,
-    schoolAddress,
-    schoolWebsite,
-    firstName,
-    lastName,
-    email,
-    password,
-  } = req.body;
+/** Register ADMIN or SUPER_ADMIN with email + password only. ADMIN gets a default school to update later. */
+export const register = async (req: Request, res: Response) => {
+  const { email, password, role = "ADMIN" } = req.body;
 
-  validateRequired(req.body, [
-    "schoolName",
-    "firstName",
-    "lastName",
-    "email",
-    "password",
-  ]);
+  validateRequired(req.body, ["email", "password"]);
+  validateEnum(role, REGISTER_ROLES, ApiMessages.INVALID_ROLE);
 
-  const existingUser = await getPrisma().user.findUnique({ where: { email } });
+  const existingUser = await getPrisma().user.findFirst({
+    where: { OR: [{ email }, { username: email }] },
+  });
+
   if (existingUser) {
     throw new AppError(ApiMessages.USER_EXISTS, HttpStatus.CONFLICT);
-  }
-
-  if (schoolEmail) {
-    const existingSchool = await getPrisma().school.findUnique({
-      where: { email: schoolEmail },
-    });
-    if (existingSchool) {
-      throw new AppError(ApiMessages.SCHOOL_EXISTS, HttpStatus.CONFLICT);
-    }
   }
 
   const hashedPassword = await hashPassword(password);
 
   const result = await getPrisma().$transaction(async (tx) => {
+    if (role === "SUPER_ADMIN") {
+      const user = await tx.user.create({
+        data: {
+          email,
+          username: email,
+          password: hashedPassword,
+          role: "SUPER_ADMIN",
+        },
+        select: userSelect,
+      });
+
+      return { user, school: null };
+    }
+
     const school = await tx.school.create({
+      data: { name: "My School" },
+    });
+
+    const employee = await tx.employee.create({
       data: {
-        name: schoolName,
-        email: schoolEmail ?? null,
-        phone: schoolPhone ?? null,
-        address: schoolAddress ?? null,
-        website: schoolWebsite ?? null,
+        employeeCode: `EMP-${Date.now()}`,
+        designation: "PRINCIPAL",
+        schoolId: school.id,
       },
     });
 
     const user = await tx.user.create({
       data: {
         email,
+        username: email,
         password: hashedPassword,
-        firstName,
-        lastName,
         role: "ADMIN",
         schoolId: school.id,
+        employeeId: employee.id,
       },
       select: userSelect,
     });
 
-    return { school, user };
+    return { user, school };
   });
 
   const token = signToken({
@@ -106,10 +107,10 @@ export const registerSchool = async (req: Request, res: Response) => {
 
   return ApiResponse.success(res, {
     statusCode: HttpStatus.CREATED,
-    message: ApiMessages.SCHOOL_REGISTERED,
+    message: ApiMessages.USER_REGISTERED,
     data: {
-      school: result.school,
       user: result.user,
+      school: result.school,
       token,
     },
   });
@@ -120,9 +121,18 @@ export const login = async (req: Request, res: Response) => {
 
   validateRequired(req.body, ["email", "password"]);
 
-  const user = await getPrisma().user.findUnique({
-    where: { email },
+  const user = await getPrisma().user.findFirst({
+    where: {
+      OR: [{ email }, { username: email }],
+    },
     include: {
+      employee: {
+        select: {
+          id: true,
+          designation: true,
+          photoUrl: true,
+        },
+      },
       school: {
         select: {
           id: true,

@@ -10,12 +10,38 @@ datasource db {
 enum UserRole {
   SUPER_ADMIN
   ADMIN
+  STAFF
   TEACHER
   STUDENT
 }
 
+// Employee Role on the form = designation
+enum EmployeeDesignation {
+  PRINCIPAL
+  VICE_PRINCIPAL
+  MANAGEMENT
+  MANAGEMENT_STAFF
+  TEACHER
+  ACCOUNTANT
+  LIBRARIAN
+  SUPPORT_STAFF
+  OTHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum PersonStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
 model School {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   name      String
   address   String?
   phone     String?
@@ -28,28 +54,69 @@ model School {
   updatedAt DateTime @updatedAt
 
   users     User[]
+  employees Employee[]
 
   @@index([name])
 }
 
 model User {
-  id         String   @id @default(cuid())
-  firstName  String?
-  lastName   String?
-  email      String   @unique
-  username   String?  @unique
-  password   String
-  role       UserRole
+  id       String   @id @default(uuid())
+  email    String   @unique
+  username String   @unique
+  password String
+  role     UserRole
 
   schoolId   String?
-  school     School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school     School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  employeeId String?  @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   isActive   Boolean  @default(true)
   isVerified Boolean  @default(false)
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([schoolId])
   @@index([role])
+}
+
+model Employee {
+  id           String              @id @default(uuid())
+  employeeCode String
+
+  // ── Basic Information (form) ──────────────────────────────────────────────
+  name         String?             // Employee Name * (required on form, validated in API)
+  designation  EmployeeDesignation // Employee Role *
+  joiningDate  DateTime?           // Date of Joining *
+  salary       Float?              // Monthly Salary *
+  phone        String?             // Mobile No for SMS/WhatsApp
+  photoUrl     String?             // Picture
+
+  // ── Other Information (form — all optional) ─────────────────────────────────
+  fatherOrHusbandName String?
+  gender              Gender?
+  experience          String?
+  nationalId          String?
+  religion            String?      // contact email (login email stays on User)
+  education           String?
+  bloodGroup          String?
+  dateOfBirth         DateTime?
+  address             String?       // Home Address
+
+  status   PersonStatus @default(ACTIVE)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  user User?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, employeeCode])
+  @@index([schoolId])
+  @@index([designation])
+  @@index([status])
 }
