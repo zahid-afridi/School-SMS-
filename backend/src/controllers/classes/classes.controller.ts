@@ -11,16 +11,23 @@ const classSelect = {
   className: true,
   montlyFee: true,
   schoolId: true,
-  classTeacherId: true,
   createdAt: true,
   updatedAt: true,
-  classTeacher: {
+  sections: {
     select: {
       id: true,
-      name: true,
-      employeeCode: true,
-      designation: true,
+      sectionName: true,
+      teacherId: true,
+      teacher: {
+        select: {
+          id: true,
+          name: true,
+          employeeCode: true,
+          designation: true,
+        },
+      },
     },
+    orderBy: { sectionName: "asc" as const },
   },
 } as const;
 
@@ -45,20 +52,61 @@ function normalizeTeacherId(value: unknown): string | null {
   return String(value);
 }
 
-async function validateClassTeacher(classTeacherId: string | null, schoolId: string) {
-  if (!classTeacherId) return;
+type SectionInput = {
+  sectionName: string;
+  teacherId: string | null;
+};
 
-  const teacher = await getPrisma().employee.findFirst({
-    where: { id: classTeacherId, schoolId },
-    select: { id: true, designation: true },
-  });
-
-  if (!teacher) {
-    throw new AppError("Class teacher not found", HttpStatus.NOT_FOUND);
+function parseSections(value: unknown): SectionInput[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new AppError("At least one section is required", HttpStatus.BAD_REQUEST);
   }
 
-  if (teacher.designation !== "TEACHER") {
-    throw new AppError("Class teacher must be a teacher", HttpStatus.BAD_REQUEST);
+  const parsed: SectionInput[] = value.map((section, index) => {
+    if (typeof section === "string") {
+      const sectionName = section.trim();
+      if (!sectionName) {
+        throw new AppError(`Invalid section at index ${index}`, HttpStatus.BAD_REQUEST);
+      }
+      return { sectionName, teacherId: null };
+    }
+
+    if (typeof section === "object" && section !== null) {
+      const sectionName = String((section as { sectionName?: unknown }).sectionName ?? "").trim();
+      const teacherId = normalizeTeacherId((section as { teacherId?: unknown }).teacherId);
+      if (!sectionName) {
+        throw new AppError(`Invalid sectionName at index ${index}`, HttpStatus.BAD_REQUEST);
+      }
+      return { sectionName, teacherId };
+    }
+
+    throw new AppError(`Invalid section format at index ${index}`, HttpStatus.BAD_REQUEST);
+  });
+
+  const uniqueNames = new Set(parsed.map((s) => s.sectionName.toLowerCase()));
+  if (uniqueNames.size !== parsed.length) {
+    throw new AppError("Section names must be unique per class", HttpStatus.BAD_REQUEST);
+  }
+
+  return parsed;
+}
+
+async function validateSectionTeachers(sections: SectionInput[], schoolId: string) {
+  const teacherIds = sections
+    .map((section) => section.teacherId)
+    .filter((id): id is string => Boolean(id));
+
+  if (teacherIds.length === 0) return;
+
+  const teachers = await getPrisma().employee.findMany({
+    where: { id: { in: teacherIds }, schoolId, designation: "TEACHER" },
+    select: { id: true },
+  });
+
+  const validTeacherIds = new Set(teachers.map((teacher) => teacher.id));
+  const invalidTeacherId = teacherIds.find((id) => !validTeacherIds.has(id));
+  if (invalidTeacherId) {
+    throw new AppError(`Invalid teacherId: ${invalidTeacherId}`, HttpStatus.BAD_REQUEST);
   }
 }
 
@@ -98,23 +146,36 @@ async function assertUniqueClassName(
 export const createClass = async (req: Request, res: Response) => {
   const schoolId = requireSchoolId(req);
   const body = req.body ?? {};
-  const { className, montlyFee, classTeacherId } = body;
+  const { className, montlyFee, sections } = body;
 
-  validateRequired(body, ["className", "montlyFee"]);
+  validateRequired(body, ["className", "montlyFee", "sections"]);
 
   const parsedFee = parseMonthlyFee(montlyFee);
-  const teacherId = normalizeTeacherId(classTeacherId);
-  await validateClassTeacher(teacherId, schoolId);
+  const parsedSections = parseSections(sections);
+  await validateSectionTeachers(parsedSections, schoolId);
   await assertUniqueClassName(schoolId, className);
 
-  const createdClass = await getPrisma().class.create({
-    data: {
-      className: className.trim(),
-      montlyFee: parsedFee,
-      schoolId,
-      classTeacherId: teacherId,
-    },
-    select: classSelect,
+  const createdClass = await getPrisma().$transaction(async (tx) => {
+    const created = await tx.class.create({
+      data: {
+        className: className.trim(),
+        montlyFee: parsedFee,
+        schoolId,
+      },
+    });
+
+    await tx.section.createMany({
+      data: parsedSections.map((section) => ({
+        sectionName: section.sectionName,
+        teacherId: section.teacherId,
+        classId: created.id,
+      })),
+    });
+
+    return tx.class.findUniqueOrThrow({
+      where: { id: created.id },
+      select: classSelect,
+    });
   });
 
   return ApiResponse.success(res, {
@@ -158,23 +219,37 @@ export const updateClass = async (req: Request, res: Response) => {
   await findClassInSchool(id, schoolId);
 
   const body = req.body ?? {};
-  const { className, montlyFee, classTeacherId } = body;
+  const { className, montlyFee, sections } = body;
 
-  validateRequired(body, ["className", "montlyFee"]);
+  validateRequired(body, ["className", "montlyFee", "sections"]);
 
   const parsedFee = parseMonthlyFee(montlyFee);
-  const teacherId = normalizeTeacherId(classTeacherId);
-  await validateClassTeacher(teacherId, schoolId);
+  const parsedSections = parseSections(sections);
+  await validateSectionTeachers(parsedSections, schoolId);
   await assertUniqueClassName(schoolId, className, id);
 
-  const updatedClass = await getPrisma().class.update({
-    where: { id },
-    data: {
-      className: className.trim(),
-      montlyFee: parsedFee,
-      classTeacherId: teacherId,
-    },
-    select: classSelect,
+  const updatedClass = await getPrisma().$transaction(async (tx) => {
+    await tx.class.update({
+      where: { id },
+      data: {
+        className: className.trim(),
+        montlyFee: parsedFee,
+      },
+    });
+
+    await tx.section.deleteMany({ where: { classId: id } });
+    await tx.section.createMany({
+      data: parsedSections.map((section) => ({
+        sectionName: section.sectionName,
+        teacherId: section.teacherId,
+        classId: id,
+      })),
+    });
+
+    return tx.class.findUniqueOrThrow({
+      where: { id },
+      select: classSelect,
+    });
   });
 
   return ApiResponse.success(res, {
@@ -190,6 +265,166 @@ export const deleteClass = async (req: Request, res: Response) => {
   await findClassInSchool(id, schoolId);
 
   await getPrisma().class.delete({ where: { id } });
+
+  return ApiResponse.success(res, {
+    statusCode: HttpStatus.OK,
+    message: ApiMessages.DELETED,
+  });
+};
+
+async function findSectionInSchool(sectionId: string, schoolId: string) {
+  const section = await getPrisma().section.findFirst({
+    where: { id: sectionId, class: { schoolId } },
+    select: {
+      id: true,
+      sectionName: true,
+      classId: true,
+      teacherId: true,
+      createdAt: true,
+      updatedAt: true,
+      teacher: {
+        select: {
+          id: true,
+          name: true,
+          employeeCode: true,
+          designation: true,
+        },
+      },
+    },
+  });
+
+  if (!section) {
+    throw new AppError(ApiMessages.NOT_FOUND, HttpStatus.NOT_FOUND);
+  }
+
+  return section;
+}
+
+async function assertUniqueSectionNameInClass(
+  classId: string,
+  sectionName: string,
+  excludeId?: string
+) {
+  const existing = await getPrisma().section.findFirst({
+    where: {
+      classId,
+      sectionName: sectionName.trim(),
+      ...(excludeId && { NOT: { id: excludeId } }),
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new AppError("Section with this name already exists in class", HttpStatus.CONFLICT);
+  }
+}
+
+export const createSection = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const body = req.body ?? {};
+  const { classId, sectionName, teacherId } = body;
+
+  validateRequired(body, ["classId", "sectionName"]);
+  await findClassInSchool(String(classId), schoolId);
+
+  const normalizedTeacherId = normalizeTeacherId(teacherId);
+  await validateSectionTeachers([{ sectionName: String(sectionName), teacherId: normalizedTeacherId }], schoolId);
+  await assertUniqueSectionNameInClass(String(classId), String(sectionName));
+
+  const section = await getPrisma().section.create({
+    data: {
+      classId: String(classId),
+      sectionName: String(sectionName).trim(),
+      teacherId: normalizedTeacherId,
+    },
+  });
+
+  const createdSection = await findSectionInSchool(section.id, schoolId);
+
+  return ApiResponse.success(res, {
+    statusCode: HttpStatus.CREATED,
+    message: ApiMessages.CREATED,
+    data: createdSection,
+  });
+};
+
+export const getAllSections = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+
+  const sections = await getPrisma().section.findMany({
+    where: { class: { schoolId } },
+    select: {
+      id: true,
+      sectionName: true,
+      classId: true,
+      teacherId: true,
+      createdAt: true,
+      updatedAt: true,
+      class: { select: { id: true, className: true } },
+      teacher: {
+        select: { id: true, name: true, employeeCode: true, designation: true },
+      },
+    },
+    orderBy: [{ class: { className: "asc" } }, { sectionName: "asc" }],
+  });
+
+  return ApiResponse.success(res, {
+    statusCode: HttpStatus.OK,
+    message: ApiMessages.SUCCESS,
+    data: sections,
+  });
+};
+
+export const getSectionById = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+  const section = await findSectionInSchool(id, schoolId);
+
+  return ApiResponse.success(res, {
+    statusCode: HttpStatus.OK,
+    message: ApiMessages.SUCCESS,
+    data: section,
+  });
+};
+
+export const updateSection = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+  const existing = await findSectionInSchool(id, schoolId);
+
+  const body = req.body ?? {};
+  const { sectionName, teacherId } = body;
+  validateRequired(body, ["sectionName"]);
+
+  const normalizedTeacherId = normalizeTeacherId(teacherId);
+  await validateSectionTeachers(
+    [{ sectionName: String(sectionName), teacherId: normalizedTeacherId }],
+    schoolId
+  );
+  await assertUniqueSectionNameInClass(existing.classId, String(sectionName), id);
+
+  await getPrisma().section.update({
+    where: { id },
+    data: {
+      sectionName: String(sectionName).trim(),
+      teacherId: normalizedTeacherId,
+    },
+  });
+
+  const updatedSection = await findSectionInSchool(id, schoolId);
+  return ApiResponse.success(res, {
+    statusCode: HttpStatus.OK,
+    message: ApiMessages.UPDATED,
+    data: updatedSection,
+  });
+};
+
+export const deleteSection = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+  await findSectionInSchool(id, schoolId);
+
+  await getPrisma().section.delete({ where: { id } });
 
   return ApiResponse.success(res, {
     statusCode: HttpStatus.OK,
