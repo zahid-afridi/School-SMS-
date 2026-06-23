@@ -82,3 +82,146 @@ button {
 button {
   cursor: pointer;
 }
+
+
+
+
+/* @import "tailwindcss"; */
+
+@layer components {
+
+  /* ===================== LAYOUT ===================== */
+  .employee-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  .employee-header {
+    margin-bottom: 30px;
+    text-align: center;
+  }
+
+  .employee-header h2 {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--foreground);
+  }
+
+  .employee-header p {
+    color: #4c4546;
+    margin-top: 6px;
+  }
+
+  /* ===================== FORM ===================== */
+  .employee-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* ===================== BENTO GRID ===================== */
+  .bento-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 24px;
+  }
+
+  /* ===================== CARDS ===================== */
+  .form-card {
+    background: white;
+    padding: 24px;
+    border-radius: 20px;
+    border: 1px solid #e2e2e4;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+  }
+
+  .form-card:hover {
+    transform: translateY(-4px);
+  }
+
+  /* ===================== GRID ===================== */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  /* ===================== INPUTS ===================== */
+  input,
+  select,
+  textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 999px;
+    border: 1px solid #e2e2e4;
+    background: #eeeef0;
+    font-size: 14px;
+    transition: all 0.2s ease;
+  }
+
+  textarea {
+    border-radius: 16px;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: 1px solid #000;
+    background: #ffffff;
+    border-color: transparent;
+  }
+
+  /* ===================== UPLOAD ===================== */
+  .upload-box {
+    border: 2px dashed #d1d5db;
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    background: #f3f3f5;
+    transition: 0.3s;
+    cursor: pointer;
+  }
+
+  .upload-box:hover {
+    border-color: #000;
+    background: #fafafa;
+  }
+
+  /* ===================== BUTTONS ===================== */
+  .btn-group {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .reset-btn {
+    background: #e5e7eb;
+    padding: 12px 22px;
+    border-radius: 999px;
+    font-weight: 600;
+    transition: 0.2s;
+  }
+
+  .reset-btn:hover {
+    background: #d1d5db;
+  }
+
+  .save-btn {
+    background: linear-gradient(135deg, #4f46e5, #3730a3);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 999px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.2s;
+  }
+
+  .save-btn:hover {
+    transform: scale(1.03);
+  }
+}
