@@ -1,64 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import PublicRoute from "../components/PublicRoute";
 import { useState } from "react";
-import api from "../server/Api";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { useLoginMutation } from "@/redux/features/auth/authApi";
+import type { LoginRequest } from "@/redux/features/auth/authTypes";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [login, { isLoading }] = useLoginMutation();
 
-  const [user, setUser] = useState({
+  const [user, setUser] = useState<LoginRequest>({
     email: "",
     password: "",
   });
 
-  // Handle Input Change
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-
-    setUser((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setUser((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle Submit
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     try {
-      const res = await api.post("/api/auth/login", user);
-
-      console.log("Response:", res.data);
-
-      // Adjust according to your API response structure
-      const token = res.data?.data?.token;
-
-      if (token) {
-        localStorage.setItem("token", token);
-      }
-
-      toast.success(
-        res.data?.message || "User Login Successfully!"
-      );
-
+      await login(user).unwrap();
+      toast.success("Logged in successfully!");
       router.push("/dashboard");
-    } catch (error) {
-      console.error(error);
-
-      toast.error(
-        error?.response?.data?.message ||
-          "Login Failed"
-      );
+    } catch (err: unknown) {
+      const message =
+        (err as { data?: { message?: string } })?.data?.message ?? "Login failed";
+      toast.error(message);
     }
   };
 
   return (
-    <PublicRoute>
-      <main
+    <main
         className="
           w-full
           max-w-[1000px]
@@ -135,9 +112,7 @@ export default function LoginPage() {
               />
 
               <button type="button" className="text-secondary">
-                <span className="material-symbols-outlined">
-                  visibility
-                </span>
+                <span className="material-symbols-outlined">visibility</span>
               </button>
             </div>
 
@@ -152,22 +127,18 @@ export default function LoginPage() {
             {/* LOGIN BUTTON */}
             <button
               type="submit"
-              className="w-full h-14 bg-black text-white rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-neutral-800 transition"
+              disabled={isLoading}
+              className="w-full h-14 bg-black text-white rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-neutral-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined">login</span>
-              Login
+              {isLoading ? "Logging in..." : "Login"}
             </button>
 
             {/* FORGOT PASSWORD */}
             <div className="text-center">
-              <a
-                href="#"
-                className="text-sm text-secondary hover:text-primary"
-              >
+              <a href="#" className="text-sm text-secondary hover:text-primary">
                 Forgot your{" "}
-                <span className="font-semibold text-primary">
-                  password?
-                </span>
+                <span className="font-semibold text-primary">password?</span>
               </a>
             </div>
           </form>
@@ -176,12 +147,10 @@ export default function LoginPage() {
         {/* RIGHT SIDE */}
         <section className="hidden md:flex w-[55%] luxury-gradient relative flex-col justify-between p-10 text-white overflow-hidden">
           <div className="max-w-lg mt-10">
-            <h2 className="text-5xl font-bold mb-4">
-              Continue Managing!
-            </h2>
+            <h2 className="text-5xl font-bold mb-4">Continue Managing!</h2>
 
             <p className="text-white/70 text-lg">
-              Pick up right where you left off. Sign in to the world's
+              Pick up right where you left off. Sign in to the world&apos;s
               favorite fast, easy school management platform.
             </p>
           </div>
@@ -195,7 +164,7 @@ export default function LoginPage() {
           </div>
 
           <div className="absolute top-6 right-6 flex items-center gap-4 bg-white/5 backdrop-blur-md rounded-full px-6 py-2 border border-white/10">
-            <p>Don't have an account?</p>
+            <p>Don&apos;t have an account?</p>
 
             <Link href="/register">
               <span className="inline-block bg-white/10 border border-white/20 px-6 py-2 rounded-full text-sm hover:bg-white/20 transition">
@@ -205,6 +174,5 @@ export default function LoginPage() {
           </div>
         </section>
       </main>
-    </PublicRoute>
   );
 }

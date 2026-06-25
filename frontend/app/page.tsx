@@ -1,7 +1,6 @@
-import { redirect } from "next/navigation";
-
+// Root path is handled by proxy.ts:
+// - authenticated → /dashboard
+// - unauthenticated → /login
 export default function Home() {
-  redirect("/register");
+  return null;
 }
-
-

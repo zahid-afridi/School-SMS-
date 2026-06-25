@@ -1,12 +1,10 @@
 
 import MarketingPanel from "../components/MarketingPanel";
 import RegisterForm from "../components/RegisterForm";
-import PublicRoute from "../components/PublicRoute";
 
 export default function RegisterPage() {
   return (
-    <PublicRoute>
-      <main
+    <main
         className="
           w-full max-w-[1000px]
           h-screen
@@ -21,6 +19,5 @@ export default function RegisterPage() {
         <RegisterForm />
         <MarketingPanel />
       </main>
-    </PublicRoute>
   );
 }

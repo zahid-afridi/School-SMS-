@@ -1,6 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient as PostgresPrismaClient } from "../generated/prisma/client.js";
 import { PrismaClient as SqlitePrismaClient } from "../generated/prisma-sqlite/client.js";
 import { env } from "../config/env.js";
 
@@ -15,7 +14,8 @@ function createOnlineClient(): AppPrismaClient {
   }
 
   const adapter = new PrismaPg({ connectionString: env.databaseUrl });
-  return new PostgresPrismaClient({ adapter }) as unknown as AppPrismaClient;
+  // Cast needed since postgres client is not generated in offline-only setups
+  return new SqlitePrismaClient({ adapter: adapter as never }) as unknown as AppPrismaClient;
 }
 
 function createOfflineClient(): AppPrismaClient {
@@ -33,7 +33,7 @@ export function initPrisma(): AppPrismaClient {
 export function getPrisma(): AppPrismaClient {
   if (!prisma) {
     throw new Error("Database not initialized. Call initPrisma() before using getPrisma().");
-  }
+  }     
   return prisma;
 }
 

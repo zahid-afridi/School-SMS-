@@ -3,73 +3,40 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import RoleSelector from "./RoleSelector";
-import api from "../server/Api";
 import toast from "react-hot-toast";
-import { useDispatch } from "react-redux";
-import { loginSuccess } from "@/redux/auth/authSlice";
+import { useRegisterMutation } from "@/redux/features/auth/authApi";
+import type { RegisterRequest, User } from "@/redux/features/auth/authTypes";
 
 export default function RegisterForm() {
-  const dispatch = useDispatch();
   const router = useRouter();
-  const [loading,setLoading]=useState(false);
+  const [register, { isLoading }] = useRegisterMutation();
 
-
-
-  
-
-  const [user, setUser] = useState({
+  const [user, setUser] = useState<RegisterRequest>({
     name: "",
     email: "",
     password: "",
-    role: "ADMIN"
+    role: "admin",
+  });
 
-  })
-  //onchange
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setUser((prev) => ({ ...prev, [name]: value }))
+    setUser((prev) => ({ ...prev, [name]: value }));
+  };
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    try {
+      await register(user).unwrap();
+      toast.success("Account created successfully!");
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      const message =
+        (err as { data?: { message?: string } })?.data?.message ??
+        "Registration failed";
+      toast.error(message);
+    }
+  };
 
-  }
-
-  // onSubmit
-const handleSubmit = async (e) => {
-  e.preventDefault();
-setLoading(true)
-  try {
-    const res = await api.post("/api/auth/register", user);
-
-    const token = res.data.data.token;
-    const userData = res.data.data.user;
-
-    localStorage.setItem("token", token);
-    // Set cookie so middleware can protect dashboard routes
-    document.cookie = `token=${token}; path=/`;
-
-    dispatch(
-      loginSuccess({
-        user: userData,
-        token: token,
-      })
-    );
-
-    toast.success(
-      res.data.message || "User Created Successfully!"
-    );
-
-    router.push("/dashboard");
-  } catch (error) {
-    console.log("POST API Error:", error);
-
-    toast.error(
-      error?.response?.data?.message ||
-        "Registration Failed"
-    );
-  }
-  finally{
-    setLoading(false)
-  }
-};
   return (
     <section className="w-full md:w-[45%]  p-10 flex flex-col justify-center bg-white">
       <header className="mb-12">
@@ -83,9 +50,7 @@ setLoading(true)
             school
           </span>
 
-          <h1 className="text-3xl font-bold ">
-            Haroon
-          </h1>
+          <h1 className="text-3xl font-bold ">Haroon</h1>
         </div>
 
         <p className="text-sm text-gray-500 mb-2">
@@ -93,28 +58,22 @@ setLoading(true)
         </p>
 
         <h2 className="text-xl font-semibold">
-          Create Your
-          <span className="font-bold">
-            {" "}
-            Account
-          </span>
+          Create Your <span className="font-bold">Account</span>
         </h2>
       </header>
 
       <RoleSelector
         role={user.role}
-        setRole={(role) =>
+        setRole={(role: string) =>
           setUser((prev) => ({
             ...prev,
-            role,
+            role: role.toLowerCase() as User["role"],
           }))
         }
       />
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="border-b py-4 flex gap-3 items-center">
-          <span className="material-symbols-outlined">
-            person
-          </span>
+          <span className="material-symbols-outlined">person</span>
 
           <input
             name="name"
@@ -123,13 +82,12 @@ setLoading(true)
             type="text"
             placeholder="Full Name"
             className="w-full outline-none"
+            required
           />
         </div>
 
         <div className="border-b py-4 flex gap-3 items-center">
-          <span className="material-symbols-outlined">
-            mail
-          </span>
+          <span className="material-symbols-outlined">mail</span>
 
           <input
             type="email"
@@ -138,13 +96,12 @@ setLoading(true)
             onChange={handleChange}
             placeholder="Email Address"
             className="w-full outline-none"
+            required
           />
         </div>
 
         <div className="border-b py-4 flex gap-3 items-center">
-          <span className="material-symbols-outlined">
-            lock
-          </span>
+          <span className="material-symbols-outlined">lock</span>
 
           <input
             value={user.password}
@@ -153,32 +110,23 @@ setLoading(true)
             type="password"
             placeholder="Password"
             className="w-full outline-none"
+            required
           />
         </div>
 
         <button
-        disabled ={loading}
-
+          disabled={isLoading}
           type="submit"
-          className="w-full h-14 bg-black text-white rounded-2xl flex items-center justify-center gap-2 hover:bg-neutral-800"
+          className="w-full h-14 bg-black text-white rounded-2xl flex items-center justify-center gap-2 hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <span className="material-symbols-outlined">
-            how_to_reg
-          </span>
-
-          
-          {loading? "submit...":"Register"}
+          <span className="material-symbols-outlined">how_to_reg</span>
+          {isLoading ? "Registering..." : "Register"}
         </button>
 
         <div className="text-center">
-          <a
-            href="/login"
-            className="text-gray-500"
-          >
+          <a href="/login" className="text-gray-500">
             Already have an{" "}
-            <span className="font-semibold text-black">
-              account?
-            </span>
+            <span className="font-semibold text-black">account?</span>
           </a>
         </div>
       </form>

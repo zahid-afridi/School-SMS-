@@ -25,10 +25,23 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
+import { logout } from "@/redux/features/auth/authSlice";
+import { useAppDispatch } from "@/redux/hooks";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
   const [open, setOpen] = useState(false);
+  const dispatch = useAppDispatch();
+  const router = useRouter();
 
+  const handleLogout = () => {
+    // Clear Redux state
+    dispatch(logout());
+    // Clear token cookie so proxy redirects to /login
+    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    // Navigate to login
+    router.push("/login");
+  };
   return (
     <nav className="h-20 bg-white  flex items-center justify-between px-6 shadow-sm">
       {/* LEFT */}
@@ -111,7 +124,7 @@ export default function Header() {
                 Settings
               </button>
 
-              <button className="w-full px-4 py-3 flex items-center gap-3 text-red-500 hover:bg-red-50">
+              <button className="w-full px-4 py-3 flex items-center gap-3 text-red-500 hover:bg-red-50" onClick={handleLogout}>
                 <LogOut size={18} />
                 Logout
               </button>
