@@ -1,54 +1,53 @@
 "use client";
 
 import React, { useState } from "react";
-import api from "../server/Api";
 import toast from "react-hot-toast";
+import { useRegisterTeacherMutation } from "@/redux/features/teachers/teacherApi";
+
+const EMPTY_FORM = {
+  fullName: "",
+  fatherName: "",
+  gender: "",
+  dob: "",
+  bloodGroup: "",
+  cnic: "",
+  phone: "",
+  nationality: "",
+  religion: "",
+  address: "",
+  designation: "",
+  salary: "",
+  experience: "",
+  joiningDate: "",
+  qualification: "",
+  university: "",
+  passingYear: "",
+  certifications: "",
+  photo: null as File | null,
+};
 
 export default function EmployeeForm() {
-  const [teacher, setTeacher] = useState({
-    fullName: "",
-    fatherName: "",
-    gender: "",
-    dob: "",
-    bloodGroup: "",
-    cnic: "",
-    phone: "",
-    nationality: "",
-    religion: "",
-    address: "",
-    designation: "",
-    salary: "",
-    experience: "",
-    joiningDate: "",
-    qualification: "",
-    university: "",
-    passingYear: "",
-    certifications: "",
-    photo: null,
-  });
+  const [teacher, setTeacher] = useState(EMPTY_FORM);
+  const [registerTeacher, { isLoading }] = useRegisterTeacherMutation();
 
   // ================= HANDLE CHANGE =================
-  const handleChange = (e) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
     const { name, value } = e.target;
-
-    setTeacher((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setTeacher((prev) => ({ ...prev, [name]: value }));
   };
 
   // ================= IMAGE =================
-  const handleImage = (e) => {
-    const file = e.target.files[0];
-
-    setTeacher((prev) => ({
-      ...prev,
-      photo: file,
-    }));
+  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setTeacher((prev) => ({ ...prev, photo: file }));
   };
 
   // ================= VALIDATION =================
-  const validateForm = () => {
+  const validateForm = (): string | null => {
     if (!teacher.fullName) return "Full name is required";
     if (!teacher.designation) return "Designation is required";
     if (!teacher.salary) return "Salary is required";
@@ -57,7 +56,7 @@ export default function EmployeeForm() {
   };
 
   // ================= SUBMIT =================
-  const hanldeSubmitTeacher = async (e) => {
+  const handleSubmitTeacher = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     const error = validateForm();
@@ -66,73 +65,32 @@ export default function EmployeeForm() {
       return;
     }
 
-    const token = localStorage.getItem("token");
+    const formData = new FormData();
+    formData.append("name", teacher.fullName);
+    formData.append("fatherOrHusbandName", teacher.fatherName);
+    formData.append("designation", teacher.designation.toUpperCase());
+    formData.append("joiningDate", teacher.joiningDate);
+    formData.append("salary", teacher.salary);
+    formData.append("phone", teacher.phone);
+    formData.append("gender", teacher.gender);
+    formData.append("experience", teacher.experience);
+    formData.append("nationalId", teacher.cnic);
+    formData.append("religion", teacher.religion);
+    formData.append("education", teacher.qualification);
+    formData.append("bloodGroup", teacher.bloodGroup);
+    formData.append("dateOfBirth", teacher.dob);
+    formData.append("address", teacher.address);
+    if (teacher.photo) formData.append("photo", teacher.photo);
 
     try {
-      const formData = new FormData();
-
-      // IMPORTANT: MAP TO BACKEND FIELDS
-      formData.append("name", teacher.fullName);
-      formData.append("designation", teacher.designation);
-      formData.append("joiningDate", teacher.joiningDate);
-      formData.append("salary", teacher.salary);
-      formData.append("phone", teacher.phone);
-      formData.append("gender", teacher.gender);
-      formData.append("experience", teacher.experience);
-      formData.append("nationalId", teacher.cnic);
-      formData.append("religion", teacher.religion);
-      formData.append("education", teacher.qualification);
-      formData.append("bloodGroup", teacher.bloodGroup);
-      formData.append("dateOfBirth", teacher.dob);
-      formData.append("address", teacher.address);
-      
-      
-
-      if (teacher.photo) {
-        formData.append("photo", teacher.photo);
-      }
-
-      const res = await api.post(
-        "/api/employee/register-employee",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      console.log("Response:", res.data);
-
-      toast.success("Employee created successfully!");
-
-      // RESET
-      setTeacher({
-        fullName: "",
-        fatherName: "",
-        gender: "",
-        dob: "",
-        bloodGroup: "",
-        cnic: "",
-        phone: "",
-        nationality: "",
-        religion: "",
-        address: "",
-        designation: "",
-        salary: "",
-        experience: "",
-        joiningDate: "",
-        qualification: "",
-        university: "",
-        passingYear: "",
-        certifications: "",
-        photo: null,
-      });
-
-    } catch (error) {
-      console.log("error", error?.response?.data || error);
-      toast.error(error?.response?.data?.message || "Something went wrong");
+      const res = await registerTeacher(formData).unwrap();
+      toast.success(res.message || "Employee created successfully!");
+      setTeacher(EMPTY_FORM);
+    } catch (err: unknown) {
+      const message =
+        (err as { data?: { message?: string } })?.data?.message ??
+        "Something went wrong";
+      toast.error(message);
     }
   };
 
@@ -145,12 +103,11 @@ export default function EmployeeForm() {
           <p className="text-gray-500">Add Employee Information</p>
         </div>
 
-        <form className="space-y-6" onSubmit={hanldeSubmitTeacher}>
+        <form className="space-y-6" onSubmit={handleSubmitTeacher}>
 
           {/* PERSONAL */}
           <div className="bg-white p-6 rounded-xl shadow-md">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
               <input className="input" name="fullName" value={teacher.fullName} onChange={handleChange} placeholder="Full Name" />
               <input className="input" name="fatherName" value={teacher.fatherName} onChange={handleChange} placeholder="Father Name" />
 
@@ -167,7 +124,6 @@ export default function EmployeeForm() {
               <input className="input" name="nationality" value={teacher.nationality} onChange={handleChange} placeholder="Nationality" />
               <input className="input" name="religion" value={teacher.religion} onChange={handleChange} placeholder="Religion" />
             </div>
-
             <textarea className="input w-full mt-4" rows={3} name="address" value={teacher.address} onChange={handleChange} placeholder="Address" />
           </div>
 
@@ -175,7 +131,7 @@ export default function EmployeeForm() {
           <div className="bg-white p-6 rounded-xl shadow-md">
             <input className="input" name="designation" value={teacher.designation} onChange={handleChange} placeholder="Designation" />
             <input className="input" type="number" name="salary" value={teacher.salary} onChange={handleChange} placeholder="Salary" />
-            <input className="input" type="number" name="experience" value={teacher.experience} onChange={handleChange} placeholder="Experience" />
+            <input className="input" type="number" name="experience" value={teacher.experience} onChange={handleChange} placeholder="Experience (years)" />
             <input className="input" type="date" name="joiningDate" value={teacher.joiningDate} onChange={handleChange} />
           </div>
 
@@ -187,15 +143,19 @@ export default function EmployeeForm() {
             <input className="input" name="certifications" value={teacher.certifications} onChange={handleChange} placeholder="Certifications" />
           </div>
 
-          {/* IMAGE */}
+          {/* PHOTO */}
           <div className="bg-white p-6 rounded-xl shadow-md">
-            <input type="file" onChange={handleImage} />
+            <input type="file" accept="image/*" onChange={handleImage} />
           </div>
 
-          {/* BUTTON */}
+          {/* SUBMIT */}
           <div className="flex justify-end">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg">
-              Save Employee
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isLoading ? "Saving..." : "Save Employee"}
             </button>
           </div>
 
@@ -210,10 +170,10 @@ export default function EmployeeForm() {
           border-radius: 8px;
           margin: 5px 0;
         }
-
         .input:focus {
           border-color: #3b82f6;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+          outline: none;
         }
       `}</style>
     </div>

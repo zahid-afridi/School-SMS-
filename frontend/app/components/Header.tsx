@@ -35,11 +35,9 @@ export default function Header() {
   const router = useRouter();
 
   const handleLogout = () => {
-    // Clear Redux state
     dispatch(logout());
-    // Clear token cookie so proxy redirects to /login
+    localStorage.removeItem("token");
     document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    // Navigate to login
     router.push("/login");
   };
   return (

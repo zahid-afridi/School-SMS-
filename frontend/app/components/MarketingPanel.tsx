@@ -17,14 +17,14 @@ export default function MarketingPanel() {
                         Already have an account?
                     </span>
                     <Link href="/login">
-                     <button className="bg-white/20 px-6 py-2 rounded-full">
-                        Login
-                    </button>
-                    
-                    
+                        <button className="bg-white/20 px-6 py-2 rounded-full">
+                            Login
+                        </button>
+
+
                     </Link>
 
-                   
+
                 </div>
             </div>
 

@@ -225,3 +225,58 @@ button {
     transform: scale(1.03);
   }
 }
+
+
+
+
+@layer components {
+
+  .employee-page{
+      @apply max-w-7xl mx-auto p-8 space-y-6;
+  }
+
+  .dashboard-card{
+      @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+  }
+
+  .employee-grid{
+      @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
+  }
+
+  .employee-card{
+      @apply bg-white rounded-xl border border-gray-200 p-6 text-center transition;
+  }
+
+  .employee-card:hover{
+      @apply shadow-md -translate-y-1;
+  }
+
+  .employee-avatar{
+      @apply w-24 h-24 mx-auto rounded-full overflow-hidden mb-4;
+  }
+
+  .employee-avatar img{
+      @apply w-full h-full object-cover;
+  }
+
+  .employee-actions{
+      @apply flex justify-center gap-3 mt-5;
+  }
+
+  .employee-actions button{
+      @apply p-2 rounded-lg bg-indigo-50 text-indigo-600 transition;
+  }
+
+  .employee-actions button:hover{
+      @apply bg-indigo-100;
+  }
+
+  .employee-actions .delete{
+      @apply bg-red-50 text-red-500;
+  }
+
+  .employee-actions .delete:hover{
+      @apply bg-red-100;
+  }
+
+}

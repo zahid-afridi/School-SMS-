@@ -4,7 +4,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "teacher" | "student" | "parent";
+  role: "ADMIN" | "TEACHER" | "STUDENT" | "PARENT";
 }
 
 export interface AuthState {
@@ -27,7 +27,11 @@ export interface RegisterRequest {
   role: User["role"];
 }
 
+// Backend wraps the payload: { message, data: { token, user } }
 export interface AuthResponse {
-  user: User;
-  token: string;
+  message: string;
+  data: {
+    token: string;
+    user: User;
+  };
 }

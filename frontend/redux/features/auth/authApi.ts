@@ -13,8 +13,8 @@ export const authApi = rootApi.injectEndpoints({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         const { data } = await queryFulfilled;
         dispatch(setCredentials(data));
-        // Write cookie so the proxy can guard routes server-side
-        document.cookie = `token=${data.token}; path=/`;
+        localStorage.setItem("token", data.data.token);
+        document.cookie = `token=${data.data.token}; path=/`;
       },
       invalidatesTags: ["Auth"],
     }),
@@ -28,11 +28,12 @@ export const authApi = rootApi.injectEndpoints({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         const { data } = await queryFulfilled;
         dispatch(setCredentials(data));
-        document.cookie = `token=${data.token}; path=/`;
+        localStorage.setItem("token", data.data.token);
+        document.cookie = `token=${data.data.token}; path=/`;
       },
     }),
 
-    getMe: builder.query<AuthResponse["user"], void>({
+    getMe: builder.query<AuthResponse["data"]["user"], void>({
       query: () => "/auth/me",
       providesTags: ["Auth"],
     }),

@@ -11,11 +11,11 @@ export default function RegisterForm() {
   const router = useRouter();
   const [register, { isLoading }] = useRegisterMutation();
 
-  const [user, setUser] = useState<RegisterRequest>({
+  const [user, setUser] = useState<Omit<RegisterRequest, "role"> & { role: string }>({
     name: "",
     email: "",
     password: "",
-    role: "admin",
+    role: "ADMIN",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,7 +26,10 @@ export default function RegisterForm() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      await register(user).unwrap();
+      await register({
+        ...user,
+        role: user.role as User["role"],
+      }).unwrap();
       toast.success("Account created successfully!");
       router.push("/dashboard");
     } catch (err: unknown) {
@@ -65,10 +68,7 @@ export default function RegisterForm() {
       <RoleSelector
         role={user.role}
         setRole={(role: string) =>
-          setUser((prev) => ({
-            ...prev,
-            role: role.toLowerCase() as User["role"],
-          }))
+          setUser((prev) => ({ ...prev, role }))
         }
       />
       <form onSubmit={handleSubmit} className="space-y-6">
