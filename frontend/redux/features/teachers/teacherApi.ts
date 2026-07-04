@@ -4,7 +4,6 @@ import type {
   Teacher,
   TeachersResponse,
   TeacherResponse,
-  RegisterTeacherRequest,
 } from "./teacherTypes";
 
 export const teacherApi = rootApi.injectEndpoints({
@@ -36,14 +35,14 @@ export const teacherApi = rootApi.injectEndpoints({
 
     updateTeacher: builder.mutation<
       TeacherResponse,
-      { id: string; data: Partial<RegisterTeacherRequest> }
+      { id: string; data: FormData }
     >({
       query: ({ id, data }) => ({
         url: `/employee/update-employee/${id}`,
         method: "PUT",
         body: data,
       }),
-      invalidatesTags: (_result, _error, { id }) => [{ type: "Teachers", id }],
+      invalidatesTags: ["Teachers"],
     }),
 
     deleteTeacher: builder.mutation<{ message: string }, string>({

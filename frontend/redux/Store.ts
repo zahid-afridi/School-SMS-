@@ -2,12 +2,14 @@ import { configureStore } from "@reduxjs/toolkit";
 import { rootApi } from "./rootApi";
 import authReducer from "./features/auth/authSlice";
 import teacherReducer from "./features/teachers/teacherSlice";
+import classReducer from "./features/classes/ClassSlice";
 
 export const store = configureStore({
   reducer: {
     [rootApi.reducerPath]: rootApi.reducer,
     auth: authReducer,
     teachers: teacherReducer,
+    classes: classReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(rootApi.middleware),

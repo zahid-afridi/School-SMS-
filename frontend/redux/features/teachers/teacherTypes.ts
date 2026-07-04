@@ -1,22 +1,24 @@
 // ── Teacher domain types ──────────────────────────────────────────────────
 
 export interface Teacher {
-  _id: string;
+  id: string;
   name: string;
-  fatherOrHusbandName?: string;
   designation: string;
   joiningDate: string;
   salary: number;
-  phone: string;
-  gender: string;
-  experience: string;
-  nationalId: string;
+  phone?: string | null;
+  photoUrl?: string | null;
+  employeeCode?: string;
+  // detail fields (present in getById response)
+  fatherOrHusbandName?: string;
+  gender?: string;
+  experience?: string;
+  nationalId?: string;
   religion?: string;
-  education: string;
+  education?: string;
   bloodGroup?: string;
   dateOfBirth?: string;
   address?: string;
-  photo?: string;
 }
 
 export interface TeacherState {
