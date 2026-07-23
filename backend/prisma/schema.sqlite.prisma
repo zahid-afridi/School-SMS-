@@ -40,6 +40,22 @@ enum PersonStatus {
   SUSPENDED
 }
 
+enum ParentType {
+  FATHER
+  MOTHER
+  GUARDIAN
+  OTHER
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  PROMOTED
+  COMPLETED
+  WITHDRAWN
+  TRANSFERRED
+  REPEATED
+}
+
 model School {
   id        String   @id @default(uuid())
   name      String
@@ -56,6 +72,8 @@ model School {
   users     User[]
   employees Employee[]
   classes   Class[]
+  students  Student[]
+  parents   Parent[]
 
   @@index([name])
 }
@@ -67,14 +85,17 @@ model User {
   password String
   role     UserRole
 
-  schoolId   String?
-  school     School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  employeeId String?  @unique
+  employeeId String?   @unique
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
-  isActive   Boolean  @default(true)
-  isVerified Boolean  @default(false)
+  studentId String?  @unique
+  student   Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  isActive   Boolean @default(true)
+  isVerified Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -84,38 +105,38 @@ model User {
 }
 
 model Employee {
-  id           String              @id @default(uuid())
+  id           String @id @default(uuid())
   employeeCode String
 
   // ── Basic Information (form) ──────────────────────────────────────────────
-  name         String?             // Employee Name * (required on form, validated in API)
-  designation  EmployeeDesignation // Employee Role *
-  joiningDate  DateTime?           // Date of Joining *
-  salary       Float?              // Monthly Salary *
-  phone        String?             // Mobile No for SMS/WhatsApp
-  photoUrl     String?             // Picture
+  name        String? // Employee Name * (required on form, validated in API)
+  designation EmployeeDesignation // Employee Role *
+  joiningDate DateTime? // Date of Joining *
+  salary      Float? // Monthly Salary *
+  phone       String? // Mobile No for SMS/WhatsApp
+  photoUrl    String? // Picture
 
   // ── Other Information (form — all optional) ─────────────────────────────────
   fatherOrHusbandName String?
   gender              Gender?
   experience          String?
   nationalId          String?
-  religion            String?      // contact email (login email stays on User)
+  religion            String? // contact email (login email stays on User)
   education           String?
   bloodGroup          String?
   dateOfBirth         DateTime?
-  address             String?       // Home Address
+  address             String? // Home Address
 
-  status   PersonStatus @default(ACTIVE)
+  status PersonStatus @default(ACTIVE)
 
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   user User?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  sections Section[] @relation("SectionTeacher")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sections  Section[] @relation("SectionTeacher")
 
   @@unique([schoolId, employeeCode])
   @@index([schoolId])
@@ -124,27 +145,171 @@ model Employee {
 }
 
 model Class {
-  id             String    @id @default(uuid())
-  className      String
-  montlyFee      Float
+  id        String @id @default(uuid())
+  className String
+  montlyFee Float
 
-  schoolId       String
-  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  schoolId    String
+  school      School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  sections    Section[]
+  enrollments StudentEnrollment[]
 
   @@index([schoolId])
-  sections Section[]
 }
+
 model Section {
-  id String @id @default(uuid())
+  id          String              @id @default(uuid())
   sectionName String
-  classId  String
-  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
-  teacherId String?
-  teacher Employee? @relation("SectionTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  classId     String
+  class       Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacherId   String?
+  teacher     Employee?           @relation("SectionTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  enrollments StudentEnrollment[]
+
   @@index([classId])
   @@index([teacherId])
+}
+
+model Student {
+  id             String   @id @default(uuid())
+  registrationNo String
+  name           String
+  photoUrl       String?
+  admissionDate  DateTime
+  contactPhone   String?
+  email          String?
+
+  dateOfBirth        DateTime?
+  birthFormId        String? // B-Form / birth certificate no.
+  gender             Gender?
+  caste              String?
+  identificationMark String?
+  bloodGroup         String?
+  disease            String?
+  previousSchool     String?
+  previousClass      String?
+  previousRollNo     String?
+  additionalNote     String?
+  isOrphan           Boolean      @default(false)
+  isOsc              Boolean      @default(false) // orphan / special case
+  religion           String?
+  nationality        String?
+  motherTongue       String?
+  familyCode         String? // shared code for siblings
+  address            String?
+  city               String?
+  province           String?
+  postalCode         String?
+  emergencyPhone     String?
+  leavingDate        DateTime?
+  leavingReason      String?
+  status             PersonStatus @default(ACTIVE)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  parents     StudentParent[]
+  enrollments StudentEnrollment[]
+  user        User?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, registrationNo])
+  @@index([schoolId])
+  @@index([status])
+  @@index([familyCode])
+  @@index([name])
+  @@index([contactPhone])
+}
+
+model StudentEnrollment {
+  id           String           @id @default(uuid())
+  academicYear String // e.g. "2025-2026"
+  rollNo       String?
+  feeDiscount  Float            @default(0) // percent 0–100
+  status       EnrollmentStatus @default(ENROLLED)
+  isCurrent    Boolean          @default(true)
+  enrolledAt   DateTime         @default(now())
+  promotedAt   DateTime?
+  completedAt  DateTime?
+  withdrawnAt  DateTime?
+  transferredAt DateTime?
+  remarks      String?
+  withdrawnReason String?
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  sectionId String?
+  section   Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  promotedFromId String?            @unique
+  promotedFrom   StudentEnrollment? @relation("EnrollmentPromotion", fields: [promotedFromId], references: [id], onDelete: SetNull)
+  promotedTo     StudentEnrollment? @relation("EnrollmentPromotion")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, academicYear, classId])
+  @@index([studentId])
+  @@index([classId])
+  @@index([sectionId])
+  @@index([academicYear])
+  @@index([status])
+  @@index([isCurrent])
+  @@index([rollNo])
+}
+
+model Parent {
+  id         String     @id @default(uuid())
+  name       String
+  type       ParentType
+  nationalId String? // CNIC
+  mobileNo   String?
+  whatsappNo String?
+  email      String?
+  education  String?
+  occupation String?
+  profession String?
+  workplace  String?
+  income     Float?
+  address    String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  students StudentParent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([nationalId])
+  @@index([mobileNo])
+  @@index([name])
+}
+
+model StudentParent {
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  parentId String
+  parent   Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  isPrimaryGuardian  Boolean  @default(false)
+  isEmergencyContact Boolean  @default(false)
+  canPickup          Boolean  @default(true)
+  notes              String?
+  createdAt          DateTime @default(now())
+
+  @@id([studentId, parentId])
+  @@index([parentId])
 }

@@ -62,6 +62,9 @@ export const uploadManyFiles = wrapMulter(fileMulter.array("files", 10));
 /** Employee register — optional picture field name: photo */
 export const parseEmployeePhoto = wrapMulter(imageMulter.single("photo"));
 
+/** Student register — optional picture field name: photo */
+export const parseStudentPhoto = wrapMulter(imageMulter.single("photo"));
+
 /** School update — logo + cover in one multipart request */
 export const parseSchoolImages = wrapMulter(
   imageMulter.fields([
