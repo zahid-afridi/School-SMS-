@@ -4,16 +4,30 @@ import type {
   Teacher,
   TeachersResponse,
   TeacherResponse,
+  RegisterTeacherResponse,
 } from "./teacherTypes";
+
+export type GetTeachersParams = {
+  designation?: string;
+  search?: string;
+};
 
 export const teacherApi = rootApi.injectEndpoints({
   endpoints: (builder) => ({
-    getAllTeachers: builder.query<Teacher[], void>({
-      query: () => "/employee/get-all-employees",
+    getAllTeachers: builder.query<Teacher[], GetTeachersParams | void>({
+      query: (params) => ({
+        url: "/employee/get-all-employees",
+        params: params ?? undefined,
+      }),
       transformResponse: (res: TeachersResponse) => res.data,
-      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-        const { data } = await queryFulfilled;
-        dispatch(setTeachers(data));
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        // Only sync full staff list into the slice (not filtered queries)
+        if (!arg || (!arg.designation && !arg.search)) {
+          const { data } = await queryFulfilled;
+          dispatch(setTeachers(data));
+        } else {
+          await queryFulfilled;
+        }
       },
       providesTags: ["Teachers"],
     }),
@@ -24,7 +38,7 @@ export const teacherApi = rootApi.injectEndpoints({
       providesTags: (_result, _error, id) => [{ type: "Teachers", id }],
     }),
 
-    registerTeacher: builder.mutation<TeacherResponse, FormData>({
+    registerTeacher: builder.mutation<RegisterTeacherResponse, FormData>({
       query: (formData) => ({
         url: "/employee/register-employee",
         method: "POST",

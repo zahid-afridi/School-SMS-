@@ -12,6 +12,7 @@ export interface Section {
   sectionName: string;
   teacherId: string | null;
   teacher: SectionTeacher | null;
+  _count?: { enrollments: number };
 }
 
 // ── Class ─────────────────────────────────────────────────────────────────
@@ -24,6 +25,7 @@ export interface SchoolClass {
   createdAt: string;
   updatedAt: string;
   sections: Section[];
+  _count?: { enrollments: number };
 }
 
 // ── State ─────────────────────────────────────────────────────────────────
@@ -58,8 +60,13 @@ export interface CreateClassRequest {
 }
 
 export interface UpdateClassRequest {
-  className?: string;
-  montlyFee?: number;
+  className: string;
+  montlyFee: number;
+  sections?: {
+    id?: string;
+    sectionName: string;
+    teacherId?: string | null;
+  }[];
 }
 
 export interface CreateSectionRequest {

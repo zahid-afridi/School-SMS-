@@ -56,6 +56,18 @@ enum EnrollmentStatus {
   REPEATED
 }
 
+enum FeeScope {
+  ALL_STUDENTS
+  CLASS
+  STUDENT
+}
+
+enum FeeValueType {
+  EDITABLE
+  AUTO
+  FIXED
+}
+
 model School {
   id        String   @id @default(uuid())
   name      String
@@ -74,6 +86,8 @@ model School {
   classes   Class[]
   students  Student[]
   parents   Parent[]
+  feeParticulars FeeParticular[]
+  feeStructures  FeeStructure[]
 
   @@index([name])
 }
@@ -155,6 +169,7 @@ model Class {
   updatedAt   DateTime            @updatedAt
   sections    Section[]
   enrollments StudentEnrollment[]
+  feeStructures FeeStructure[]
 
   @@index([schoolId])
 }
@@ -215,6 +230,7 @@ model Student {
   parents     StudentParent[]
   enrollments StudentEnrollment[]
   user        User?
+  feeStructures FeeStructure[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -312,4 +328,70 @@ model StudentParent {
 
   @@id([studentId, parentId])
   @@index([parentId])
+}
+
+model FeeParticular {
+  id        String       @id @default(uuid())
+  key       String
+  label     String
+  sortOrder Int          @default(0)
+  valueType FeeValueType @default(EDITABLE)
+  isSystem  Boolean      @default(false)
+  isActive  Boolean      @default(true)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  items FeeStructureItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, key])
+  @@index([schoolId])
+  @@index([sortOrder])
+}
+
+model FeeStructure {
+  id       String   @id @default(uuid())
+  scope    FeeScope
+  scopeKey String
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  studentId String?
+  student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  items FeeStructureItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, scopeKey])
+  @@index([schoolId])
+  @@index([scope])
+  @@index([classId])
+  @@index([studentId])
+}
+
+model FeeStructureItem {
+  id     String @id @default(uuid())
+  amount Float  @default(0)
+
+  feeStructureId String
+  feeStructure   FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+
+  feeParticularId String
+  feeParticular   FeeParticular @relation(fields: [feeParticularId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([feeStructureId, feeParticularId])
+  @@index([feeStructureId])
+  @@index([feeParticularId])
 }

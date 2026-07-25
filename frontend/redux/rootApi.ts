@@ -14,6 +14,7 @@ export const rootApi = createApi({
     "Students",
     "Teachers",
     "Classes",
+    "School",
     "Fees",
     "Attendance",
     "Exams",

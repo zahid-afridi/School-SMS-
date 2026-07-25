@@ -187,14 +187,33 @@ export const registerEmployee = async (req: Request, res: Response) => {
 };
 
 export const getAllEmployees = async (req: Request, res: Response) => {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-        throw new AppError(ApiMessages.SCHOOL_ACCESS_REQUIRED, HttpStatus.FORBIDDEN);
-    }
-    const employees = await getPrisma().employee.findMany({
+  const schoolId = req.user?.schoolId;
+  if (!schoolId) {
+    throw new AppError(ApiMessages.SCHOOL_ACCESS_REQUIRED, HttpStatus.FORBIDDEN);
+  }
+
+  const { designation, search } = req.query;
+  if (designation) {
+    validateEnum(String(designation), EMPLOYEE_DESIGNATIONS, "Invalid designation");
+  }
+
+  const employees = await getPrisma().employee.findMany({
     where: {
-      schoolId: schoolId,
+      schoolId,
+      ...(designation
+        ? { designation: designation as EmployeeDesignation }
+        : {}),
+      ...(typeof search === "string" && search.trim()
+        ? {
+            OR: [
+              { name: { contains: search.trim() } },
+              { employeeCode: { contains: search.trim() } },
+              { phone: { contains: search.trim() } },
+            ],
+          }
+        : {}),
     },
+    orderBy: { name: "asc" },
     select: {
       id: true,
       employeeCode: true,
@@ -204,9 +223,14 @@ export const getAllEmployees = async (req: Request, res: Response) => {
       salary: true,
       phone: true,
       photoUrl: true,
+      gender: true,
+      experience: true,
+      education: true,
+      status: true,
+      createdAt: true,
     },
-    
   });
+
   return ApiResponse.success(res, {
     statusCode: HttpStatus.OK,
     message: ApiMessages.SUCCESS,

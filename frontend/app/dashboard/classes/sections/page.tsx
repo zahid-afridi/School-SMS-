@@ -26,7 +26,7 @@ interface EditState {
 
 export default function SectionsPage() {
   const { data: classes, isLoading, isError } = useGetAllClassesQuery();
-  const { data: teachers } = useGetAllTeachersQuery();
+  const { data: teachers } = useGetAllTeachersQuery({ designation: "TEACHER" });
   const [createSection, { isLoading: isCreating }] = useCreateSectionMutation();
   const [updateSection, { isLoading: isUpdating }] = useUpdateSectionMutation();
   const [deleteSection, { isLoading: isDeleting }] = useDeleteSectionMutation();
@@ -106,8 +106,20 @@ export default function SectionsPage() {
   };
 
   // ── DELETE ────────────────────────────────────────────────────────────────
-  const handleDelete = async (section: Section) => {
-    if (!confirm(`Delete section "${section.sectionName}"? This cannot be undone.`)) return;
+  const handleDelete = async (section: Section, classId: string) => {
+    const parent = classes?.find((c) => c.id === classId);
+    if (parent && (parent.sections?.length ?? 0) <= 1) {
+      toast.error("Cannot delete the last section of a class");
+      return;
+    }
+    const enrollmentCount = section._count?.enrollments ?? 0;
+    if (enrollmentCount > 0) {
+      toast.error(
+        `Cannot delete: ${enrollmentCount} student(s) are enrolled in this section`
+      );
+      return;
+    }
+    if (!confirm(`Delete section "${section.sectionName}"?`)) return;
     try {
       await deleteSection(section.id).unwrap();
       toast.success("Section deleted");
@@ -230,6 +242,9 @@ export default function SectionsPage() {
                               No teacher assigned
                             </p>
                           )}
+                          <p className="text-xs text-gray-400 mt-2">
+                            {sec._count?.enrollments ?? 0} enrolled
+                          </p>
                         </div>
 
                         <div className="flex flex-col gap-1.5 ml-2">
@@ -240,7 +255,7 @@ export default function SectionsPage() {
                             <FaEdit size={12} />
                           </button>
                           <button
-                            onClick={() => handleDelete(sec)}
+                            onClick={() => handleDelete(sec, cls.id)}
                             disabled={isDeleting}
                             className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-red-500 hover:bg-red-50 transition disabled:opacity-50"
                           >

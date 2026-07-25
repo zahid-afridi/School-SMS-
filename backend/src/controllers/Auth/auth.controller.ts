@@ -177,3 +177,133 @@ export const login = async (req: Request, res: Response) => {
     },
   });
 };
+
+/** Logged-in user profile */
+export const getMe = async (req: Request, res: Response) => {
+  const userId = req.user?.userId;
+  if (!userId) {
+    throw new AppError(ApiMessages.UNAUTHORIZED, HttpStatus.UNAUTHORIZED);
+  }
+
+  const user = await getPrisma().user.findUnique({
+    where: { id: userId },
+    select: userSelect,
+  });
+
+  if (!user || !user.isActive) {
+    throw new AppError(ApiMessages.UNAUTHORIZED, HttpStatus.UNAUTHORIZED);
+  }
+
+  return ApiResponse.success(res, {
+    message: ApiMessages.SUCCESS,
+    data: user,
+  });
+};
+
+/** Update logged-in account email / username */
+export const updateAccount = async (req: Request, res: Response) => {
+  const userId = req.user?.userId;
+  if (!userId) {
+    throw new AppError(ApiMessages.UNAUTHORIZED, HttpStatus.UNAUTHORIZED);
+  }
+
+  const { email, username } = req.body ?? {};
+  if (!email && !username) {
+    throw new AppError(
+      "Provide email and/or username to update",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  const nextEmail =
+    typeof email === "string" ? email.trim().toLowerCase() : undefined;
+  const nextUsername =
+    typeof username === "string" ? username.trim() : undefined;
+
+  if (nextEmail !== undefined && !nextEmail) {
+    throw new AppError("Email cannot be empty", HttpStatus.BAD_REQUEST);
+  }
+  if (nextUsername !== undefined && !nextUsername) {
+    throw new AppError("Username cannot be empty", HttpStatus.BAD_REQUEST);
+  }
+
+  if (nextEmail || nextUsername) {
+    const conflict = await getPrisma().user.findFirst({
+      where: {
+        AND: [
+          { NOT: { id: userId } },
+          {
+            OR: [
+              ...(nextEmail ? [{ email: nextEmail }] : []),
+              ...(nextUsername ? [{ username: nextUsername }] : []),
+            ],
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (conflict) {
+      throw new AppError(ApiMessages.USER_EXISTS, HttpStatus.CONFLICT);
+    }
+  }
+
+  const user = await getPrisma().user.update({
+    where: { id: userId },
+    data: {
+      ...(nextEmail !== undefined && { email: nextEmail }),
+      ...(nextUsername !== undefined && { username: nextUsername }),
+    },
+    select: userSelect,
+  });
+
+  return ApiResponse.success(res, {
+    message: ApiMessages.PROFILE_UPDATED,
+    data: user,
+  });
+};
+
+/** Change logged-in user password */
+export const changePassword = async (req: Request, res: Response) => {
+  const userId = req.user?.userId;
+  if (!userId) {
+    throw new AppError(ApiMessages.UNAUTHORIZED, HttpStatus.UNAUTHORIZED);
+  }
+
+  const { currentPassword, newPassword } = req.body ?? {};
+  validateRequired(req.body ?? {}, ["currentPassword", "newPassword"]);
+
+  if (typeof newPassword !== "string" || newPassword.length < 6) {
+    throw new AppError(
+      "New password must be at least 6 characters",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  const user = await getPrisma().user.findUnique({
+    where: { id: userId },
+    select: { id: true, password: true, isActive: true },
+  });
+
+  if (!user?.isActive) {
+    throw new AppError(ApiMessages.UNAUTHORIZED, HttpStatus.UNAUTHORIZED);
+  }
+
+  const valid = await verifyPassword(currentPassword, user.password);
+  if (!valid) {
+    throw new AppError(
+      ApiMessages.INVALID_CURRENT_PASSWORD,
+      HttpStatus.UNAUTHORIZED
+    );
+  }
+
+  const hashedPassword = await hashPassword(newPassword);
+  await getPrisma().user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  });
+
+  return ApiResponse.success(res, {
+    message: ApiMessages.PASSWORD_CHANGED,
+  });
+};

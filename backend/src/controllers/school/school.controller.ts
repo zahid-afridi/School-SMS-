@@ -46,6 +46,11 @@ const updateSchool = async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   assertOwnSchool(req, id);
 
+  const existing = await getPrisma().school.findUnique({ where: { id } });
+  if (!existing) {
+    throw new AppError(ApiMessages.SCHOOL_NOT_FOUND, HttpStatus.NOT_FOUND);
+  }
+
   const { name, address, phone, email, website } = req.body;
   const files = req.files as {
     logo?: Express.Multer.File[];
@@ -54,33 +59,100 @@ const updateSchool = async (req: Request, res: Response) => {
 
   const updateData: {
     name?: string;
-    address?: string;
-    phone?: string;
-    email?: string;
-    website?: string;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    website?: string | null;
     logoUrl?: string;
     coverUrl?: string;
-  } = { name, address, phone, email, website };
+  } = {};
+
+  if (name !== undefined) {
+    const trimmed = String(name).trim();
+    if (!trimmed) {
+      throw new AppError("Institute name is required", HttpStatus.BAD_REQUEST);
+    }
+    updateData.name = trimmed;
+  }
+  if (address !== undefined) {
+    updateData.address = String(address).trim() || null;
+  }
+  if (phone !== undefined) {
+    updateData.phone = String(phone).trim() || null;
+  }
+  if (website !== undefined) {
+    updateData.website = String(website).trim() || null;
+  }
+
+  if (email !== undefined) {
+    const nextEmail = String(email).trim().toLowerCase() || null;
+    const currentEmail = existing.email?.trim().toLowerCase() || null;
+
+    if (nextEmail !== currentEmail) {
+      if (nextEmail) {
+        const others = await getPrisma().school.findMany({
+          where: {
+            NOT: { id },
+            email: { not: null },
+          },
+          select: { email: true },
+        });
+        const taken = others.some(
+          (s) => s.email?.trim().toLowerCase() === nextEmail
+        );
+        if (taken) {
+          throw new AppError(
+            "This school email is already used by another institute",
+            HttpStatus.CONFLICT
+          );
+        }
+      }
+      updateData.email = nextEmail;
+    }
+  }
+
+  const oldUrlsToDelete: (string | null | undefined)[] = [];
 
   if (files?.logo?.[0]) {
     const saved = await uploadImage(files.logo[0], id);
     updateData.logoUrl = saved.url;
+    if (existing.logoUrl) oldUrlsToDelete.push(existing.logoUrl);
   }
 
   if (files?.cover?.[0]) {
     const saved = await uploadImage(files.cover[0], id);
     updateData.coverUrl = saved.url;
+    if (existing.coverUrl) oldUrlsToDelete.push(existing.coverUrl);
   }
 
-  const school = await getPrisma().school.update({
-    where: { id },
-    data: updateData,
-  });
+  try {
+    const school = await getPrisma().school.update({
+      where: { id },
+      data: updateData,
+    });
 
-  return ApiResponse.success(res, {
-    message: ApiMessages.SUCCESS,
-    data: school,
-  });
+    if (oldUrlsToDelete.length > 0) {
+      await deleteFilesByUrls(oldUrlsToDelete);
+    }
+
+    return ApiResponse.success(res, {
+      message: ApiMessages.UPDATED,
+      data: school,
+    });
+  } catch (err: unknown) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code?: string }).code === "P2002"
+    ) {
+      throw new AppError(
+        "This school email is already used by another institute",
+        HttpStatus.CONFLICT
+      );
+    }
+    throw err;
+  }
 };
 
 const deleteSchool = async (req: Request, res: Response) => {

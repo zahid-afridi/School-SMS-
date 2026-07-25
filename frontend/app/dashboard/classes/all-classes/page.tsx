@@ -24,13 +24,14 @@ import type { SchoolClass } from "@/redux/features/classes/ClassTypes";
 
 export default function AllClassesPage() {
   const { data: classes, isLoading, isError } = useGetAllClassesQuery();
-  const { data: teachers } = useGetAllTeachersQuery();
+  const { data: teachers } = useGetAllTeachersQuery({ designation: "TEACHER" });
   const [updateClass, { isLoading: isUpdating }] = useUpdateClassMutation();
   const [deleteClass, { isLoading: isDeleting }] = useDeleteClassMutation();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
   const [editForm, setEditForm] = useState({ className: "", montlyFee: "" });
+  const [search, setSearch] = useState("");
 
   const toggleExpand = (id: string) =>
     setExpandedId((prev) => (prev === id ? null : id));
@@ -44,6 +45,14 @@ export default function AllClassesPage() {
     if (!editingClass) return;
     if (!editForm.className.trim()) {
       toast.error("Class name is required");
+      return;
+    }
+    if (
+      editForm.montlyFee === "" ||
+      Number.isNaN(Number(editForm.montlyFee)) ||
+      Number(editForm.montlyFee) < 0
+    ) {
+      toast.error("Enter a valid monthly fee (0 or more)");
       return;
     }
     try {
@@ -65,6 +74,13 @@ export default function AllClassesPage() {
   };
 
   const handleDelete = async (cls: SchoolClass) => {
+    const enrolled = cls._count?.enrollments ?? 0;
+    if (enrolled > 0) {
+      toast.error(
+        `Cannot delete "${cls.className}" — ${enrolled} student(s) enrolled`
+      );
+      return;
+    }
     if (!confirm(`Delete "${cls.className}"? This cannot be undone.`)) return;
     try {
       await deleteClass(cls.id).unwrap();
@@ -98,13 +114,18 @@ export default function AllClassesPage() {
     );
   }
 
+  const visibleClasses = classes.filter((cls) =>
+    cls.className.toLowerCase().includes(search.trim().toLowerCase())
+  );
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            All Classes ({classes.length})
+            All Classes ({visibleClasses.length}
+            {search.trim() ? ` of ${classes.length}` : ""})
           </h1>
           <p className="text-gray-500 mt-1">View, edit, and manage all classes</p>
         </div>
@@ -116,14 +137,27 @@ export default function AllClassesPage() {
         </Link>
       </div>
 
-      {classes.length === 0 ? (
+      <div className="mb-6">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search classes..."
+          className="w-full max-w-md h-11 rounded-xl border border-gray-300 bg-white px-4 outline-none focus:border-black"
+        />
+      </div>
+
+      {visibleClasses.length === 0 ? (
         <div className="text-center py-20 text-gray-400">
           <FaLayerGroup size={48} className="mx-auto mb-4 opacity-30" />
-          <p className="text-lg">No classes found. Create one to get started.</p>
+          <p className="text-lg">
+            {classes.length === 0
+              ? "No classes found. Create one to get started."
+              : "No classes match your search."}
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {classes.map((cls) => (
+          {visibleClasses.map((cls) => (
             <div
               key={cls.id}
               className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
@@ -145,6 +179,9 @@ export default function AllClassesPage() {
                       </span>
                       <span className="flex items-center gap-1">
                         <FaLayerGroup size={12} /> {cls.sections?.length ?? 0} section(s)
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {cls._count?.enrollments ?? 0} enrolled
                       </span>
                     </div>
                   </div>

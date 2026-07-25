@@ -13,6 +13,9 @@ const classSelect = {
   schoolId: true,
   createdAt: true,
   updatedAt: true,
+  _count: {
+    select: { enrollments: true },
+  },
   sections: {
     select: {
       id: true,
@@ -25,6 +28,9 @@ const classSelect = {
           employeeCode: true,
           designation: true,
         },
+      },
+      _count: {
+        select: { enrollments: true },
       },
     },
     orderBy: { sectionName: "asc" as const },
@@ -53,12 +59,16 @@ function normalizeTeacherId(value: unknown): string | null {
 }
 
 type SectionInput = {
+  id?: string;
   sectionName: string;
   teacherId: string | null;
 };
 
-function parseSections(value: unknown): SectionInput[] {
-  if (!Array.isArray(value) || value.length === 0) {
+function parseSections(value: unknown, { requireNonEmpty = true } = {}): SectionInput[] {
+  if (!Array.isArray(value)) {
+    throw new AppError("Sections must be an array", HttpStatus.BAD_REQUEST);
+  }
+  if (requireNonEmpty && value.length === 0) {
     throw new AppError("At least one section is required", HttpStatus.BAD_REQUEST);
   }
 
@@ -72,12 +82,21 @@ function parseSections(value: unknown): SectionInput[] {
     }
 
     if (typeof section === "object" && section !== null) {
-      const sectionName = String((section as { sectionName?: unknown }).sectionName ?? "").trim();
-      const teacherId = normalizeTeacherId((section as { teacherId?: unknown }).teacherId);
+      const raw = section as {
+        id?: unknown;
+        sectionName?: unknown;
+        teacherId?: unknown;
+      };
+      const sectionName = String(raw.sectionName ?? "").trim();
+      const teacherId = normalizeTeacherId(raw.teacherId);
+      const id =
+        raw.id !== undefined && raw.id !== null && String(raw.id).trim() !== ""
+          ? String(raw.id)
+          : undefined;
       if (!sectionName) {
         throw new AppError(`Invalid sectionName at index ${index}`, HttpStatus.BAD_REQUEST);
       }
-      return { sectionName, teacherId };
+      return { id, sectionName, teacherId };
     }
 
     throw new AppError(`Invalid section format at index ${index}`, HttpStatus.BAD_REQUEST);
@@ -221,12 +240,17 @@ export const updateClass = async (req: Request, res: Response) => {
   const body = req.body ?? {};
   const { className, montlyFee, sections } = body;
 
-  validateRequired(body, ["className", "montlyFee", "sections"]);
+  validateRequired(body, ["className", "montlyFee"]);
 
   const parsedFee = parseMonthlyFee(montlyFee);
-  const parsedSections = parseSections(sections);
-  await validateSectionTeachers(parsedSections, schoolId);
   await assertUniqueClassName(schoolId, className, id);
+
+  const parsedSections =
+    sections === undefined ? null : parseSections(sections, { requireNonEmpty: true });
+
+  if (parsedSections) {
+    await validateSectionTeachers(parsedSections, schoolId);
+  }
 
   const updatedClass = await getPrisma().$transaction(async (tx) => {
     await tx.class.update({
@@ -237,14 +261,42 @@ export const updateClass = async (req: Request, res: Response) => {
       },
     });
 
-    await tx.section.deleteMany({ where: { classId: id } });
-    await tx.section.createMany({
-      data: parsedSections.map((section) => ({
-        sectionName: section.sectionName,
-        teacherId: section.teacherId,
-        classId: id,
-      })),
-    });
+    if (parsedSections) {
+      const existingSections = await tx.section.findMany({
+        where: { classId: id },
+        select: { id: true },
+      });
+      const existingIds = new Set(existingSections.map((s) => s.id));
+      const keepIds = new Set(
+        parsedSections.map((s) => s.id).filter((sid): sid is string => Boolean(sid))
+      );
+
+      for (const sid of existingIds) {
+        if (!keepIds.has(sid)) {
+          await tx.section.delete({ where: { id: sid } });
+        }
+      }
+
+      for (const section of parsedSections) {
+        if (section.id && existingIds.has(section.id)) {
+          await tx.section.update({
+            where: { id: section.id },
+            data: {
+              sectionName: section.sectionName,
+              teacherId: section.teacherId,
+            },
+          });
+        } else {
+          await tx.section.create({
+            data: {
+              classId: id,
+              sectionName: section.sectionName,
+              teacherId: section.teacherId,
+            },
+          });
+        }
+      }
+    }
 
     return tx.class.findUniqueOrThrow({
       where: { id },
@@ -263,6 +315,16 @@ export const deleteClass = async (req: Request, res: Response) => {
   const schoolId = requireSchoolId(req);
   const { id } = req.params as { id: string };
   await findClassInSchool(id, schoolId);
+
+  const enrollmentCount = await getPrisma().studentEnrollment.count({
+    where: { classId: id },
+  });
+  if (enrollmentCount > 0) {
+    throw new AppError(
+      `Cannot delete class with ${enrollmentCount} enrolled student(s)`,
+      HttpStatus.CONFLICT
+    );
+  }
 
   await getPrisma().class.delete({ where: { id } });
 
@@ -422,7 +484,27 @@ export const updateSection = async (req: Request, res: Response) => {
 export const deleteSection = async (req: Request, res: Response) => {
   const schoolId = requireSchoolId(req);
   const { id } = req.params as { id: string };
-  await findSectionInSchool(id, schoolId);
+  const existing = await findSectionInSchool(id, schoolId);
+
+  const siblingCount = await getPrisma().section.count({
+    where: { classId: existing.classId },
+  });
+  if (siblingCount <= 1) {
+    throw new AppError(
+      "Cannot delete the last section of a class",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  const enrollmentCount = await getPrisma().studentEnrollment.count({
+    where: { sectionId: id },
+  });
+  if (enrollmentCount > 0) {
+    throw new AppError(
+      `Cannot delete section with ${enrollmentCount} enrolled student(s)`,
+      HttpStatus.CONFLICT
+    );
+  }
 
   await getPrisma().section.delete({ where: { id } });
 

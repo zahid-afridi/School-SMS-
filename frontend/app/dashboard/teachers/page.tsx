@@ -1,5 +1,5 @@
-import EmployeeForm from "@/app/components/EmployeeForm";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <EmployeeForm />;
+  redirect("/dashboard/employees");
 }

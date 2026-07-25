@@ -16,7 +16,7 @@ interface SectionInput {
 export default function AddClassPage() {
   const router = useRouter();
   const [createClass, { isLoading }] = useCreateClassMutation();
-  const { data: teachers } = useGetAllTeachersQuery();
+  const { data: teachers } = useGetAllTeachersQuery({ designation: "TEACHER" });
 
   const [className, setClassName] = useState("");
   const [montlyFee, setMontlyFee] = useState("");
@@ -46,12 +46,22 @@ export default function AddClassPage() {
       toast.error("Class name is required");
       return;
     }
-    if (!montlyFee || Number(montlyFee) <= 0) {
-      toast.error("Enter a valid monthly fee");
+    if (montlyFee === "" || Number.isNaN(Number(montlyFee)) || Number(montlyFee) < 0) {
+      toast.error("Enter a valid monthly fee (0 or more)");
       return;
     }
 
     const validSections = sections.filter((s) => s.sectionName.trim());
+    if (validSections.length === 0) {
+      toast.error("At least one section is required");
+      return;
+    }
+
+    const names = validSections.map((s) => s.sectionName.trim().toLowerCase());
+    if (new Set(names).size !== names.length) {
+      toast.error("Section names must be unique");
+      return;
+    }
 
     const payload: CreateClassRequest = {
       className: className.trim(),
@@ -125,7 +135,7 @@ export default function AddClassPage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-semibold uppercase tracking-wide text-gray-700">
-                Sections
+                Sections *
               </label>
               <button
                 type="button"
