@@ -113,6 +113,24 @@ export default function Page() {
             Configure fee particulars for all students, a class, or a specific
             student.
           </p>
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 space-y-1">
+            <p>
+              <strong>Monthly tuition</strong> comes from each class monthly
+              fee (auto).
+            </p>
+            <p>
+              <strong>Admission / Registration</strong> are one-time (charged
+              only on first invoice).
+            </p>
+            <p>
+              Set <strong>Transport, Books, Uniform, Fine, Others</strong> here —
+              they are added to each generated monthly invoice when amount &gt; 0.
+            </p>
+            <p>
+              Student <strong>fee discount %</strong> (from enrollment) reduces
+              tuition automatically.
+            </p>
+          </div>
         </div>
 
         <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">

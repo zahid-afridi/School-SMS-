@@ -1,19 +1,30 @@
 import { rootApi } from "../../rootApi";
 import type {
+  CollectionReport,
+  FeeInvoice,
+  FeePayment,
   FeeScope,
   FeeStructureData,
   FeeStructureResponse,
+  FeesDashboardData,
+  FeeDefaulter,
   SaveFeeStructureRequest,
+  StudentFeeLedger,
+  StudentFeePreview,
 } from "./feeTypes";
 
-function toQuery(params: Record<string, string | undefined>) {
+function toQuery(params: Record<string, string | number | undefined | null>) {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value) search.set(key, value);
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, String(value));
+    }
   });
   const qs = search.toString();
   return qs ? `?${qs}` : "";
 }
+
+type ApiData<T> = { message: string; data: T };
 
 export const feeApi = rootApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -38,8 +49,129 @@ export const feeApi = rootApi.injectEndpoints({
       }),
       invalidatesTags: ["Fees"],
     }),
+
+    getFeesDashboard: builder.query<FeesDashboardData, void>({
+      query: () => "/fees/dashboard",
+      transformResponse: (res: ApiData<FeesDashboardData>) => res.data,
+      providesTags: ["Fees"],
+    }),
+
+    getFeeInvoices: builder.query<
+      FeeInvoice[],
+      {
+        studentId?: string;
+        classId?: string;
+        status?: string;
+        academicYear?: string;
+        billingMonth?: number;
+        billingYear?: number;
+        search?: string;
+      } | void
+    >({
+      query: (params) => `/fees/invoices${toQuery(params ?? {})}`,
+      transformResponse: (res: ApiData<FeeInvoice[]>) => res.data,
+      providesTags: ["Fees"],
+    }),
+
+    generateFeeInvoices: builder.mutation<
+      ApiData<{
+        created: number;
+        skipped: number;
+        monthLabel: string;
+        periodsCount?: number;
+        periods?: string[];
+        mode?: string;
+      }>,
+      {
+        mode?: "MONTH" | "CALENDAR_YEAR" | "ACADEMIC_YEAR" | "RANGE";
+        billingMonth?: number;
+        billingYear: number;
+        fromMonth?: number;
+        fromYear?: number;
+        toMonth?: number;
+        toYear?: number;
+        academicYear?: string;
+        classId?: string;
+        studentId?: string;
+      }
+    >({
+      query: (body) => ({
+        url: "/fees/invoices/generate",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Fees"],
+    }),
+
+    collectFeePayment: builder.mutation<
+      ApiData<FeePayment>,
+      {
+        studentId: string;
+        amount: number;
+        method?: string;
+        invoiceIds?: string[];
+        invoiceId?: string;
+        paidAt?: string;
+        reference?: string;
+        remarks?: string;
+      }
+    >({
+      query: (body) => ({
+        url: "/fees/collect",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Fees"],
+    }),
+
+    getFeeDefaulters: builder.query<
+      { count: number; totalOutstanding: number; defaulters: FeeDefaulter[] },
+      { classId?: string; academicYear?: string } | void
+    >({
+      query: (params) => `/fees/defaulters${toQuery(params ?? {})}`,
+      transformResponse: (
+        res: ApiData<{
+          count: number;
+          totalOutstanding: number;
+          defaulters: FeeDefaulter[];
+        }>
+      ) => res.data,
+      providesTags: ["Fees"],
+    }),
+
+    getStudentFeeLedger: builder.query<StudentFeeLedger, string>({
+      query: (studentId) => `/fees/student/${studentId}/ledger`,
+      transformResponse: (res: ApiData<StudentFeeLedger>) => res.data,
+      providesTags: (_r, _e, id) => [{ type: "Fees", id }],
+    }),
+
+    previewStudentFee: builder.query<StudentFeePreview, string>({
+      query: (studentId) => `/fees/preview/${studentId}`,
+      transformResponse: (res: ApiData<StudentFeePreview>) => res.data,
+      providesTags: ["Fees"],
+    }),
+
+    getFeeCollectionReport: builder.query<
+      CollectionReport,
+      { from?: string; to?: string } | void
+    >({
+      query: (params) => `/fees/reports/collection${toQuery(params ?? {})}`,
+      transformResponse: (res: ApiData<CollectionReport>) => res.data,
+      providesTags: ["Fees"],
+    }),
   }),
-  overrideExisting: false,
+  overrideExisting: true,
 });
 
-export const { useGetFeeStructureQuery, useSaveFeeStructureMutation } = feeApi;
+export const {
+  useGetFeeStructureQuery,
+  useSaveFeeStructureMutation,
+  useGetFeesDashboardQuery,
+  useGetFeeInvoicesQuery,
+  useGenerateFeeInvoicesMutation,
+  useCollectFeePaymentMutation,
+  useGetFeeDefaultersQuery,
+  useGetStudentFeeLedgerQuery,
+  useLazyPreviewStudentFeeQuery,
+  useGetFeeCollectionReportQuery,
+} = feeApi;

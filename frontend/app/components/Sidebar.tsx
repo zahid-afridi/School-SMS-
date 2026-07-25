@@ -170,24 +170,40 @@ export default function Sidebar() {
       ],
     },
 
-    {
-      name: "Fees",
-      icon: <FaMoneyBillWave size={18} />,
-      children: [
-        {
-          name: "Collect Fees",
-          href: "/dashboard/fees",
-        },
-        {
-          name: "Fee Types",
-          href: "/dashboard/fees/types",
-        },
-        {
-          name: "Fee Reports",
-          href: "/dashboard/fees/reports",
-        },
-      ],
-    },
+  {
+    name: "Fees",
+    icon: <FaMoneyBillWave size={18} />,
+    children: [
+      {
+        name: "Fees Overview",
+        href: "/dashboard/fees",
+      },
+      {
+        name: "Collect Fees",
+        href: "/dashboard/fees/collect",
+      },
+      {
+        name: "Generate Invoices",
+        href: "/dashboard/fees/generate",
+      },
+      {
+        name: "Monthly Dues",
+        href: "/dashboard/fees/dues",
+      },
+      {
+        name: "Defaulters",
+        href: "/dashboard/fees/defaulters",
+      },
+      {
+        name: "Fee Reports",
+        href: "/dashboard/fees/reports",
+      },
+      {
+        name: "Fee Structure",
+        href: "/dashboard/settings/fees-structure",
+      },
+    ],
+  },
   ];
 
   return (
