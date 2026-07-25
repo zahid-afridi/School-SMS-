@@ -6,6 +6,7 @@ import EmployeeRouter from "./employee/employe.route.js";
 import ClassesRouter from "./classes/classes.route.js";
 import StudentRouter from "./student/student.route.js";
 import FeesRouter from "./fees/fees.route.js";
+import AttendanceRouter from "./attendance/attendance.route.js";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use("/employee", EmployeeRouter);
 router.use("/classes", ClassesRouter);
 router.use("/student", StudentRouter);
 router.use("/fees", FeesRouter);
+router.use("/attendance", AttendanceRouter);
 
 export default router;

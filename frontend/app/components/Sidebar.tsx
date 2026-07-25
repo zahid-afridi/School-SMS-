@@ -114,15 +114,15 @@ export default function Sidebar() {
       icon: <FaClipboardCheck size={18} />,
       children: [
         {
-          name: "Take Attendance",
-          href: "/dashboard/attendance",
+          name: "Students Attendance",
+          href: "/dashboard/attendance/students",
         },
         {
           name: "Attendance Records",
           href: "/dashboard/attendance/records",
         },
         {
-          name: "Attendance Reports",
+          name: "Students Attendance Report",
           href: "/dashboard/attendance/reports",
         },
       ],

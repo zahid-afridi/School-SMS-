@@ -4,27 +4,52 @@ import {
   getFeeStructure,
   saveFeeStructure,
 } from "../../controllers/fees/fees.controller.js";
+import {
+  collectFeePayment,
+  generateFeeInvoices,
+  getFeeCollectionReport,
+  getFeeDefaulters,
+  getFeeInvoiceById,
+  getFeesDashboard,
+  getStudentFeeLedger,
+  listFeeInvoices,
+  previewStudentFee,
+} from "../../controllers/fees/feeBilling.controller.js";
 import { auth } from "../../middleware/auth.middleware.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 
 const FeesRouter = Router();
 
+FeesRouter.get("/particulars", auth("ADMIN"), asyncHandler(getFeeParticulars));
+FeesRouter.get("/structure", auth("ADMIN"), asyncHandler(getFeeStructure));
+FeesRouter.put("/structure", auth("ADMIN"), asyncHandler(saveFeeStructure));
+
+FeesRouter.get("/dashboard", auth("ADMIN"), asyncHandler(getFeesDashboard));
+FeesRouter.get("/defaulters", auth("ADMIN"), asyncHandler(getFeeDefaulters));
 FeesRouter.get(
-  "/particulars",
+  "/reports/collection",
   auth("ADMIN"),
-  asyncHandler(getFeeParticulars)
+  asyncHandler(getFeeCollectionReport)
 );
 
-FeesRouter.get(
-  "/structure",
+FeesRouter.get("/invoices", auth("ADMIN"), asyncHandler(listFeeInvoices));
+FeesRouter.post(
+  "/invoices/generate",
   auth("ADMIN"),
-  asyncHandler(getFeeStructure)
+  asyncHandler(generateFeeInvoices)
 );
+FeesRouter.get("/invoices/:id", auth("ADMIN"), asyncHandler(getFeeInvoiceById));
 
-FeesRouter.put(
-  "/structure",
+FeesRouter.post("/collect", auth("ADMIN"), asyncHandler(collectFeePayment));
+FeesRouter.get(
+  "/preview/:studentId",
   auth("ADMIN"),
-  asyncHandler(saveFeeStructure)
+  asyncHandler(previewStudentFee)
+);
+FeesRouter.get(
+  "/student/:studentId/ledger",
+  auth("ADMIN"),
+  asyncHandler(getStudentFeeLedger)
 );
 
 export default FeesRouter;

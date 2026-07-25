@@ -1,9 +1,5 @@
-import React from 'react'
+import { redirect } from "next/navigation";
 
-export default function page() {
-  return (
-    <div>
-      <h1>attttta</h1>
-    </div>
-  )
+export default function AttendanceIndexPage() {
+  redirect("/dashboard/attendance/students");
 }

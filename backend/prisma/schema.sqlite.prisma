@@ -68,6 +68,28 @@ enum FeeValueType {
   FIXED
 }
 
+enum FeeInvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  WAIVED
+  CANCELLED
+}
+
+enum FeePaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  ONLINE
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LEAVE
+  ABSENT
+}
+
 model School {
   id        String   @id @default(uuid())
   name      String
@@ -88,6 +110,9 @@ model School {
   parents   Parent[]
   feeParticulars FeeParticular[]
   feeStructures  FeeStructure[]
+  feeInvoices    FeeInvoice[]
+  feePayments    FeePayment[]
+  attendanceSheets StudentAttendanceSheet[]
 
   @@index([name])
 }
@@ -170,6 +195,7 @@ model Class {
   sections    Section[]
   enrollments StudentEnrollment[]
   feeStructures FeeStructure[]
+  attendanceSheets StudentAttendanceSheet[]
 
   @@index([schoolId])
 }
@@ -184,6 +210,7 @@ model Section {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   enrollments StudentEnrollment[]
+  attendanceSheets StudentAttendanceSheet[]
 
   @@index([classId])
   @@index([teacherId])
@@ -231,6 +258,9 @@ model Student {
   enrollments StudentEnrollment[]
   user        User?
   feeStructures FeeStructure[]
+  feeInvoices   FeeInvoice[]
+  feePayments   FeePayment[]
+  attendanceEntries StudentAttendanceEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -270,6 +300,8 @@ model StudentEnrollment {
   promotedFromId String?            @unique
   promotedFrom   StudentEnrollment? @relation("EnrollmentPromotion", fields: [promotedFromId], references: [id], onDelete: SetNull)
   promotedTo     StudentEnrollment? @relation("EnrollmentPromotion")
+
+  feeInvoices FeeInvoice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -343,6 +375,7 @@ model FeeParticular {
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   items FeeStructureItem[]
+  invoiceItems FeeInvoiceItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -394,4 +427,164 @@ model FeeStructureItem {
   @@unique([feeStructureId, feeParticularId])
   @@index([feeStructureId])
   @@index([feeParticularId])
+}
+
+model FeeInvoice {
+  id           String           @id @default(uuid())
+  invoiceNo    String
+  academicYear String
+  billingMonth Int // 1–12
+  billingYear  Int
+  status       FeeInvoiceStatus @default(UNPAID)
+  dueDate      DateTime?
+
+  subtotal       Float @default(0) // sum of charge lines (excl. discount)
+  discountAmount Float @default(0)
+  fineAmount     Float @default(0)
+  totalAmount    Float @default(0) // payable = subtotal - discount + fine
+  paidAmount     Float @default(0)
+  balanceAmount  Float @default(0)
+
+  remarks   String?
+  generatedAt DateTime @default(now())
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  enrollmentId String?
+  enrollment   StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  items       FeeInvoiceItem[]
+  allocations FeePaymentAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, invoiceNo])
+  @@unique([studentId, academicYear, billingMonth, billingYear])
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@index([status])
+  @@index([academicYear])
+  @@index([billingYear, billingMonth])
+}
+
+model FeeInvoiceItem {
+  id        String @id @default(uuid())
+  label     String
+  key       String?
+  amount    Float  @default(0)
+  sortOrder Int    @default(0)
+  isDiscount Boolean @default(false)
+
+  invoiceId String
+  invoice   FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  feeParticularId String?
+  feeParticular   FeeParticular? @relation(fields: [feeParticularId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([feeParticularId])
+}
+
+model FeePayment {
+  id         String           @id @default(uuid())
+  receiptNo  String
+  amount     Float
+  method     FeePaymentMethod @default(CASH)
+  paidAt     DateTime         @default(now())
+  reference  String? // cheque no / bank ref
+  remarks    String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  receivedByUserId String?
+
+  allocations FeePaymentAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, receiptNo])
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([paidAt])
+}
+
+model FeePaymentAllocation {
+  id     String @id @default(uuid())
+  amount Float
+
+  paymentId String
+  payment   FeePayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  invoiceId String
+  invoice   FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([paymentId, invoiceId])
+  @@index([paymentId])
+  @@index([invoiceId])
+}
+
+model StudentAttendanceSheet {
+  id        String   @id @default(uuid())
+  dateKey   String // YYYY-MM-DD
+  date      DateTime
+  scopeKey  String // CLASS:{id} or CLASS:{id}:SECTION:{id}
+  remarks   String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  sectionId String?
+  section   Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  takenByUserId String?
+
+  entries StudentAttendanceEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, scopeKey, dateKey])
+  @@index([schoolId])
+  @@index([classId])
+  @@index([sectionId])
+  @@index([dateKey])
+}
+
+model StudentAttendanceEntry {
+  id      String           @id @default(uuid())
+  status  AttendanceStatus @default(PRESENT)
+  remarks String?
+
+  sheetId String
+  sheet   StudentAttendanceSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sheetId, studentId])
+  @@index([sheetId])
+  @@index([studentId])
+  @@index([status])
 }
