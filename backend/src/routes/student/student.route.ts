@@ -1,8 +1,10 @@
 import { Router } from "express";
 import {
   AddStudent,
+  bulkPromoteStudents,
   deleteStudent,
   getAllStudents,
+  getPromotions,
   getStudentById,
   getStudentsByFamily,
   linkParents,
@@ -30,6 +32,7 @@ StudentRouter.post(
 );
 
 StudentRouter.get("/get-all", auth("ADMIN"), asyncHandler(getAllStudents));
+StudentRouter.get("/promotions", auth("ADMIN"), asyncHandler(getPromotions));
 StudentRouter.get("/get/:id", auth("ADMIN"), asyncHandler(getStudentById));
 StudentRouter.get(
   "/family/:familyCode",
@@ -58,6 +61,11 @@ StudentRouter.post(
   "/promote/:id",
   auth("ADMIN"),
   asyncHandler(promoteStudent)
+);
+StudentRouter.post(
+  "/promote-bulk",
+  auth("ADMIN"),
+  asyncHandler(bulkPromoteStudents)
 );
 StudentRouter.post(
   "/withdraw/:id",

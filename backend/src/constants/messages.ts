@@ -17,6 +17,7 @@ export const ApiMessages = {
   STUDENT_DELETED: "Student deleted successfully",
   STUDENT_NOT_FOUND: "Student not found",
   STUDENT_PROMOTED: "Student promoted successfully",
+  STUDENTS_PROMOTED: "Students promoted successfully",
   STUDENT_WITHDRAWN: "Student withdrawn successfully",
   ENROLLMENT_UPDATED: "Enrollment updated successfully",
   PARENT_LINKED: "Parent linked successfully",

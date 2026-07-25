@@ -771,7 +771,7 @@ export const updateEnrollment = async (req: Request, res: Response) => {
 export const promoteStudent = async (req: Request, res: Response) => {
   const schoolId = requireSchoolId(req);
   const { id } = req.params as { id: string };
-  await findStudentInSchool(id, schoolId);
+  const student = await findStudentInSchool(id, schoolId);
 
   const {
     classId,
@@ -790,9 +790,20 @@ export const promoteStudent = async (req: Request, res: Response) => {
 
   const current = await getPrisma().studentEnrollment.findFirst({
     where: { studentId: id, isCurrent: true },
+    include: {
+      class: { select: { id: true, className: true, montlyFee: true } },
+      section: { select: { id: true, sectionName: true } },
+    },
   });
   if (!current) {
     throw new AppError("No current enrollment found", HttpStatus.BAD_REQUEST);
+  }
+
+  if (current.classId === classId && current.academicYear === academicYear) {
+    throw new AppError(
+      "Student is already in this class for the selected academic year",
+      HttpStatus.BAD_REQUEST
+    );
   }
 
   const duplicate = await getPrisma().studentEnrollment.findUnique({
@@ -812,16 +823,20 @@ export const promoteStudent = async (req: Request, res: Response) => {
   }
 
   const result = await getPrisma().$transaction(async (tx) => {
-    await tx.studentEnrollment.update({
+    const fromEnrollment = await tx.studentEnrollment.update({
       where: { id: current.id },
       data: {
         isCurrent: false,
         status: "PROMOTED",
         promotedAt: new Date(),
       },
+      include: {
+        class: { select: { id: true, className: true, montlyFee: true } },
+        section: { select: { id: true, sectionName: true } },
+      },
     });
 
-    const enrollment = await tx.studentEnrollment.create({
+    const toEnrollment = await tx.studentEnrollment.create({
       data: {
         studentId: id,
         classId,
@@ -840,13 +855,283 @@ export const promoteStudent = async (req: Request, res: Response) => {
       },
     });
 
-    return enrollment;
+    return { fromEnrollment, toEnrollment };
   });
 
   return ApiResponse.success(res, {
     statusCode: HttpStatus.OK,
     message: ApiMessages.STUDENT_PROMOTED,
-    data: result,
+    data: {
+      student: {
+        id: student.id,
+        name: student.name,
+        registrationNo: student.registrationNo,
+        photoUrl: student.photoUrl,
+      },
+      from: result.fromEnrollment,
+      to: result.toEnrollment,
+    },
+  });
+};
+
+export const bulkPromoteStudents = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const {
+    studentIds,
+    classId,
+    sectionId,
+    academicYear,
+    feeDiscount = 0,
+    remarks,
+  } = req.body ?? {};
+
+  validateRequired(req.body ?? {}, ["classId", "academicYear"]);
+
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    throw new AppError("studentIds must be a non-empty array", HttpStatus.BAD_REQUEST);
+  }
+
+  const uniqueIds = [...new Set(studentIds.map(String))];
+  await assertClassInSchool(classId, schoolId);
+  if (sectionId) {
+    await assertSectionInClass(sectionId, classId);
+  }
+
+  const students = await getPrisma().student.findMany({
+    where: { id: { in: uniqueIds }, schoolId, status: "ACTIVE" },
+    select: {
+      id: true,
+      name: true,
+      registrationNo: true,
+      photoUrl: true,
+      enrollments: {
+        where: { isCurrent: true },
+        take: 1,
+        include: {
+          class: { select: { id: true, className: true, montlyFee: true } },
+          section: { select: { id: true, sectionName: true } },
+        },
+      },
+    },
+  });
+
+  if (students.length !== uniqueIds.length) {
+    throw new AppError(
+      "One or more students were not found or are inactive",
+      HttpStatus.NOT_FOUND
+    );
+  }
+
+  const parsedFeeDiscount = parseFeeDiscount(feeDiscount);
+  const promoted: unknown[] = [];
+  const failed: { studentId: string; name: string; reason: string }[] = [];
+
+  for (const student of students) {
+    const current = student.enrollments[0];
+    if (!current) {
+      failed.push({
+        studentId: student.id,
+        name: student.name,
+        reason: "No current enrollment found",
+      });
+      continue;
+    }
+
+    if (current.classId === classId && current.academicYear === academicYear) {
+      failed.push({
+        studentId: student.id,
+        name: student.name,
+        reason: "Already in target class for this academic year",
+      });
+      continue;
+    }
+
+    try {
+      const result = await getPrisma().$transaction(async (tx) => {
+        const duplicate = await tx.studentEnrollment.findUnique({
+          where: {
+            studentId_academicYear_classId: {
+              studentId: student.id,
+              academicYear,
+              classId,
+            },
+          },
+        });
+        if (duplicate) {
+          throw new Error("Already enrolled in this class for the academic year");
+        }
+
+        const fromEnrollment = await tx.studentEnrollment.update({
+          where: { id: current.id },
+          data: {
+            isCurrent: false,
+            status: "PROMOTED",
+            promotedAt: new Date(),
+          },
+          include: {
+            class: { select: { id: true, className: true, montlyFee: true } },
+            section: { select: { id: true, sectionName: true } },
+          },
+        });
+
+        const toEnrollment = await tx.studentEnrollment.create({
+          data: {
+            studentId: student.id,
+            classId,
+            sectionId: sectionId || null,
+            academicYear,
+            feeDiscount: parsedFeeDiscount,
+            remarks: remarks ?? null,
+            promotedFromId: current.id,
+            isCurrent: true,
+            status: "ENROLLED",
+          },
+          include: {
+            class: { select: { id: true, className: true, montlyFee: true } },
+            section: { select: { id: true, sectionName: true } },
+          },
+        });
+
+        return { fromEnrollment, toEnrollment };
+      });
+
+      promoted.push({
+        student: {
+          id: student.id,
+          name: student.name,
+          registrationNo: student.registrationNo,
+          photoUrl: student.photoUrl,
+        },
+        from: result.fromEnrollment,
+        to: result.toEnrollment,
+      });
+    } catch (error) {
+      failed.push({
+        studentId: student.id,
+        name: student.name,
+        reason: error instanceof Error ? error.message : "Promotion failed",
+      });
+    }
+  }
+
+  return ApiResponse.success(res, {
+    statusCode: HttpStatus.OK,
+    message: ApiMessages.STUDENTS_PROMOTED,
+    data: {
+      promotedCount: promoted.length,
+      failedCount: failed.length,
+      promoted,
+      failed,
+    },
+  });
+};
+
+export const getPromotions = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const {
+    search,
+    academicYear,
+    fromClassId,
+    toClassId,
+    page = "1",
+    limit = "20",
+  } = req.query;
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const where = {
+    promotedFromId: { not: null },
+    student: {
+      schoolId,
+      ...(typeof search === "string" && search.trim()
+        ? {
+            OR: [
+              { name: { contains: search.trim() } },
+              { registrationNo: { contains: search.trim() } },
+            ],
+          }
+        : {}),
+    },
+    ...(academicYear ? { academicYear: String(academicYear) } : {}),
+    ...(toClassId ? { classId: String(toClassId) } : {}),
+    ...(fromClassId
+      ? { promotedFrom: { classId: String(fromClassId) } }
+      : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    getPrisma().studentEnrollment.findMany({
+      where,
+      skip,
+      take: limitNum,
+      orderBy: [{ createdAt: "desc" }],
+      include: {
+        student: {
+          select: {
+            id: true,
+            name: true,
+            registrationNo: true,
+            photoUrl: true,
+            status: true,
+          },
+        },
+        class: { select: { id: true, className: true, montlyFee: true } },
+        section: { select: { id: true, sectionName: true } },
+        promotedFrom: {
+          include: {
+            class: { select: { id: true, className: true, montlyFee: true } },
+            section: { select: { id: true, sectionName: true } },
+          },
+        },
+      },
+    }),
+    getPrisma().studentEnrollment.count({ where }),
+  ]);
+
+  const promotions = rows.map((row) => ({
+    id: row.id,
+    promotedAt: row.promotedFrom?.promotedAt ?? row.createdAt,
+    remarks: row.remarks,
+    student: row.student,
+    from: row.promotedFrom
+      ? {
+          id: row.promotedFrom.id,
+          academicYear: row.promotedFrom.academicYear,
+          rollNo: row.promotedFrom.rollNo,
+          status: row.promotedFrom.status,
+          promotedAt: row.promotedFrom.promotedAt,
+          class: row.promotedFrom.class,
+          section: row.promotedFrom.section,
+        }
+      : null,
+    to: {
+      id: row.id,
+      academicYear: row.academicYear,
+      rollNo: row.rollNo,
+      status: row.status,
+      class: row.class,
+      section: row.section,
+    },
+  }));
+
+  const totalPages = Math.ceil(total / limitNum) || 1;
+
+  return ApiResponse.success(res, {
+    statusCode: HttpStatus.OK,
+    message: ApiMessages.SUCCESS,
+    data: {
+      promotions,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        nextPage: pageNum < totalPages,
+        previousPage: pageNum > 1,
+      },
+    },
   });
 };
 

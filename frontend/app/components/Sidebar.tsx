@@ -36,10 +36,14 @@ export default function Sidebar() {
         name: "Add Student",
         href: "/dashboard/students/Add-students",
       },
-      // {
-      //   name: "Student Promotion",
-      //   href: "/dashboard/students/promotion",
-      // },
+      {
+        name: "Promote Student",
+        href: "/dashboard/students/promote",
+      },
+      {
+        name: "Manage Student Promotion",
+        href: "/dashboard/students/manage-promotion",
+      },
     ],
   },
 
