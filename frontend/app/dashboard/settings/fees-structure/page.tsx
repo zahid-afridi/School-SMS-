@@ -287,7 +287,13 @@ export default function Page() {
                       />
                     ) : (
                       <input
-                        value={String(item.displayValue)}
+                        value={
+                          typeof item.displayValue === "number"
+                            ? String(item.displayValue)
+                            : item.amount > 0
+                              ? String(item.amount)
+                              : String(item.displayValue)
+                        }
                         readOnly
                         className={`${inputClass} bg-slate-100 text-slate-500`}
                       />

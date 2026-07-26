@@ -5,6 +5,7 @@ import {
   saveFeeStructure,
 } from "../../controllers/fees/fees.controller.js";
 import {
+  cancelFeeInvoice,
   collectFeePayment,
   generateFeeInvoices,
   getFeeCollectionReport,
@@ -39,6 +40,11 @@ FeesRouter.post(
   asyncHandler(generateFeeInvoices)
 );
 FeesRouter.get("/invoices/:id", auth("ADMIN"), asyncHandler(getFeeInvoiceById));
+FeesRouter.post(
+  "/invoices/:id/cancel",
+  auth("ADMIN"),
+  asyncHandler(cancelFeeInvoice)
+);
 
 FeesRouter.post("/collect", auth("ADMIN"), asyncHandler(collectFeePayment));
 FeesRouter.get(

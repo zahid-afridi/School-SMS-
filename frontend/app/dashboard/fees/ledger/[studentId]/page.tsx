@@ -71,7 +71,7 @@ export default function StudentFeeLedgerPage() {
               )}
             </div>
             <Link
-              href="/dashboard/fees/collect"
+              href={`/dashboard/fees/collect?studentId=${studentId}`}
               className="inline-flex justify-center px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
             >
               Collect Payment

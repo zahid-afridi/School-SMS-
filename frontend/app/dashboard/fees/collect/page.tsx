@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
 import { useGetAllStudentsQuery } from "@/redux/features/students/studentApi";
@@ -9,6 +10,7 @@ import {
   useCollectFeePaymentMutation,
   useLazyPreviewStudentFeeQuery,
 } from "@/redux/features/fees/feeApi";
+import type { StudentFeePreview } from "@/redux/features/fees/feeTypes";
 
 const METHODS = [
   { value: "CASH", label: "Cash" },
@@ -23,6 +25,23 @@ function money(n?: number) {
 }
 
 export default function CollectFeesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <p className="text-slate-500">Loading collect fees...</p>
+        </div>
+      }
+    >
+      <CollectFeesInner />
+    </Suspense>
+  );
+}
+
+function CollectFeesInner() {
+  const searchParams = useSearchParams();
+  const presetStudentId = searchParams.get("studentId") ?? "";
+
   const { data: classes = [] } = useGetAllClassesQuery();
   const [classId, setClassId] = useState("");
   const { data: studentsData, isFetching: loadingStudents } =
@@ -43,30 +62,48 @@ export default function CollectFeesPage() {
     receiptNo: string;
     amount: number;
   } | null>(null);
+  const [preview, setPreview] = useState<StudentFeePreview | null>(null);
 
-  const [previewFee, { data: preview, isFetching: loadingPreview }] =
+  const [previewFee, { isFetching: loadingPreview }] =
     useLazyPreviewStudentFeeQuery();
   const [collect, { isLoading: collecting }] = useCollectFeePaymentMutation();
 
   const filteredStudents = useMemo(() => students, [students]);
+
+  const applyPreview = (data: StudentFeePreview) => {
+    setPreview(data);
+    const openIds = data.openInvoices.map((i) => i.id);
+    setSelectedInvoices(openIds);
+    setAmount(String(data.outstandingBalance || ""));
+  };
 
   const loadStudent = async (id: string) => {
     setStudentId(id);
     setSelectedInvoices([]);
     setAmount("");
     setLastReceipt(null);
-    if (!id) return;
+    if (!id) {
+      setPreview(null);
+      return;
+    }
     try {
       const data = await previewFee(id).unwrap();
-      setSelectedInvoices(data.openInvoices.map((i) => i.id));
-      setAmount(String(data.outstandingBalance || ""));
+      applyPreview(data);
     } catch (err: unknown) {
+      setPreview(null);
       toast.error(
         (err as { data?: { message?: string } })?.data?.message ??
           "Failed to load student fees"
       );
     }
   };
+
+  useEffect(() => {
+    if (!presetStudentId) return;
+    if (studentId === presetStudentId) return;
+    void loadStudent(presetStudentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetStudentId]);
 
   const toggleInvoice = (id: string) => {
     setSelectedInvoices((prev) => {
@@ -93,6 +130,14 @@ export default function CollectFeesPage() {
       toast.error("Enter a valid amount");
       return;
     }
+    if (
+      preview &&
+      preview.openInvoices.length > 0 &&
+      selectedInvoices.length === 0
+    ) {
+      toast.error("Select at least one unpaid month");
+      return;
+    }
     try {
       const res = await collect({
         studentId,
@@ -102,15 +147,15 @@ export default function CollectFeesPage() {
         reference: reference || undefined,
         remarks: remarks || undefined,
       }).unwrap();
-      toast.success(
-        `Payment saved. Receipt: ${res.data.receiptNo}`
-      );
+      toast.success(`Payment saved. Receipt: ${res.data.receiptNo}`);
       setLastReceipt({
         receiptNo: res.data.receiptNo,
         amount: res.data.amount,
       });
-      await previewFee(studentId);
-      setAmount("");
+      const refreshed = await previewFee(studentId).unwrap();
+      applyPreview(refreshed);
+      setReference("");
+      setRemarks("");
     } catch (err: unknown) {
       toast.error(
         (err as { data?: { message?: string } })?.data?.message ??
@@ -141,6 +186,10 @@ export default function CollectFeesPage() {
                   onChange={(e) => {
                     setClassId(e.target.value);
                     setStudentId("");
+                    setSelectedInvoices([]);
+                    setAmount("");
+                    setLastReceipt(null);
+                    setPreview(null);
                   }}
                   className="w-full h-11 rounded-xl border border-slate-200 px-3"
                 >

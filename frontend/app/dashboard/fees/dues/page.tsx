@@ -2,9 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import { FaSearch } from "react-icons/fa";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
-import { useGetFeeInvoicesQuery } from "@/redux/features/fees/feeApi";
+import {
+  useCancelFeeInvoiceMutation,
+  useGetFeeInvoicesQuery,
+} from "@/redux/features/fees/feeApi";
 
 const MONTHS = [
   "January",
@@ -45,9 +49,9 @@ export default function MonthlyDuesPage() {
   const query = useMemo(() => {
     const statusParam =
       status === "UNPAID_PARTIAL"
-        ? undefined
+        ? "OPEN"
         : status === "ALL"
-          ? undefined
+          ? "ALL"
           : status;
     return {
       classId: classId || undefined,
@@ -60,18 +64,29 @@ export default function MonthlyDuesPage() {
 
   const { data: invoices = [], isLoading, isError, isFetching } =
     useGetFeeInvoicesQuery(query);
+  const [cancelInvoice, { isLoading: cancelling }] =
+    useCancelFeeInvoiceMutation();
 
-  const rows = useMemo(() => {
-    let list = invoices;
-    if (status === "UNPAID_PARTIAL") {
-      list = list.filter(
-        (i) =>
-          (i.status === "UNPAID" || i.status === "PARTIAL") &&
-          i.balanceAmount > 0
+  const rows = useMemo(() => invoices, [invoices]);
+
+  const handleCancel = async (id: string, invoiceNo: string) => {
+    if (
+      !window.confirm(
+        `Cancel invoice ${invoiceNo}? This only works for unpaid invoices with no payments.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await cancelInvoice({ id }).unwrap();
+      toast.success("Invoice cancelled");
+    } catch (err: unknown) {
+      toast.error(
+        (err as { data?: { message?: string } })?.data?.message ??
+          "Failed to cancel invoice"
       );
     }
-    return list;
-  }, [invoices, status]);
+  };
 
   const totals = useMemo(() => {
     return {
@@ -254,11 +269,21 @@ export default function MonthlyDuesPage() {
                         Ledger
                       </Link>
                       <Link
-                        href="/dashboard/fees/collect"
-                        className="text-emerald-700 hover:underline"
+                        href={`/dashboard/fees/collect?studentId=${inv.student.id}`}
+                        className="text-emerald-700 hover:underline mr-3"
                       >
                         Collect
                       </Link>
+                      {inv.status === "UNPAID" && inv.paidAmount === 0 && (
+                        <button
+                          type="button"
+                          disabled={cancelling}
+                          onClick={() => handleCancel(inv.id, inv.invoiceNo)}
+                          className="text-rose-600 hover:underline disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

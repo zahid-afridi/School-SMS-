@@ -77,10 +77,15 @@ export const feeApi = rootApi.injectEndpoints({
       ApiData<{
         created: number;
         skipped: number;
+        skippedExisting?: number;
+        skippedZero?: number;
+        skippedError?: number;
+        errors?: string[];
         monthLabel: string;
         periodsCount?: number;
         periods?: string[];
         mode?: string;
+        studentCount?: number;
       }>,
       {
         mode?: "MONTH" | "CALENDAR_YEAR" | "ACADEMIC_YEAR" | "RANGE";
@@ -159,6 +164,18 @@ export const feeApi = rootApi.injectEndpoints({
       transformResponse: (res: ApiData<CollectionReport>) => res.data,
       providesTags: ["Fees"],
     }),
+
+    cancelFeeInvoice: builder.mutation<
+      ApiData<FeeInvoice>,
+      { id: string; remarks?: string }
+    >({
+      query: ({ id, remarks }) => ({
+        url: `/fees/invoices/${id}/cancel`,
+        method: "POST",
+        body: remarks ? { remarks } : {},
+      }),
+      invalidatesTags: ["Fees"],
+    }),
   }),
   overrideExisting: true,
 });
@@ -174,4 +191,5 @@ export const {
   useGetStudentFeeLedgerQuery,
   useLazyPreviewStudentFeeQuery,
   useGetFeeCollectionReportQuery,
+  useCancelFeeInvoiceMutation,
 } = feeApi;

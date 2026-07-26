@@ -76,6 +76,11 @@ export default function GenerateFeesPage() {
         periods: res.data.periods,
       });
       toast.success(res.message);
+      if (res.data.skippedError) {
+        toast.error(
+          `${res.data.skippedError} student(s) failed — check enrollments / class tuition`
+        );
+      }
     } catch (err: unknown) {
       toast.error(
         (err as { data?: { message?: string } })?.data?.message ??

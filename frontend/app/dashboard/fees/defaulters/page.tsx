@@ -124,7 +124,7 @@ export default function DefaultersPage() {
                         Ledger
                       </Link>
                       <Link
-                        href={`/dashboard/fees/collect`}
+                        href={`/dashboard/fees/collect?studentId=${d.student.id}`}
                         className="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
                       >
                         Collect

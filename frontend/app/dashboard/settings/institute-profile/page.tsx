@@ -165,8 +165,8 @@ export default function Page() {
             </div>
 
             <div className="px-6 pb-6 -mt-10 relative">
-              <div className="flex items-end gap-4">
-                <label className="relative cursor-pointer group">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <label className="relative cursor-pointer group w-fit">
                   <div className="w-24 h-24 rounded-2xl border-4 border-white bg-slate-100 overflow-hidden shadow">
                     {logoPreview ? (
                       <img
@@ -190,12 +190,27 @@ export default function Page() {
                     onChange={handleLogo}
                   />
                 </label>
-                <div className="pb-1">
-                  <h2 className="text-xl font-bold text-slate-900">
-                    {form.name || school.name}
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    {school.isActive ? "Active institute" : "Inactive institute"}
+                <div className="pb-1 flex-1 space-y-2">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900">
+                      {form.name || school.name || "Institute Logo"}
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      {school.isActive ? "Active institute" : "Inactive institute"}
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm cursor-pointer hover:bg-slate-50 w-fit">
+                    <FaCamera className="text-slate-500" />
+                    {logoPreview ? "Change Logo Image" : "Upload Logo Image"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogo}
+                    />
+                  </label>
+                  <p className="text-xs text-slate-400">
+                    Recommended: square PNG/JPG. This logo appears on result cards and the header.
                   </p>
                 </div>
               </div>
@@ -218,8 +233,47 @@ export default function Page() {
                   value={form.name}
                   onChange={handleChange}
                   className={inputClass}
-                  placeholder="School / Institute name"
+                  placeholder="Enter school / institute name"
+                  required
                 />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Logo Image
+                </label>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                    {logoPreview ? (
+                      <img
+                        src={logoPreview}
+                        alt="Logo preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <FaBuilding className="text-slate-300" size={22} />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-600 mb-2">
+                      {logoFile
+                        ? `Selected: ${logoFile.name}`
+                        : logoPreview
+                          ? "Current logo is set. Choose a new file to replace it."
+                          : "No logo uploaded yet."}
+                    </p>
+                    <label className="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-800">
+                      <FaCamera size={12} />
+                      {logoPreview ? "Replace Logo" : "Choose Logo Image"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogo}
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
 
               <div>

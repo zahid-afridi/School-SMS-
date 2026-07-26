@@ -133,16 +133,36 @@ export default function Sidebar() {
       icon: <FaFileAlt size={18} />,
       children: [
         {
-          name: "Exam List",
+          name: "Exam Overview",
           href: "/dashboard/exams",
         },
         {
-          name: "Create Exam",
+          name: "Create New Exam",
           href: "/dashboard/exams/create",
         },
         {
-          name: "Exam Results",
-          href: "/dashboard/exams/results",
+          name: "Add / Update Exam Marks",
+          href: "/dashboard/exams/marks",
+        },
+        {
+          name: "Result Card",
+          href: "/dashboard/exams/result-card",
+        },
+        {
+          name: "Result Sheet",
+          href: "/dashboard/exams/result-sheet",
+        },
+        {
+          name: "Exam Schedule",
+          href: "/dashboard/exams/schedule",
+        },
+        {
+          name: "Date Sheet",
+          href: "/dashboard/exams/date-sheet",
+        },
+        {
+          name: "Blank Award List",
+          href: "/dashboard/exams/award-list",
         },
       ],
     },

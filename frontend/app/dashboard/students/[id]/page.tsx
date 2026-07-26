@@ -90,6 +90,24 @@ export default function Page() {
               Complete record from database
             </p>
           </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => router.push(`/dashboard/fees/ledger/${student.id}`)}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50"
+            >
+              Fee Ledger
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                router.push(`/dashboard/fees/collect?studentId=${student.id}`)
+              }
+              className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+            >
+              Collect Fees
+            </button>
+          </div>
         </div>
 
         {/* Hero card */}

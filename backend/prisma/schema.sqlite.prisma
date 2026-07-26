@@ -90,6 +90,14 @@ enum AttendanceStatus {
   ABSENT
 }
 
+enum ExamStatus {
+  DRAFT
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
 model School {
   id        String   @id @default(uuid())
   name      String
@@ -113,6 +121,8 @@ model School {
   feeInvoices    FeeInvoice[]
   feePayments    FeePayment[]
   attendanceSheets StudentAttendanceSheet[]
+  subjects       Subject[]
+  exams          Exam[]
 
   @@index([name])
 }
@@ -196,6 +206,7 @@ model Class {
   enrollments StudentEnrollment[]
   feeStructures FeeStructure[]
   attendanceSheets StudentAttendanceSheet[]
+  examSubjects ExamSubject[]
 
   @@index([schoolId])
 }
@@ -211,6 +222,7 @@ model Section {
   updatedAt   DateTime            @updatedAt
   enrollments StudentEnrollment[]
   attendanceSheets StudentAttendanceSheet[]
+  examSubjects ExamSubject[]
 
   @@index([classId])
   @@index([teacherId])
@@ -261,6 +273,7 @@ model Student {
   feeInvoices   FeeInvoice[]
   feePayments   FeePayment[]
   attendanceEntries StudentAttendanceEntry[]
+  examMarks     ExamMark[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -441,7 +454,7 @@ model FeeInvoice {
   subtotal       Float @default(0) // sum of charge lines (excl. discount)
   discountAmount Float @default(0)
   fineAmount     Float @default(0)
-  totalAmount    Float @default(0) // payable = subtotal - discount + fine
+  totalAmount    Float @default(0) // payable = (charges incl. fine) - discount
   paidAmount     Float @default(0)
   balanceAmount  Float @default(0)
 
@@ -587,4 +600,105 @@ model StudentAttendanceEntry {
   @@index([sheetId])
   @@index([studentId])
   @@index([status])
+}
+
+model Subject {
+  id       String  @id @default(uuid())
+  name     String
+  code     String?
+  isActive Boolean @default(true)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  examSubjects ExamSubject[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model Exam {
+  id           String     @id @default(uuid())
+  name         String
+  startDate    DateTime
+  endDate      DateTime?
+  academicYear String?
+  status       ExamStatus @default(DRAFT)
+  remarks      String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  subjects ExamSubject[]
+  marks    ExamMark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([status])
+  @@index([startDate])
+}
+
+model ExamSubject {
+  id         String    @id @default(uuid())
+  scopeKey   String // CLASS:id or CLASS:id:SECTION:id
+  examDate   DateTime?
+  startTime  String? // HH:mm
+  endTime    String? // HH:mm
+  maxMarks   Float     @default(100)
+  passMarks  Float     @default(33)
+  sortOrder  Int       @default(0)
+  room       String?
+
+  examId String
+  exam   Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  classId String
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  sectionId String?
+  section   Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  marks ExamMark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([examId, subjectId, scopeKey])
+  @@index([examId])
+  @@index([subjectId])
+  @@index([classId])
+  @@index([sectionId])
+  @@index([examDate])
+}
+
+model ExamMark {
+  id            String  @id @default(uuid())
+  obtainedMarks Float?
+  isAbsent      Boolean @default(false)
+  remarks       String?
+
+  examId String
+  exam   Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  examSubjectId String
+  examSubject   ExamSubject @relation(fields: [examSubjectId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([examSubjectId, studentId])
+  @@index([examId])
+  @@index([examSubjectId])
+  @@index([studentId])
 }

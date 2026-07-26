@@ -208,27 +208,30 @@ export const getFeeStructure = async (req: Request, res: Response) => {
     if (particular.key === "MONTHLY_TUITION") {
       if (scope === "ALL_STUDENTS") {
         isEditable = false;
-        displayValue = "[FIXED]";
+        displayValue = "From class monthly fee";
         amount = 0;
       } else {
         isEditable = false;
         amount = selectedClass?.montlyFee ?? 0;
-        displayValue = "[Auto]";
+        displayValue = amount;
       }
     } else if (particular.key === "PREVIOUS_BALANCE") {
       isEditable = false;
-      displayValue = scope === "ALL_STUDENTS" ? "[FIXED]" : "[Auto]";
+      displayValue =
+        scope === "ALL_STUDENTS"
+          ? "Auto from unpaid invoices"
+          : "Auto from unpaid invoices";
       amount = 0;
     } else if (particular.key === "DISCOUNT") {
       isEditable = false;
       if (scope === "STUDENT") {
         amount = selectedStudent?.feeDiscount ?? 0;
-        displayValue = "[Auto]";
+        displayValue = `${amount}% of tuition`;
       } else if (scope === "ALL_STUDENTS") {
-        displayValue = "[FIXED]";
+        displayValue = "From student enrollment %";
         amount = 0;
       } else {
-        displayValue = "[Auto]";
+        displayValue = "From student enrollment %";
         amount = 0;
       }
     }

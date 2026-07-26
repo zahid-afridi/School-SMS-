@@ -5,7 +5,7 @@ import {
   type FetchBaseQueryError,
 } from "@reduxjs/toolkit/query/react";
 import { logout } from "./features/auth/authSlice";
-import type { RootState } from "./store";
+import type { RootState } from "./Store";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 

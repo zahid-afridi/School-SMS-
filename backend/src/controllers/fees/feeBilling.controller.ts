@@ -477,8 +477,18 @@ export const generateFeeInvoices = async (req: Request, res: Response) => {
     select: { id: true },
   });
 
+  if (students.length === 0) {
+    throw new AppError(
+      "No active students found for the selected class/filters. Add students with a current enrollment first.",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
   let created = 0;
-  let skipped = 0;
+  let skippedExisting = 0;
+  let skippedZero = 0;
+  let skippedError = 0;
+  const errors: string[] = [];
   const monthLabels: string[] = [];
 
   for (const period of periods) {
@@ -502,7 +512,7 @@ export const generateFeeInvoices = async (req: Request, res: Response) => {
         select: { id: true },
       });
       if (existing) {
-        skipped += 1;
+        skippedExisting += 1;
         continue;
       }
 
@@ -527,7 +537,7 @@ export const generateFeeInvoices = async (req: Request, res: Response) => {
           totalsFromLines(lines);
 
         if (totalAmount <= 0 && lines.every((l) => l.amount <= 0)) {
-          skipped += 1;
+          skippedZero += 1;
           continue;
         }
 
@@ -566,12 +576,17 @@ export const generateFeeInvoices = async (req: Request, res: Response) => {
           },
         });
         created += 1;
-      } catch {
-        skipped += 1;
+      } catch (err) {
+        skippedError += 1;
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        if (errors.length < 10) {
+          errors.push(`${s.id}: ${msg}`);
+        }
       }
     }
   }
 
+  const skipped = skippedExisting + skippedZero + skippedError;
   const label =
     periods.length === 1
       ? monthLabels[0]
@@ -583,10 +598,15 @@ export const generateFeeInvoices = async (req: Request, res: Response) => {
     data: {
       created,
       skipped,
+      skippedExisting,
+      skippedZero,
+      skippedError,
+      errors,
       mode,
       periodsCount: periods.length,
       monthLabel: label,
       periods: monthLabels,
+      studentCount: students.length,
     },
   });
 };
@@ -626,14 +646,21 @@ export const listFeeInvoices = async (req: Request, res: Response) => {
           }
         : {}),
       ...(typeof status === "string" && status
-        ? {
-            status: status as
-              | "UNPAID"
-              | "PARTIAL"
-              | "PAID"
-              | "WAIVED"
-              | "CANCELLED",
-          }
+        ? status.toUpperCase() === "OPEN" || status.toUpperCase() === "UNPAID_PARTIAL"
+          ? {
+              status: { in: ["UNPAID", "PARTIAL"] as const },
+              balanceAmount: { gt: 0 },
+            }
+          : status.toUpperCase() === "ALL"
+            ? {}
+            : {
+                status: status.toUpperCase() as
+                  | "UNPAID"
+                  | "PARTIAL"
+                  | "PAID"
+                  | "WAIVED"
+                  | "CANCELLED",
+              }
         : { status: { not: "CANCELLED" } }),
     },
     include: invoiceInclude,
@@ -1221,6 +1248,60 @@ export const previewStudentFee = async (req: Request, res: Response) => {
       outstandingBalance: roundMoney(
         openInvoices.reduce((s, i) => s + i.balanceAmount, 0)
       ),
+    },
+  });
+};
+
+/** POST /fees/invoices/:id/cancel — cancel unpaid invoice with no payments */
+export const cancelFeeInvoice = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+
+  const invoice = await getPrisma().feeInvoice.findFirst({
+    where: { id, schoolId },
+    include: { allocations: { select: { id: true } } },
+  });
+
+  if (!invoice) {
+    throw new AppError("Invoice not found", HttpStatus.NOT_FOUND);
+  }
+
+  if (invoice.status === "CANCELLED") {
+    throw new AppError("Invoice is already cancelled", HttpStatus.BAD_REQUEST);
+  }
+
+  if (invoice.paidAmount > 0 || invoice.allocations.length > 0) {
+    throw new AppError(
+      "Cannot cancel an invoice that has payments. Refund/adjust payments first.",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  if (invoice.status !== "UNPAID") {
+    throw new AppError(
+      "Only unpaid invoices with zero payments can be cancelled",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  const updated = await getPrisma().feeInvoice.update({
+    where: { id },
+    data: {
+      status: "CANCELLED",
+      balanceAmount: 0,
+      remarks:
+        typeof req.body?.remarks === "string" && req.body.remarks.trim()
+          ? req.body.remarks.trim()
+          : invoice.remarks,
+    },
+    include: invoiceInclude,
+  });
+
+  return ApiResponse.success(res, {
+    message: "Invoice cancelled",
+    data: {
+      ...updated,
+      monthLabel: `${MONTH_NAMES[updated.billingMonth - 1]} ${updated.billingYear}`,
     },
   });
 };
