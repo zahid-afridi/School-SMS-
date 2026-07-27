@@ -72,27 +72,29 @@ const REPORTS = [
 
 export default function ReportsHomePage() {
   return (
-    <div className="min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Reports</h1>
-        <p className="text-slate-500 mt-1">
+    <div className="w-full min-w-0">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Reports</h1>
+        <p className="text-slate-500 mt-1 text-sm sm:text-base">
           School reports for students, parents, attendance, fees and accounts
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
         {REPORTS.map((report) => {
           const Icon = report.icon;
           return (
             <Link
               key={report.href}
               href={report.href}
-              className="group bg-white border border-slate-200 rounded-2xl p-5 hover:border-slate-900 hover:shadow-md transition"
+              className="group bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 hover:border-slate-900 hover:shadow-md transition min-w-0"
             >
               <div className="w-11 h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center mb-4 group-hover:scale-105 transition">
                 <Icon />
               </div>
-              <h2 className="font-semibold text-slate-900">{report.name}</h2>
+              <h2 className="font-semibold text-slate-900 break-words">
+                {report.name}
+              </h2>
               <p className="text-sm text-slate-500 mt-1">{report.desc}</p>
             </Link>
           );

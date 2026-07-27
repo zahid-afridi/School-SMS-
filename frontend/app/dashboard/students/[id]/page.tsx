@@ -46,7 +46,7 @@ export default function Page() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-slate-500">Loading student details...</p>
       </div>
     );
@@ -54,7 +54,7 @@ export default function Page() {
 
   if (isError || !student) {
     return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center gap-3">
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3">
         <p className="text-red-500">Student not found.</p>
         <button
           onClick={() => router.push("/dashboard/students")}
@@ -71,7 +71,7 @@ export default function Page() {
     student.enrollments?.find((e) => e.isCurrent) ?? student.enrollments?.[0];
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

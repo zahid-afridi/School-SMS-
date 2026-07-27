@@ -93,7 +93,7 @@ export default function Page() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-\[40vh\]">
         <p className="text-slate-500">Loading account...</p>
       </div>
     );
@@ -101,14 +101,14 @@ export default function Page() {
 
   if (isError || !me) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-\[40vh\]">
         <p className="text-red-500">Failed to load account settings.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <div className="inline-flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-full font-medium mb-2">

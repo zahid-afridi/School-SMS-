@@ -11,7 +11,7 @@ export default function ClassesPage() {
     classes?.reduce((acc, c) => acc + (c.sections?.length ?? 0), 0) ?? 0;
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="w-full min-w-0">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Classes</h1>

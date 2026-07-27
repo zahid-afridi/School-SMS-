@@ -133,7 +133,7 @@ export default function SectionsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-8 bg-gray-50 min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-gray-500 text-lg">Loading...</p>
       </div>
     );
@@ -141,7 +141,7 @@ export default function SectionsPage() {
 
   if (isError || !classes) {
     return (
-      <div className="p-8 bg-gray-50 min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-red-500 text-lg">Failed to load data.</p>
       </div>
     );
@@ -153,7 +153,7 @@ export default function SectionsPage() {
   );
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="w-full min-w-0">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>

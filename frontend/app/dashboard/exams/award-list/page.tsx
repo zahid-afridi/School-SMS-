@@ -61,7 +61,7 @@ export default function AwardListPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-5xl mx-auto">
         <ExamBreadcrumb current="Blank Award List" />
         <h1 className="text-3xl font-bold text-slate-900 mb-2 print:hidden">

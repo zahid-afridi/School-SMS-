@@ -5,7 +5,7 @@ export default function Page() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#f4f5fb] flex items-center justify-center">
+        <div className="flex items-center justify-center min-h-[40vh]">
           <p className="text-slate-500">Loading...</p>
         </div>
       }

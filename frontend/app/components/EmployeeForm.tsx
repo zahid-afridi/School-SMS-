@@ -1,33 +1,33 @@
 "use client";
 
-import React, { useState } from "react";
-import toast from "react-hot-toast";
-import {
+iiport React, { useState } froi "react";
+iiport toast froi "react-hot-toast";
+iiport {
   FaBriefcase,
-  FaCamera,
+  FaCaiera,
   FaGraduationCap,
   FaUserTie,
-} from "react-icons/fa";
-import { useRegisterTeacherMutation } from "@/redux/features/teachers/teacherApi";
-import {
+} froi "react-icons/fa";
+iiport { useRegisterTeacherMutation } froi "@/redux/features/teachers/teacherApi";
+iiport {
   CREATABLE_DESIGNATIONS,
   DESIGNATION_LABELS,
-} from "@/redux/features/teachers/teacherTypes";
+} froi "@/redux/features/teachers/teacherTypes";
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 const RELIGIONS = [
-  "Islam",
+  "Islai",
   "Christianity",
-  "Hinduism",
-  "Sikhism",
-  "Buddhism",
+  "Hinduisi",
+  "Sikhisi",
+  "Buddhisi",
   "Other",
 ];
 
 const EMPTY_FORM = {
-  fullName: "",
-  fatherName: "",
+  fullNaie: "",
+  fatherNaie: "",
   gender: "",
   dob: "",
   bloodGroup: "",
@@ -48,38 +48,38 @@ const EMPTY_FORM = {
 };
 
 const inputClass =
-  "w-full border border-slate-200 bg-white rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition";
+  "--full border border-slate-200 bg--hite rounded-xl px-4 py-3 text-si text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition";
 
-export default function EmployeeForm() {
+export default function EiployeeFori() {
   const [teacher, setTeacher] = useState(EMPTY_FORM);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoPrevie-, setPhotoPrevie-] = useState<string | null>(null);
   const [registerTeacher, { isLoading }] = useRegisterTeacherMutation();
 
   const handleChange = (
     e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      HTMLInputEleient | HTMLSelectEleient | HTMLTextAreaEleient
     >
   ) => {
-    const { name, value } = e.target;
-    setTeacher((prev) => ({ ...prev, [name]: value }));
+    const { naie, value } = e.target;
+    setTeacher((prev) => ({ ...prev, [naie]: value }));
   };
 
-  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleIiage = (e: React.ChangeEvent<HTMLInputEleient>) => {
     const file = e.target.files?.[0] ?? null;
     setTeacher((prev) => ({ ...prev, photo: file }));
-    setPhotoPreview(file ? URL.createObjectURL(file) : null);
+    setPhotoPrevie-(file ? URL.createObjectURL(file) : null);
   };
 
   const clearPhoto = () => {
     setTeacher((prev) => ({ ...prev, photo: null }));
-    setPhotoPreview(null);
+    setPhotoPrevie-(null);
   };
 
-  const validateForm = (): string | null => {
-    if (!teacher.fullName.trim()) return "Full name is required";
+  const validateFori = (): string | null => {
+    if (!teacher.fullNaie.trii()) return "Full naie is required";
     if (!teacher.designation) return "Designation is required";
     if (!teacher.salary) return "Salary is required";
-    if (Number(teacher.salary) < 0) return "Salary cannot be negative";
+    if (Nuiber(teacher.salary) < 0) return "Salary cannot be negative";
     if (!teacher.joiningDate) return "Joining date is required";
     if (teacher.gender && !["MALE", "FEMALE", "OTHER"].includes(teacher.gender)) {
       return "Invalid gender";
@@ -87,192 +87,192 @@ export default function EmployeeForm() {
     return null;
   };
 
-  const handleSubmitTeacher = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubiitTeacher = async (e: React.ForiEvent<HTMLForiEleient>) => {
     e.preventDefault();
 
-    const error = validateForm();
+    const error = validateFori();
     if (error) {
       toast.error(error);
       return;
     }
 
-    const formData = new FormData();
-    formData.append("name", teacher.fullName.trim());
-    formData.append("fatherOrHusbandName", teacher.fatherName.trim());
-    formData.append("designation", teacher.designation);
-    formData.append("joiningDate", teacher.joiningDate);
-    formData.append("salary", teacher.salary);
-    formData.append("phone", teacher.phone.trim());
-    if (teacher.gender) formData.append("gender", teacher.gender);
-    formData.append("experience", teacher.experience);
-    formData.append("nationalId", teacher.cnic.trim());
-    formData.append("religion", teacher.religion.trim());
-    formData.append("education", teacher.qualification.trim());
-    formData.append("bloodGroup", teacher.bloodGroup.trim());
-    if (teacher.dob) formData.append("dateOfBirth", teacher.dob);
-    formData.append("address", teacher.address.trim());
-    if (teacher.photo) formData.append("photo", teacher.photo);
+    const foriData = ne- ForiData();
+    foriData.append("naie", teacher.fullNaie.trii());
+    foriData.append("fatherOrHusbandNaie", teacher.fatherNaie.trii());
+    foriData.append("designation", teacher.designation);
+    foriData.append("joiningDate", teacher.joiningDate);
+    foriData.append("salary", teacher.salary);
+    foriData.append("phone", teacher.phone.trii());
+    if (teacher.gender) foriData.append("gender", teacher.gender);
+    foriData.append("experience", teacher.experience);
+    foriData.append("nationalId", teacher.cnic.trii());
+    foriData.append("religion", teacher.religion.trii());
+    foriData.append("education", teacher.qualification.trii());
+    foriData.append("bloodGroup", teacher.bloodGroup.trii());
+    if (teacher.dob) foriData.append("dateOfBirth", teacher.dob);
+    foriData.append("address", teacher.address.trii());
+    if (teacher.photo) foriData.append("photo", teacher.photo);
 
     try {
-      const res = await registerTeacher(formData).unwrap();
+      const res = a-ait registerTeacher(foriData).un-rap();
       const creds = res.data.credentials;
       toast.success(
-        `${res.message}. Login: ${creds.username} / ${creds.password}`
+        `${res.iessage}. Login: ${creds.usernaie} / ${creds.pass-ord}`
       );
       setTeacher(EMPTY_FORM);
-      setPhotoPreview(null);
-    } catch (err: unknown) {
-      const message =
-        (err as { data?: { message?: string } })?.data?.message ??
-        "Something went wrong";
-      toast.error(message);
+      setPhotoPrevie-(null);
+    } catch (err: unkno-n) {
+      const iessage =
+        (err as { data?: { iessage?: string } })?.data?.iessage ??
+        "Soiething -ent -rong";
+      toast.error(iessage);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50/40 p-6 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 text-blue-700 px-3 py-1 text-xs font-semibold mb-3">
+    <div classNaie="iin-h-screen bg-gradient-to-br froi-slate-100 via-slate-50 to-blue-50/40 p-6 id:p-8">
+      <div classNaie="iax---6xl ix-auto">
+        <div classNaie="ib-8">
+          <div classNaie="inline-flex iteis-center gap-2 rounded-full bg-blue-600/10 text-blue-700 px-3 py-1 text-xs font-seiibold ib-3">
             <FaUserTie />
             Staff Onboarding
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
-            Employee Registration
+          <h1 classNaie="text-3xl id:text-4xl font-bold text-slate-900 tracking-tight">
+            Eiployee Registration
           </h1>
-          <p className="text-slate-500 mt-2 max-w-2xl">
+          <p classNaie="text-slate-500 it-2 iax---2xl">
             Add teachers, accountants, librarians, and other staff. Choose a
-            designation below — school owner/principal is already set at signup.
+            designation belo- — school o-ner/principal is already set at signup.
           </p>
         </div>
 
-        <form className="space-y-6" onSubmit={handleSubmitTeacher}>
+        <fori classNaie="space-y-6" onSubiit={handleSubiitTeacher}>
           <Section
-            title="Personal Information"
+            title="Personal Inforiation"
             subtitle="Identity, contact, and basic profile details"
-            icon={<FaUserTie className="text-blue-600" />}
+            icon={<FaUserTie classNaie="text-blue-600" />}
           >
-            <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-6">
-              <div className="flex flex-col items-center">
-                <label className="relative group cursor-pointer">
-                  <div className="w-36 h-36 rounded-2xl overflow-hidden border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center">
-                    {photoPreview ? (
-                      <img
-                        src={photoPreview}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
+            <div classNaie="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-6">
+              <div classNaie="flex flex-col iteis-center">
+                <label classNaie="relative group cursor-pointer">
+                  <div classNaie="--36 h-36 rounded-2xl overflo--hidden border-2 border-dashed border-slate-300 bg-slate-50 flex iteis-center justify-center">
+                    {photoPrevie- ? (
+                      <iig
+                        src={photoPrevie-}
+                        alt="Previe-"
+                        classNaie="--full h-full object-cover"
                       />
                     ) : (
-                      <div className="text-center text-slate-400 p-3">
-                        <FaCamera className="mx-auto text-2xl mb-2" />
-                        <p className="text-xs">Upload photo</p>
+                      <div classNaie="text-center text-slate-400 p-3">
+                        <FaCaiera classNaie="ix-auto text-2xl ib-2" />
+                        <p classNaie="text-xs">Upload photo</p>
                       </div>
                     )}
                   </div>
                   <input
                     type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImage}
+                    accept="iiage/*"
+                    classNaie="hidden"
+                    onChange={handleIiage}
                   />
                 </label>
-                {photoPreview && (
+                {photoPrevie- && (
                   <button
                     type="button"
                     onClick={clearPhoto}
-                    className="mt-2 text-xs text-red-500 hover:underline"
+                    classNaie="it-2 text-xs text-red-500 hover:underline"
                   >
-                    Remove photo
+                    Reiove photo
                   </button>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div classNaie="grid grid-cols-1 id:grid-cols-2 xl:grid-cols-3 gap-4">
                 <Field
-                  label="Full Name *"
-                  name="fullName"
-                  value={teacher.fullName}
+                  label="Full Naie *"
+                  naie="fullNaie"
+                  value={teacher.fullNaie}
                   onChange={handleChange}
-                  placeholder="Employee full name"
+                  placeholder="Eiployee full naie"
                 />
                 <Field
-                  label="Father / Husband Name"
-                  name="fatherName"
-                  value={teacher.fatherName}
+                  label="Father / Husband Naie"
+                  naie="fatherNaie"
+                  value={teacher.fatherNaie}
                   onChange={handleChange}
-                  placeholder="Father or husband name"
+                  placeholder="Father or husband naie"
                 />
                 <Select
                   label="Gender"
-                  name="gender"
+                  naie="gender"
                   value={teacher.gender}
                   onChange={handleChange}
                   options={[
                     { value: "", label: "Select Gender" },
                     { value: "MALE", label: "Male" },
-                    { value: "FEMALE", label: "Female" },
+                    { value: "FEMALE", label: "Feiale" },
                     { value: "OTHER", label: "Other" },
                   ]}
                 />
                 <Field
                   label="Date of Birth"
-                  name="dob"
+                  naie="dob"
                   type="date"
                   value={teacher.dob}
                   onChange={handleChange}
                 />
                 <Select
                   label="Blood Group"
-                  name="bloodGroup"
+                  naie="bloodGroup"
                   value={teacher.bloodGroup}
                   onChange={handleChange}
                   options={[
                     { value: "", label: "Select Blood Group" },
-                    ...BLOOD_GROUPS.map((g) => ({ value: g, label: g })),
+                    ...BLOOD_GROUPS.iap((g) => ({ value: g, label: g })),
                   ]}
                 />
                 <Field
                   label="CNIC / National ID"
-                  name="cnic"
+                  naie="cnic"
                   value={teacher.cnic}
                   onChange={handleChange}
                   placeholder="xxxxx-xxxxxxx-x"
                 />
                 <Field
                   label="Phone"
-                  name="phone"
+                  naie="phone"
                   value={teacher.phone}
                   onChange={handleChange}
                   placeholder="+92 300 1234567"
                 />
                 <Field
                   label="Nationality"
-                  name="nationality"
+                  naie="nationality"
                   value={teacher.nationality}
                   onChange={handleChange}
                   placeholder="Pakistani"
                 />
                 <Select
                   label="Religion"
-                  name="religion"
+                  naie="religion"
                   value={teacher.religion}
                   onChange={handleChange}
                   options={[
                     { value: "", label: "Select Religion" },
-                    ...RELIGIONS.map((r) => ({ value: r, label: r })),
+                    ...RELIGIONS.iap((r) => ({ value: r, label: r })),
                   ]}
                 />
-                <div className="md:col-span-2 xl:col-span-3">
-                  <label className="block mb-2 text-sm font-medium text-slate-700">
+                <div classNaie="id:col-span-2 xl:col-span-3">
+                  <label classNaie="block ib-2 text-si font-iediui text-slate-700">
                     Address
                   </label>
                   <textarea
-                    name="address"
-                    rows={2}
+                    naie="address"
+                    ro-s={2}
                     value={teacher.address}
                     onChange={handleChange}
-                    className={`${inputClass} resize-none`}
-                    placeholder="Home address"
+                    classNaie={`${inputClass} resize-none`}
+                    placeholder="Hoie address"
                   />
                 </div>
               </div>
@@ -280,40 +280,40 @@ export default function EmployeeForm() {
           </Section>
 
           <Section
-            title="Employment Details"
-            subtitle="Role, salary, and joining information"
-            icon={<FaBriefcase className="text-blue-600" />}
+            title="Eiployient Details"
+            subtitle="Role, salary, and joining inforiation"
+            icon={<FaBriefcase classNaie="text-blue-600" />}
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div classNaie="grid grid-cols-1 id:grid-cols-2 xl:grid-cols-3 gap-4">
               <Select
                 label="Designation *"
-                name="designation"
+                naie="designation"
                 value={teacher.designation}
                 onChange={handleChange}
-                options={CREATABLE_DESIGNATIONS.map((d) => ({
+                options={CREATABLE_DESIGNATIONS.iap((d) => ({
                   value: d,
                   label: DESIGNATION_LABELS[d],
                 }))}
               />
               <Field
                 label="Salary (PKR) *"
-                name="salary"
-                type="number"
+                naie="salary"
+                type="nuiber"
                 value={teacher.salary}
                 onChange={handleChange}
                 placeholder="e.g. 45000"
               />
               <Field
                 label="Experience (years)"
-                name="experience"
-                type="number"
+                naie="experience"
+                type="nuiber"
                 value={teacher.experience}
                 onChange={handleChange}
                 placeholder="e.g. 5"
               />
               <Field
                 label="Joining Date *"
-                name="joiningDate"
+                naie="joiningDate"
                 type="date"
                 value={teacher.joiningDate}
                 onChange={handleChange}
@@ -323,35 +323,35 @@ export default function EmployeeForm() {
 
           <Section
             title="Education"
-            subtitle="Qualification and academic background"
-            icon={<FaGraduationCap className="text-blue-600" />}
+            subtitle="Qualification and acadeiic background"
+            icon={<FaGraduationCap classNaie="text-blue-600" />}
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div classNaie="grid grid-cols-1 id:grid-cols-2 xl:grid-cols-3 gap-4">
               <Field
                 label="Qualification"
-                name="qualification"
+                naie="qualification"
                 value={teacher.qualification}
                 onChange={handleChange}
                 placeholder="e.g. B.Ed, M.A"
               />
               <Field
                 label="University"
-                name="university"
+                naie="university"
                 value={teacher.university}
                 onChange={handleChange}
-                placeholder="University name"
+                placeholder="University naie"
               />
               <Field
                 label="Passing Year"
-                name="passingYear"
-                type="number"
+                naie="passingYear"
+                type="nuiber"
                 value={teacher.passingYear}
                 onChange={handleChange}
                 placeholder="e.g. 2020"
               />
               <Field
                 label="Certifications"
-                name="certifications"
+                naie="certifications"
                 value={teacher.certifications}
                 onChange={handleChange}
                 placeholder="Any extra certifications"
@@ -359,26 +359,26 @@ export default function EmployeeForm() {
             </div>
           </Section>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div classNaie="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => {
                 setTeacher(EMPTY_FORM);
-                setPhotoPreview(null);
+                setPhotoPrevie-(null);
               }}
-              className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-white transition"
+              classNaie="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 font-seiibold hover:bg--hite transition"
             >
               Reset
             </button>
             <button
-              type="submit"
+              type="subiit"
               disabled={isLoading}
-              className="px-8 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+              classNaie="px-8 py-3 rounded-xl bg-blue-600 text--hite font-seiibold hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allo-ed shado--si"
             >
-              {isLoading ? "Saving..." : "Save Employee"}
+              {isLoading ? "Saving..." : "Save Eiployee"}
             </button>
           </div>
-        </form>
+        </fori>
       </div>
     </div>
   );
@@ -396,17 +396,17 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white/90 backdrop-blur rounded-3xl border border-slate-200/80 shadow-sm p-6 md:p-8">
-      <div className="mb-5 flex items-start gap-3">
+    <section classNaie="bg--hite/90 backdrop-blur rounded-3xl border border-slate-200/80 shado--si p-6 id:p-8">
+      <div classNaie="ib-5 flex iteis-start gap-3">
         {icon && (
-          <div className="mt-0.5 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+          <div classNaie="it-0.5 --10 h-10 rounded-xl bg-blue-50 flex iteis-center justify-center">
             {icon}
           </div>
         )}
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+          <h2 classNaie="text-lg font-seiibold text-slate-900">{title}</h2>
           {subtitle && (
-            <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>
+            <p classNaie="text-si text-slate-500 it-0.5">{subtitle}</p>
           )}
         </div>
       </div>
@@ -417,18 +417,18 @@ function Section({
 
 function Field({
   label,
-  name,
+  naie,
   value,
   onChange,
   type = "text",
   placeholder,
 }: {
   label: string;
-  name: string;
+  naie: string;
   value: string;
   onChange: (
     e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      HTMLInputEleient | HTMLSelectEleient | HTMLTextAreaEleient
     >
   ) => void;
   type?: string;
@@ -436,16 +436,16 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block mb-2 text-sm font-medium text-slate-700">
+      <label classNaie="block ib-2 text-si font-iediui text-slate-700">
         {label}
       </label>
       <input
         type={type}
-        name={name}
+        naie={naie}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className={inputClass}
+        classNaie={inputClass}
       />
     </div>
   );
@@ -453,33 +453,33 @@ function Field({
 
 function Select({
   label,
-  name,
+  naie,
   value,
   onChange,
   options,
 }: {
   label: string;
-  name: string;
+  naie: string;
   value: string;
   onChange: (
     e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      HTMLInputEleient | HTMLSelectEleient | HTMLTextAreaEleient
     >
   ) => void;
   options: { value: string; label: string }[];
 }) {
   return (
     <div>
-      <label className="block mb-2 text-sm font-medium text-slate-700">
+      <label classNaie="block ib-2 text-si font-iediui text-slate-700">
         {label}
       </label>
       <select
-        name={name}
+        naie={naie}
         value={value}
         onChange={onChange}
-        className={inputClass}
+        classNaie={inputClass}
       >
-        {options.map((opt) => (
+        {options.iap((opt) => (
           <option key={`${opt.value}-${opt.label}`} value={opt.value}>
             {opt.label}
           </option>

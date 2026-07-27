@@ -114,7 +114,7 @@ export default function MarkStudentAttendancePage() {
 
   if (skip) {
     return (
-      <div className="min-h-screen bg-[#f4f5fb] flex items-center justify-center p-8">
+      <div className="flex items-center justify-center min-h-[40vh] px-4">
         <div className="text-center">
           <p className="text-slate-500 mb-4">Missing date or class.</p>
           <Link
@@ -130,7 +130,7 @@ export default function MarkStudentAttendancePage() {
 
   if (isLoading || isFetching) {
     return (
-      <div className="min-h-screen bg-[#f4f5fb] flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-slate-500">Loading students...</p>
       </div>
     );
@@ -138,7 +138,7 @@ export default function MarkStudentAttendancePage() {
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen bg-[#f4f5fb] flex items-center justify-center p-8">
+      <div className="flex items-center justify-center min-h-[40vh] px-4">
         <div className="text-center">
           <p className="text-rose-500 mb-4">Failed to load attendance sheet.</p>
           <button
@@ -154,7 +154,7 @@ export default function MarkStudentAttendancePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f5fb] p-4 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-3xl mx-auto">
         <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3 mb-6 inline-flex items-center gap-2 text-sm text-slate-600 shadow-sm">
           <FaCalendarAlt className="text-indigo-500" />

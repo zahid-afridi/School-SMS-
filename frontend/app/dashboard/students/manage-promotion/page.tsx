@@ -61,7 +61,7 @@ export default function Page() {
   }, [searchInput]);
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <div className="inline-flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-full font-medium mb-2">

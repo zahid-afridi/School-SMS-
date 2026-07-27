@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   FaEye,
@@ -32,9 +32,19 @@ function resolvePhoto(photo?: string | null): string | null {
 }
 
 export default function Page() {
+  return (
+    <Suspense fallback={<p className="text-slate-500 p-6">Loading students…</p>}>
+      <StudentsPageInner />
+    </Suspense>
+  );
+}
+
+function StudentsPageInner() {
   const router = useRouter();
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get("search")?.trim() ?? "";
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [search, setSearch] = useState(initialSearch);
   const [classId, setClassId] = useState("");
   const [sectionId, setSectionId] = useState("");
   const [status, setStatus] = useState("");
@@ -64,6 +74,12 @@ export default function Page() {
     () => classes.find((c) => c.id === classId) ?? null,
     [classes, classId]
   );
+
+  useEffect(() => {
+    const q = searchParams.get("search")?.trim() ?? "";
+    setSearchInput(q);
+    setSearch(q);
+  }, [searchParams]);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput.trim()), 350);
@@ -97,7 +113,7 @@ export default function Page() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 md:p-8">
+    <div className="w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>

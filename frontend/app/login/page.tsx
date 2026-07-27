@@ -10,6 +10,7 @@ import type { LoginRequest } from "@/redux/features/auth/authTypes";
 export default function LoginPage() {
   const router = useRouter();
   const [login, { isLoading }] = useLoginMutation();
+  const [showPassword, setShowPassword] = useState(false);
 
   const [user, setUser] = useState<LoginRequest>({
     email: "",
@@ -102,17 +103,26 @@ export default function LoginPage() {
               </span>
 
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 name="password"
                 value={user.password}
                 onChange={handleChange}
                 placeholder="Password"
                 className="w-full outline-none bg-transparent text-primary"
                 required
+                autoComplete="current-password"
               />
 
-              <button type="button" className="text-secondary">
-                <span className="material-symbols-outlined">visibility</span>
+              <button
+                type="button"
+                className="text-secondary hover:text-primary transition"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                <span className="material-symbols-outlined">
+                  {showPassword ? "visibility_off" : "visibility"}
+                </span>
               </button>
             </div>
 

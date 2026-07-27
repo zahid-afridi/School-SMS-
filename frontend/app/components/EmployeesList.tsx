@@ -79,7 +79,7 @@ export default function EmployeesList({
 
   if (isLoading) {
     return (
-      <div className="bg-gray-100 min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-lg text-gray-500">Loading employees...</p>
       </div>
     );
@@ -87,14 +87,14 @@ export default function EmployeesList({
 
   if (isError || !employees) {
     return (
-      <div className="bg-gray-100 min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-lg text-red-500">Failed to load employees.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-100 min-h-screen p-8">
+    <div className="w-full min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">

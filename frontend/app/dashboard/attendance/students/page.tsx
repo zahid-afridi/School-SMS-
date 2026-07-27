@@ -43,7 +43,7 @@ export default function StudentsAttendanceSelectPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f5fb] p-4 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3 mb-6 inline-flex items-center gap-2 text-sm text-slate-600 shadow-sm">
           <FaCalendarAlt className="text-indigo-500" />

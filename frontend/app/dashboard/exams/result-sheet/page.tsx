@@ -45,7 +45,7 @@ export default function ResultSheetPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-7xl mx-auto">
         <ExamBreadcrumb current="Result Sheet" />
         <h1 className="text-3xl font-bold text-slate-900 mb-6 print:hidden">Result Sheet</h1>

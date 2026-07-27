@@ -18,7 +18,7 @@ export default function StudentFeeLedgerPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-slate-500">Loading ledger...</p>
       </div>
     );
@@ -26,7 +26,7 @@ export default function StudentFeeLedgerPage() {
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-red-500">Failed to load student ledger.</p>
       </div>
     );
@@ -36,7 +36,7 @@ export default function StudentFeeLedgerPage() {
   const enrollment = student.enrollment;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-5xl mx-auto">
         <Link
           href="/dashboard/fees/defaulters"

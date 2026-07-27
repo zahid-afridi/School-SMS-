@@ -106,7 +106,7 @@ export default function Page() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="mb-6">
         <div className="inline-flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-full font-medium mb-2">
           <FaUserGraduate /> Promote Student

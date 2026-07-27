@@ -20,7 +20,7 @@ export default function FeesOverviewPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-slate-500">Loading fees dashboard...</p>
       </div>
     );
@@ -28,35 +28,37 @@ export default function FeesOverviewPage() {
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-red-500">Failed to load fees dashboard.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-emerald-50/30 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-          <div>
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-2">
               Fee Management
             </p>
-            <h1 className="text-3xl font-bold text-slate-900">Fees Overview</h1>
-            <p className="text-slate-500 mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
+              Fees Overview
+            </h1>
+            <p className="text-slate-500 mt-1 text-sm sm:text-base">
               Track billing, collections, outstanding dues, and defaulters
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto">
             <Link
               href="/dashboard/fees/generate"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800"
             >
               <FaPlus size={12} /> Generate Month
             </Link>
             <Link
               href="/dashboard/fees/collect"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
             >
               <FaHandHoldingUsd size={14} /> Collect Fees
             </Link>

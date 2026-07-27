@@ -24,7 +24,7 @@ export default function ExamSchedulePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex items-center justify-center min-h-\[40vh\]">
           <p className="text-slate-500">Loading schedule...</p>
         </div>
       }
@@ -120,7 +120,7 @@ function ScheduleInner() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+    <div className="w-full min-w-0">
       <div className="max-w-6xl mx-auto">
         <ExamBreadcrumb current="Exam Schedule" />
         <h1 className="text-3xl font-bold text-slate-900 mb-2">Exam Schedule</h1>
