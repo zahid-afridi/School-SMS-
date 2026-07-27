@@ -121,6 +121,7 @@ model School {
   feeInvoices    FeeInvoice[]
   feePayments    FeePayment[]
   attendanceSheets StudentAttendanceSheet[]
+  staffAttendanceSheets StaffAttendanceSheet[]
   subjects       Subject[]
   exams          Exam[]
 
@@ -186,6 +187,7 @@ model Employee {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   sections  Section[] @relation("SectionTeacher")
+  attendanceEntries StaffAttendanceEntry[]
 
   @@unique([schoolId, employeeCode])
   @@index([schoolId])
@@ -599,6 +601,47 @@ model StudentAttendanceEntry {
   @@unique([sheetId, studentId])
   @@index([sheetId])
   @@index([studentId])
+  @@index([status])
+}
+
+model StaffAttendanceSheet {
+  id      String   @id @default(uuid())
+  dateKey String // YYYY-MM-DD
+  date    DateTime
+  remarks String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  takenByUserId String?
+
+  entries StaffAttendanceEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, dateKey])
+  @@index([schoolId])
+  @@index([dateKey])
+}
+
+model StaffAttendanceEntry {
+  id      String           @id @default(uuid())
+  status  AttendanceStatus @default(PRESENT)
+  remarks String?
+
+  sheetId String
+  sheet   StaffAttendanceSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sheetId, employeeId])
+  @@index([sheetId])
+  @@index([employeeId])
   @@index([status])
 }
 

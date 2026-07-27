@@ -172,20 +172,40 @@ export default function Sidebar() {
       icon: <FaChartBar size={18} />,
       children: [
         {
-          name: "Student Reports",
-          href: "/dashboard/reports",
+          name: "Students report Card",
+          href: "/dashboard/reports/students-report-card",
         },
         {
-          name: "Attendance Reports",
-          href: "/dashboard/reports/attendance",
+          name: "Students info report",
+          href: "/dashboard/reports/students-info",
         },
         {
-          name: "Fee Reports",
-          href: "/dashboard/reports/fees",
+          name: "Parents info report",
+          href: "/dashboard/reports/parents-info",
         },
         {
-          name: "Exam Reports",
-          href: "/dashboard/reports/exams",
+          name: "Students Monthly Attendance Report",
+          href: "/dashboard/reports/students-monthly-attendance",
+        },
+        {
+          name: "Staff Monthly Attendance Report",
+          href: "/dashboard/reports/staff-monthly-attendance",
+        },
+        {
+          name: "Fee Collection Report",
+          href: "/dashboard/reports/fee-collection",
+        },
+        {
+          name: "Student Progress Report",
+          href: "/dashboard/reports/student-progress",
+        },
+        {
+          name: "Accounts Report",
+          href: "/dashboard/reports/accounts",
+        },
+        {
+          name: "Customised Reports",
+          href: "/dashboard/reports/customised",
         },
       ],
     },
