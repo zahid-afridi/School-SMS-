@@ -1,5 +1,6 @@
 "use client";
 
+import { ButtonLoader } from "@/app/components/PageLoader";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
@@ -112,7 +113,7 @@ export default function ResultSheetPage() {
               disabled={isFetching}
               className="h-11 px-5 rounded-xl bg-black text-white font-semibold hover:bg-slate-800"
             >
-              {isFetching ? "Loading..." : "Load Sheet"}
+              {isFetching ? <ButtonLoader label="Loading sheet" /> : "Load Sheet"}
             </button>
             {sheet && (
               <button

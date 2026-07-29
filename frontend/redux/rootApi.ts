@@ -21,6 +21,7 @@ export const rootApi = createApi({
     "Reports",
     "Admission",
     "Dashboard",
+    "Settings",
   ],
   endpoints: () => ({}),
 });

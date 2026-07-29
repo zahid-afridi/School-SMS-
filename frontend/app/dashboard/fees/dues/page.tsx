@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -202,7 +204,7 @@ export default function MonthlyDuesPage() {
         </div>
 
         {isLoading || isFetching ? (
-          <p className="text-slate-500">Loading dues...</p>
+          <PageLoader compact label="Loading dues" />
         ) : isError ? (
           <p className="text-red-500">Failed to load dues.</p>
         ) : rows.length === 0 ? (

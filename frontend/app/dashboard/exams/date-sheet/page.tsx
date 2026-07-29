@@ -1,5 +1,6 @@
 "use client";
 
+import { ButtonLoader } from "@/app/components/PageLoader";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
@@ -89,7 +90,11 @@ export default function DateSheetPage() {
               disabled={isFetching}
               className="h-11 px-5 rounded-xl bg-black text-white font-semibold"
             >
-              {isFetching ? "Loading..." : "View Date Sheet"}
+              {isFetching ? (
+                <ButtonLoader label="Loading date sheet" />
+              ) : (
+                "View Date Sheet"
+              )}
             </button>
             {data && (
               <button

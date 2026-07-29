@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useState, useRef, useEffect } from "react";
 import { FaCog, FaCamera, FaSyncAlt, FaTrash, FaGlobe, FaPhone, FaEnvelope, FaMapMarkerAlt, FaSchool, FaCheckCircle } from "react-icons/fa";
 import toast from "react-hot-toast";
@@ -96,7 +98,7 @@ export default function SettingsPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-400 text-lg">Loading settings...</p>
+        <PageLoader compact label="Loading settings" />
       </div>
     );
   }
@@ -242,13 +244,13 @@ export default function SettingsPage() {
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-60"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-60"
               >
                 {isDeleting ? "Deleting..." : "Yes, Delete"}
               </button>
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 border border-gray-300 py-2.5 rounded-xl font-semibold text-sm text-gray-700 hover:bg-gray-50 transition"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-2.5 rounded-xl font-semibold text-sm transition"
               >
                 Cancel
               </button>

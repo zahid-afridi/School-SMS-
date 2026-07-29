@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { FaArrowRight, FaCheckSquare, FaSquare, FaUserGraduate } from "react-icons/fa";
@@ -174,9 +176,7 @@ export default function Page() {
               Choose a class to load students.
             </p>
           ) : isLoading || isFetching ? (
-            <p className="text-sm text-slate-500 py-10 text-center">
-              Loading students...
-            </p>
+            <PageLoader compact label="Loading students" />
           ) : students.length === 0 ? (
             <p className="text-sm text-slate-500 py-10 text-center">
               No active students found in this class.

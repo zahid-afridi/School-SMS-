@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useState } from "react";
 import Link from "next/link";
 import { FaPhone, FaSearch } from "react-icons/fa";
@@ -76,7 +78,7 @@ export default function DefaultersPage() {
         </div>
 
         {isLoading ? (
-          <p className="text-slate-500">Loading defaulters...</p>
+          <PageLoader compact label="Loading defaulters" />
         ) : isError ? (
           <p className="text-red-500">Failed to load defaulters.</p>
         ) : defaulters.length === 0 ? (

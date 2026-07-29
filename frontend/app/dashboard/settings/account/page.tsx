@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { FaLock, FaUserCog, FaEnvelope, FaUser } from "react-icons/fa";
@@ -93,15 +95,15 @@ export default function Page() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-\[40vh\]">
-        <p className="text-slate-500">Loading account...</p>
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <PageLoader compact label="Loading account" />
       </div>
     );
   }
 
   if (isError || !me) {
     return (
-      <div className="flex items-center justify-center min-h-\[40vh\]">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <p className="text-red-500">Failed to load account settings.</p>
       </div>
     );

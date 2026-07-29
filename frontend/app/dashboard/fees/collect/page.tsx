@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -28,8 +30,8 @@ export default function CollectFeesPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center min-h-\[40vh\]">
-          <p className="text-slate-500">Loading collect fees...</p>
+        <div className="flex items-center justify-center min-h-[40vh]">
+          <PageLoader compact label="Loading collect fees" />
         </div>
       }
     >
@@ -300,7 +302,7 @@ function CollectFeesInner() {
               Outstanding months
             </h2>
             {loadingPreview ? (
-              <p className="text-slate-400 text-sm">Loading...</p>
+              <PageLoader compact label="Loading" />
             ) : !preview ? (
               <p className="text-slate-400 text-sm">
                 Select a student to see unpaid invoices.

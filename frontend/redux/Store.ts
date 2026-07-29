@@ -5,6 +5,7 @@ import teacherReducer from "./features/teachers/teacherSlice";
 import classReducer from "./features/classes/ClassSlice";
 import studentReducer from "./features/students/studentSlice";
 import schoolReducer from "./features/school/schoolSlice";
+import settingsReducer from "./features/settings/SettingSlice";
 
 export const store = configureStore({
   reducer: {
@@ -14,6 +15,7 @@ export const store = configureStore({
     classes: classReducer,
     students: studentReducer,
     school: schoolReducer,
+    settings: settingsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(rootApi.middleware),

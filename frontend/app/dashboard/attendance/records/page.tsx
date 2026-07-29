@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FaCalendarAlt } from "react-icons/fa";
@@ -89,7 +91,7 @@ export default function AttendanceRecordsPage() {
         </div>
 
         {isLoading ? (
-          <p className="text-slate-500">Loading records...</p>
+          <PageLoader compact label="Loading records" />
         ) : isError ? (
           <p className="text-rose-500">Failed to load records.</p>
         ) : records.length === 0 ? (

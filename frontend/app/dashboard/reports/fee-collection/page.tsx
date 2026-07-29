@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useGetReportFeeCollectionQuery } from "@/redux/features/reports/reportApi";
@@ -57,7 +59,7 @@ function FeeCollectionInner() {
       </div>
 
       {isLoading || isFetching ? (
-        <p className="text-slate-500">Loading report…</p>
+        <PageLoader compact label="Loading report" />
       ) : isError || !data ? (
         <p className="text-rose-500">Failed to load fee collection report.</p>
       ) : (
@@ -141,7 +143,7 @@ function FeeCollectionInner() {
 
 export default function FeeCollectionReportPage() {
   return (
-    <Suspense fallback={<p className="text-slate-500 p-6">Loading…</p>}>
+    <Suspense fallback={<PageLoader compact label="Loading" />}>
       <FeeCollectionInner />
     </Suspense>
   );

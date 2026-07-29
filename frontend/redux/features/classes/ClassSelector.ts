@@ -1,4 +1,4 @@
-import type { RootState } from "../../store";
+import type { RootState } from "../../Store";
 
 export const selectAllClasses = (state: RootState) => state.classes.classes;
 

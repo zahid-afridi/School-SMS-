@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import Link from "next/link";
 import {
   FaCalendarAlt,
@@ -103,7 +105,7 @@ export default function ExamsHubPage() {
             <h2 className="font-semibold text-slate-900">Recent Exams</h2>
           </div>
           {isLoading ? (
-            <p className="p-8 text-slate-400 text-center">Loading exams...</p>
+            <PageLoader compact label="Loading exams" />
           ) : exams.length === 0 ? (
             <div className="p-12 text-center text-slate-400">
               <p className="font-medium text-slate-600 mb-1">No Exams Yet</p>

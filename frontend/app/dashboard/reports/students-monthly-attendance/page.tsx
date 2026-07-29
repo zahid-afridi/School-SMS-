@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
@@ -110,7 +112,7 @@ function StudentsMonthlyAttendanceInner() {
           Select a class to load the monthly attendance report.
         </div>
       ) : isLoading || isFetching ? (
-        <p className="text-slate-500">Loading report…</p>
+        <PageLoader compact label="Loading report" />
       ) : isError || !data ? (
         <p className="text-rose-500">Failed to load attendance report.</p>
       ) : (
@@ -191,7 +193,7 @@ function StudentsMonthlyAttendanceInner() {
 
 export default function StudentsMonthlyAttendanceReportPage() {
   return (
-    <Suspense fallback={<p className="text-slate-500 p-6">Loading…</p>}>
+    <Suspense fallback={<PageLoader compact label="Loading" />}>
       <StudentsMonthlyAttendanceInner />
     </Suspense>
   );

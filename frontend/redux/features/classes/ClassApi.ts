@@ -53,7 +53,37 @@ export const classApi = rootApi.injectEndpoints({
         body: data,
       }),
       transformResponse: (res: ClassResponse) => res.data,
-      invalidatesTags: ["Classes"],
+      async onQueryStarted({ id }, { dispatch, queryFulfilled, getState }) {
+        try {
+          const { data: updated } = await queryFulfilled;
+          dispatch(
+            classApi.util.updateQueryData("getAllClasses", undefined, (draft) => {
+              const idx = draft.findIndex((c) => c.id === id);
+              if (idx !== -1) {
+                draft[idx] = { ...draft[idx], ...updated };
+              }
+            })
+          );
+          dispatch(
+            classApi.util.updateQueryData("getClassById", id, (draft) => {
+              Object.assign(draft, updated);
+            })
+          );
+          const state = getState() as {
+            classes?: { classes: SchoolClass[] };
+          };
+          const current = state.classes?.classes ?? [];
+          dispatch(
+            setClasses(
+              current.map((c) => (c.id === id ? { ...c, ...updated } : c))
+            )
+          );
+        } catch {
+          /* mutation failed — leave cache as-is */
+        }
+      },
+      // Also refresh fee structure / billing that embeds class monthly fee
+      invalidatesTags: ["Classes", "Fees"],
     }),
 
     deleteClass: builder.mutation<{ message: string }, string>({

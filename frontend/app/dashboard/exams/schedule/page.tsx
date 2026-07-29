@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
@@ -24,8 +26,8 @@ export default function ExamSchedulePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center min-h-\[40vh\]">
-          <p className="text-slate-500">Loading schedule...</p>
+        <div className="flex items-center justify-center min-h-[40vh]">
+          <PageLoader compact label="Loading schedule" />
         </div>
       }
     >
@@ -307,7 +309,7 @@ function ScheduleInner() {
             {!examId ? (
               <p className="text-slate-400 text-sm">Select an exam to view schedule.</p>
             ) : isFetching ? (
-              <p className="text-slate-400 text-sm">Loading...</p>
+              <PageLoader compact label="Loading" />
             ) : schedule.length === 0 ? (
               <p className="text-slate-400 text-sm">No papers scheduled yet.</p>
             ) : (

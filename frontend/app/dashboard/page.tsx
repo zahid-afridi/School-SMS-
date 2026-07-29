@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import Link from "next/link";
 import {
   FaUserGraduate,
@@ -146,7 +148,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-slate-500">Loading dashboard…</p>
+        <PageLoader compact label="Loading dashboard" />
       </div>
     );
   }

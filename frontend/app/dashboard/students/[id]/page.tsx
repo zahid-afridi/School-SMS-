@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useParams, useRouter } from "next/navigation";
 import {
   FaArrowLeft,
@@ -47,7 +49,7 @@ export default function Page() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-slate-500">Loading student details...</p>
+        <PageLoader compact label="Loading student details" />
       </div>
     );
   }

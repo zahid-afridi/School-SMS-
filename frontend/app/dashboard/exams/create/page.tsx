@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { FaSave, FaClipboardList } from "react-icons/fa";
@@ -122,7 +124,7 @@ export default function CreateExamPage() {
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <ExamStepTitle step={2} title="Existing Exams" />
             {isLoading ? (
-              <p className="text-slate-400 text-center py-16">Loading...</p>
+              <PageLoader compact label="Loading" />
             ) : exams.length === 0 ? (
               <div className="py-16 text-center text-slate-400">
                 <FaClipboardList className="mx-auto text-4xl mb-3 opacity-40" />

@@ -1,5 +1,6 @@
 "use client";
 
+import { ButtonLoader } from "@/app/components/PageLoader";
 import { useMemo, useState } from "react";
 import { useGetAllStudentsQuery } from "@/redux/features/students/studentApi";
 import { useLazyGetStudentProgressReportQuery } from "@/redux/features/reports/reportApi";
@@ -68,7 +69,11 @@ export default function StudentProgressReportPage() {
           disabled={!studentId || isFetching}
           className="h-11 rounded-xl bg-black text-white text-sm font-semibold disabled:opacity-50"
         >
-          {isFetching ? "Loading…" : "Generate progress report"}
+          {isFetching ? (
+            <ButtonLoader label="Generating" />
+          ) : (
+            "Generate progress report"
+          )}
         </button>
       </div>
 

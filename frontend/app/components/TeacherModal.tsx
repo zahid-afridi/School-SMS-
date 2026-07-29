@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useState, useRef, useEffect } from "react";
 import {
   useDeleteTeacherMutation,
@@ -248,9 +250,7 @@ export default function TeacherModal({
         )}
 
         {isLoadingDetails && !fullTeacher ? (
-          <p className="text-center text-gray-400 text-sm py-4">
-            Loading details...
-          </p>
+          <PageLoader compact label="Loading details" />
         ) : !isEditing ? (
           <div className="space-y-4 text-sm text-gray-700">
             <Row
@@ -401,14 +401,14 @@ export default function TeacherModal({
             <>
               <button
                 onClick={() => setIsEditing(true)}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
               >
                 <FaEdit /> Update
               </button>
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <FaTrash />
                 {isDeleting ? "Deleting..." : "Delete"}
@@ -419,7 +419,7 @@ export default function TeacherModal({
               <button
                 onClick={handleUpdate}
                 disabled={isUpdating}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <FaSave />
                 {isUpdating ? "Saving..." : "Save"}
@@ -427,7 +427,7 @@ export default function TeacherModal({
               <button
                 onClick={cancelEdit}
                 disabled={isUpdating}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
               >
                 <FaBan /> Cancel
               </button>

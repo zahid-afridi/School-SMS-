@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
@@ -142,7 +144,7 @@ function StaffMonthlyAttendanceInner() {
             </button>
           </div>
           {sheetLoading || !sheet ? (
-            <p className="text-slate-500 text-sm">Loading staff sheet…</p>
+            <PageLoader compact label="Loading staff sheet" />
           ) : sheet.employees.length === 0 ? (
             <p className="text-slate-400 text-sm">No active staff found.</p>
           ) : (
@@ -191,7 +193,7 @@ function StaffMonthlyAttendanceInner() {
       ) : null}
 
       {isLoading || isFetching ? (
-        <p className="text-slate-500">Loading report…</p>
+        <PageLoader compact label="Loading report" />
       ) : isError || !data ? (
         <p className="text-rose-500">Failed to load staff attendance report.</p>
       ) : (
@@ -271,7 +273,7 @@ function StaffMonthlyAttendanceInner() {
 
 export default function StaffMonthlyAttendanceReportPage() {
   return (
-    <Suspense fallback={<p className="text-slate-500 p-6">Loading…</p>}>
+    <Suspense fallback={<PageLoader compact label="Loading" />}>
       <StaffMonthlyAttendanceInner />
     </Suspense>
   );

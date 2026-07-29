@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState } from "react";
 import { useGetFeeCollectionReportQuery } from "@/redux/features/fees/feeApi";
 
@@ -51,7 +53,7 @@ export default function FeeReportsPage() {
         </div>
 
         {isLoading || isFetching ? (
-          <p className="text-slate-500">Loading report...</p>
+          <PageLoader compact label="Loading report" />
         ) : isError || !data ? (
           <p className="text-red-500">Failed to load report.</p>
         ) : (

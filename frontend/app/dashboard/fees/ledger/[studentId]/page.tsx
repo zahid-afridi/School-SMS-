@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
@@ -19,7 +21,7 @@ export default function StudentFeeLedgerPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-slate-500">Loading ledger...</p>
+        <PageLoader compact label="Loading ledger" />
       </div>
     );
   }

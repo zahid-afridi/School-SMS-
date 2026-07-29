@@ -9,12 +9,28 @@ import {
   reportInputClass,
 } from "../_components/ReportUI";
 
-const REPORT_TYPES = [
+type ReportNeed =
+  | "classId"
+  | "status"
+  | "parentType"
+  | "year"
+  | "month"
+  | "from"
+  | "to";
+
+type ReportType = {
+  id: string;
+  label: string;
+  path: string;
+  needs: ReportNeed[];
+};
+
+const REPORT_TYPES: ReportType[] = [
   {
     id: "students-report-card",
     label: "Students report Card",
     path: "/dashboard/reports/students-report-card",
-    needs: [] as string[],
+    needs: [],
   },
   {
     id: "students-info",
@@ -58,7 +74,7 @@ const REPORT_TYPES = [
     path: "/dashboard/reports/accounts",
     needs: ["year"],
   },
-] as const;
+];
 
 function toInputDate(d: Date) {
   return d.toISOString().slice(0, 10);

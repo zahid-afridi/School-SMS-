@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { FaCheck, FaSearch, FaMoneyBillWave } from "react-icons/fa";
@@ -235,7 +237,7 @@ export default function Page() {
                 : "Search a student above to load fee particulars."}
             </div>
           ) : isLoading || isFetching ? (
-            <p className="py-16 text-center text-slate-500">Loading fee particulars...</p>
+            <PageLoader compact label="Loading fee particulars" />
           ) : isError || !data ? (
             <p className="py-16 text-center text-red-500">
               Failed to load fee particulars.
@@ -309,7 +311,7 @@ export default function Page() {
               type="button"
               onClick={handleSave}
               disabled={!queryArgs || isSaving || !data}
-              className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-60 shadow-sm"
+              className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-black text-white font-medium hover:bg-neutral-800 disabled:opacity-60 shadow-sm"
             >
               <FaCheck />
               {isSaving ? "Saving..." : "Save Changes"}

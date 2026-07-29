@@ -1,21 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useLoginMutation } from "@/redux/features/auth/authApi";
 import type { LoginRequest } from "@/redux/features/auth/authTypes";
 
+const REMEMBER_KEY = "sms_remember_credentials";
+
+type RememberedCredentials = {
+  email: string;
+  password: string;
+};
+
+function loadRemembered(): RememberedCredentials | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RememberedCredentials;
+    if (!parsed?.email || !parsed?.password) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [login, { isLoading }] = useLoginMutation();
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const [user, setUser] = useState<LoginRequest>({
     email: "",
     password: "",
   });
+
+  useEffect(() => {
+    const saved = loadRemembered();
+    if (!saved) return;
+    setUser({ email: saved.email, password: saved.password });
+    setRememberMe(true);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -26,6 +54,19 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       await login(user).unwrap();
+
+      if (rememberMe) {
+        localStorage.setItem(
+          REMEMBER_KEY,
+          JSON.stringify({
+            email: user.email.trim(),
+            password: user.password,
+          })
+        );
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
+
       toast.success("Logged in successfully!");
       router.push("/dashboard");
     } catch (err: unknown) {
@@ -36,11 +77,13 @@ export default function LoginPage() {
   };
 
   return (
-    <main
+    <div className="min-h-screen w-full flex items-center justify-center p-4 md:p-6 bg-[#f9f9fb]">
+      <main
         className="
           w-full
           max-w-[1000px]
-          h-screen
+          min-h-[min(100dvh-2rem,640px)]
+          md:h-[min(90dvh,720px)]
           bg-white
           rounded-xl
           shadow-[0_40px_100px_-20px_rgba(0,0,0,0.06)]
@@ -48,13 +91,11 @@ export default function LoginPage() {
           flex
           flex-col
           md:flex-row
-          mx-auto
         "
       >
         {/* LEFT: LOGIN FORM */}
-        <section className="w-full md:w-[45%] p-10 flex flex-col justify-center bg-surface-container-lowest">
-          {/* HEADER */}
-          <header className="mb-10">
+        <section className="w-full md:w-[45%] p-6 sm:p-8 md:p-10 flex flex-col justify-center bg-white overflow-y-auto">
+          <header className="mb-8 md:mb-10">
             <div className="flex items-center gap-2 mb-6">
               <span
                 className="material-symbols-outlined text-primary text-[40px]"
@@ -72,14 +113,10 @@ export default function LoginPage() {
               Please enter your credentials to access your dashboard.
             </p>
 
-            <h2 className="text-xl font-semibold text-primary">
-              Welcome Back
-            </h2>
+            <h2 className="text-xl font-semibold text-primary">Welcome Back</h2>
           </header>
 
-          {/* FORM */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* EMAIL */}
             <div className="border-b border-outline-variant py-4 flex items-center gap-3">
               <span className="material-symbols-outlined text-secondary">
                 mail
@@ -93,10 +130,10 @@ export default function LoginPage() {
                 placeholder="Email Address"
                 className="w-full outline-none bg-transparent text-primary"
                 required
+                autoComplete="email"
               />
             </div>
 
-            {/* PASSWORD */}
             <div className="border-b border-outline-variant py-4 flex items-center gap-3">
               <span className="material-symbols-outlined text-secondary">
                 lock
@@ -126,15 +163,18 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* REMEMBER ME */}
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-secondary">
-                <input type="checkbox" />
+              <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 accent-black"
+                />
                 Remember Me
               </label>
             </div>
 
-            {/* LOGIN BUTTON */}
             <button
               type="submit"
               disabled={isLoading}
@@ -144,12 +184,18 @@ export default function LoginPage() {
               {isLoading ? "Logging in..." : "Login"}
             </button>
 
-            {/* FORGOT PASSWORD */}
             <div className="text-center">
               <a href="#" className="text-sm text-secondary hover:text-primary">
                 Forgot your{" "}
                 <span className="font-semibold text-primary">password?</span>
               </a>
+            </div>
+
+            <div className="text-center md:hidden pt-2">
+              <Link href="/register" className="text-sm text-secondary">
+                Don&apos;t have an account?{" "}
+                <span className="font-semibold text-black">Sign Up</span>
+              </Link>
             </div>
           </form>
         </section>
@@ -166,6 +212,7 @@ export default function LoginPage() {
           </div>
 
           <div className="flex items-end justify-center flex-grow">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuCEzApgN-Pav-fzyniVGpPcpA_x-6m1ejor9WeexCyhQQBaDTU1apFTD0IX-YJQU7KwKmB59ukZvHMIC67lwtwbnR-7NkpMjumQs4p-uem7yM7LnSIYBH6o3gcDkw-nRmoYViOsOyNt_44ln0v5-05EiWNdTU7s9HfLwFZoNiaaenwsjo-wP1yCZvYta-fRaUXzHaQqhZG-L8hbdAPH_L05QpsqrEK-fJpCC-ecNvekdIBJCMtuciDM6IXY6tBHvlb9t5UYf2-JjA"
               alt="login"
@@ -184,5 +231,6 @@ export default function LoginPage() {
           </div>
         </section>
       </main>
+    </div>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FaBriefcase, FaPhone, FaPlus, FaSearch } from "react-icons/fa";
@@ -80,7 +82,7 @@ export default function EmployeesList({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-lg text-gray-500">Loading employees...</p>
+        <PageLoader compact label="Loading employees" />
       </div>
     );
   }

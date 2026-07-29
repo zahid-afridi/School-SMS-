@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
@@ -20,8 +22,8 @@ export default function MarksPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center min-h-\[40vh\]">
-          <p className="text-slate-500">Loading...</p>
+        <div className="flex items-center justify-center min-h-[40vh]">
+          <PageLoader compact label="Loading" />
         </div>
       }
     >
@@ -227,7 +229,7 @@ function MarksInner() {
         </div>
 
         {isFetching ? (
-          <p className="text-slate-400">Loading sheet...</p>
+          <PageLoader compact label="Loading sheet" />
         ) : sheet ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

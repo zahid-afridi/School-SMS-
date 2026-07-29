@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -33,7 +35,7 @@ function resolvePhoto(photo?: string | null): string | null {
 
 export default function Page() {
   return (
-    <Suspense fallback={<p className="text-slate-500 p-6">Loading students…</p>}>
+    <Suspense fallback={<PageLoader compact label="Loading students" />}>
       <StudentsPageInner />
     </Suspense>
   );
@@ -234,7 +236,7 @@ function StudentsPageInner() {
 
       {/* Content */}
       {isLoading ? (
-        <p className="text-slate-500 text-center py-16">Loading students...</p>
+        <PageLoader compact label="Loading students" />
       ) : isError ? (
         <p className="text-red-500 text-center py-16">Failed to load students.</p>
       ) : (

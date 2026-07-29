@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useEffect, useRef, useState } from "react";
 import {
   FaPhone,
@@ -220,9 +222,7 @@ export default function StudentModal({
         </p>
 
         {isLoadingDetails && !fullStudent ? (
-          <p className="text-center text-gray-400 text-sm py-4">
-            Loading details...
-          </p>
+          <PageLoader compact label="Loading details" />
         ) : !isEditing ? (
           <div className="space-y-4 text-sm text-gray-700">
             <Row
@@ -377,14 +377,14 @@ export default function StudentModal({
             <>
               <button
                 onClick={() => setIsEditing(true)}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
               >
                 <FaEdit /> Update
               </button>
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60"
               >
                 <FaTrash />
                 {isDeleting ? "Deleting..." : "Delete"}
@@ -395,7 +395,7 @@ export default function StudentModal({
               <button
                 onClick={handleUpdate}
                 disabled={isUpdating}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60"
               >
                 <FaSave />
                 {isUpdating ? "Saving..." : "Save"}
@@ -407,7 +407,7 @@ export default function StudentModal({
                   setPreviewUrl(null);
                   setRemovePhoto(false);
                 }}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
+                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
               >
                 <FaBan /> Cancel
               </button>

@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -131,7 +133,7 @@ export default function MarkStudentAttendancePage() {
   if (isLoading || isFetching) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-slate-500">Loading students...</p>
+        <PageLoader compact label="Loading students" />
       </div>
     );
   }

@@ -216,13 +216,13 @@ export default function StudentsReportCardPage() {
       </div>
 
       <div id="result-card-print-area">
-        {card ? <StudentResultCard data={card} /> : null}
+        {card ? <StudentResultCard card={card} /> : null}
         {classCards.map((c, idx) => (
           <div
             key={c.student.id}
             className={idx < classCards.length - 1 ? "result-card-page-break" : ""}
           >
-            <StudentResultCard data={c} />
+            <StudentResultCard card={c} />
           </div>
         ))}
         {!card && classCards.length === 0 && sheet && sheet.rows.length === 0 ? (

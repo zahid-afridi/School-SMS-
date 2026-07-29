@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useEffect, useMemo, useState } from "react";
 import { FaArrowRight, FaRedo, FaSearch, FaUserGraduate } from "react-icons/fa";
 import { useGetPromotionsQuery } from "@/redux/features/students/studentApi";
@@ -162,7 +164,7 @@ export default function Page() {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {isLoading ? (
-          <p className="p-8 text-center text-slate-500">Loading promotions...</p>
+          <PageLoader compact label="Loading promotions" />
         ) : isError ? (
           <p className="p-8 text-center text-red-500">Failed to load promotions.</p>
         ) : promotions.length === 0 ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
 import Link from "next/link";
 import { FaPlus, FaListAlt, FaLayerGroup } from "react-icons/fa";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
@@ -9,6 +10,10 @@ export default function ClassesPage() {
 
   const totalSections =
     classes?.reduce((acc, c) => acc + (c.sections?.length ?? 0), 0) ?? 0;
+
+  if (isLoading) {
+    return <PageLoader label="Loading classes" />;
+  }
 
   return (
     <div className="w-full min-w-0">
@@ -30,13 +35,13 @@ export default function ClassesPage() {
         <StatCard
           icon={<FaListAlt className="text-blue-500" size={22} />}
           label="Total Classes"
-          value={isLoading ? "..." : String(classes?.length ?? 0)}
+          value={String(classes?.length ?? 0)}
           bg="bg-blue-50"
         />
         <StatCard
           icon={<FaLayerGroup className="text-green-500" size={22} />}
           label="Total Sections"
-          value={isLoading ? "..." : String(totalSections)}
+          value={String(totalSections)}
           bg="bg-green-50"
         />
         <StatCard

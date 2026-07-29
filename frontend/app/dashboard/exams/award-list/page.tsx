@@ -1,5 +1,6 @@
 "use client";
 
+import { ButtonLoader } from "@/app/components/PageLoader";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
@@ -162,7 +163,11 @@ export default function AwardListPage() {
               disabled={isFetching}
               className="h-11 px-5 rounded-xl bg-black text-white font-semibold"
             >
-              {isFetching ? "Loading..." : "Generate List"}
+              {isFetching ? (
+                <ButtonLoader label="Generating" />
+              ) : (
+                "Generate List"
+              )}
             </button>
             {list && (
               <button

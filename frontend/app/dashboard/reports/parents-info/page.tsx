@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useGetParentsInfoReportQuery } from "@/redux/features/reports/reportApi";
@@ -65,7 +67,7 @@ function ParentsInfoReportInner() {
       </div>
 
       {isLoading || isFetching ? (
-        <p className="text-slate-500">Loading report…</p>
+        <PageLoader compact label="Loading report" />
       ) : isError || !data ? (
         <p className="text-rose-500">Failed to load parents info report.</p>
       ) : (
@@ -128,7 +130,7 @@ function ParentsInfoReportInner() {
 
 export default function ParentsInfoReportPage() {
   return (
-    <Suspense fallback={<p className="text-slate-500 p-6">Loading…</p>}>
+    <Suspense fallback={<PageLoader compact label="Loading" />}>
       <ParentsInfoReportInner />
     </Suspense>
   );

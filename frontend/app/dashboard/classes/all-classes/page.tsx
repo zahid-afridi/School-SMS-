@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -101,7 +103,7 @@ export default function AllClassesPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-gray-500 text-lg">Loading classes...</p>
+        <PageLoader compact label="Loading classes" />
       </div>
     );
   }
@@ -297,14 +299,14 @@ export default function AllClassesPage() {
               <button
                 onClick={handleUpdate}
                 disabled={isUpdating}
-                className="flex-1 flex items-center justify-center gap-2 bg-black text-white py-3 rounded-xl font-semibold hover:bg-gray-800 transition disabled:opacity-60"
+                className="flex-1 flex items-center justify-center gap-2 bg-black text-white py-3 rounded-xl font-semibold hover:bg-neutral-800 transition disabled:opacity-60"
               >
                 <FaSave size={14} />
                 {isUpdating ? "Saving..." : "Save Changes"}
               </button>
               <button
                 onClick={() => setEditingClass(null)}
-                className="flex-1 border border-gray-300 py-3 rounded-xl font-semibold text-gray-700 hover:bg-gray-100 transition"
+                className="flex-1 bg-black text-white py-3 rounded-xl font-semibold hover:bg-neutral-800 transition"
               >
                 Cancel
               </button>

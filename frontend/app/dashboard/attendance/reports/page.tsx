@@ -1,5 +1,7 @@
 "use client";
 
+import PageLoader from "@/app/components/PageLoader";
+
 import { useMemo, useState } from "react";
 import { FaCalendarAlt } from "react-icons/fa";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
@@ -73,7 +75,7 @@ export default function StudentsAttendanceReportPage() {
         </div>
 
         {isLoading || isFetching ? (
-          <p className="text-slate-500">Loading report...</p>
+          <PageLoader compact label="Loading report" />
         ) : isError || !data ? (
           <p className="text-rose-500">Failed to load report.</p>
         ) : data.students.length === 0 ? (
