@@ -19,10 +19,15 @@ import {
   ExamStepTitle,
   examInputClass,
 } from "../_components/ExamUI";
+import ExamTemplatePicker, {
+  type ExamDocumentTemplate,
+} from "../_components/ExamTemplatePicker";
 import StudentResultCard from "../_components/StudentResultCard";
 
 export default function ResultCardPage() {
   const [mode, setMode] = useState<"student" | "class">("student");
+  const [template, setTemplate] =
+    useState<ExamDocumentTemplate>("classic");
   const { data: exams = [] } = useGetExamsQuery();
   const { data: classes = [] } = useGetAllClassesQuery();
   const [examId, setExamId] = useState("");
@@ -55,12 +60,18 @@ export default function ResultCardPage() {
     style.id = styleId;
     style.textContent = `
       @media print {
+        @page { size: A4 portrait; margin: 8mm; }
         body * { visibility: hidden !important; }
         #result-card-print-area, #result-card-print-area * { visibility: visible !important; }
         #result-card-print-area {
           position: absolute !important;
           left: 0; top: 0; width: 100%;
         }
+        #result-card-print-area {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .result-card-document { break-inside: avoid; page-break-inside: avoid; }
         .result-card-page-break { page-break-after: always; break-after: page; }
       }
     `;
@@ -145,6 +156,14 @@ export default function ResultCardPage() {
         <ExamBreadcrumb current="Result Card" />
 
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm print:hidden mb-6">
+          <div className="mb-7">
+            <ExamTemplatePicker
+              value={template}
+              onChange={setTemplate}
+              title="Choose result card template"
+            />
+          </div>
+
           <div className="flex gap-2 mb-6">
             <button
               type="button"
@@ -283,6 +302,7 @@ export default function ResultCardPage() {
           {card && (
             <StudentResultCard
               card={card}
+              template={template}
               onPrint={() => window.print()}
             />
           )}
@@ -309,7 +329,7 @@ export default function ResultCardPage() {
                     idx < classCards.length - 1 ? "result-card-page-break" : ""
                   }
                 >
-                  <StudentResultCard card={c} />
+                  <StudentResultCard card={c} template={template} />
                 </div>
               ))}
             </div>

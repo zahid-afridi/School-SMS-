@@ -14,6 +14,9 @@ import type {
   ResultSheetData,
 } from "@/redux/features/exams/examTypes";
 import StudentResultCard from "@/app/dashboard/exams/_components/StudentResultCard";
+import ExamTemplatePicker, {
+  type ExamDocumentTemplate,
+} from "@/app/dashboard/exams/_components/ExamTemplatePicker";
 import {
   ReportBreadcrumb,
   ReportHeader,
@@ -22,6 +25,8 @@ import {
 
 export default function StudentsReportCardPage() {
   const [mode, setMode] = useState<"student" | "class">("student");
+  const [template, setTemplate] =
+    useState<ExamDocumentTemplate>("classic");
   const { data: exams = [] } = useGetExamsQuery();
   const { data: classes = [] } = useGetAllClassesQuery();
   const [examId, setExamId] = useState("");
@@ -49,12 +54,18 @@ export default function StudentsReportCardPage() {
     style.id = styleId;
     style.textContent = `
       @media print {
+        @page { size: A4 portrait; margin: 8mm; }
         body * { visibility: hidden !important; }
         #result-card-print-area, #result-card-print-area * { visibility: visible !important; }
         #result-card-print-area {
           position: absolute !important;
           left: 0; top: 0; width: 100%;
         }
+        #result-card-print-area {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .result-card-document { break-inside: avoid; page-break-inside: avoid; }
         .result-card-page-break { page-break-after: always; break-after: page; }
       }
     `;
@@ -124,6 +135,12 @@ export default function StudentsReportCardPage() {
       />
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-6 print:hidden space-y-4">
+        <ExamTemplatePicker
+          value={template}
+          onChange={setTemplate}
+          title="Choose result card template"
+        />
+
         <div className="flex gap-2">
           <button
             type="button"
@@ -216,13 +233,13 @@ export default function StudentsReportCardPage() {
       </div>
 
       <div id="result-card-print-area">
-        {card ? <StudentResultCard card={card} /> : null}
+        {card ? <StudentResultCard card={card} template={template} /> : null}
         {classCards.map((c, idx) => (
           <div
             key={c.student.id}
             className={idx < classCards.length - 1 ? "result-card-page-break" : ""}
           >
-            <StudentResultCard card={c} />
+            <StudentResultCard card={c} template={template} />
           </div>
         ))}
         {!card && classCards.length === 0 && sheet && sheet.rows.length === 0 ? (
