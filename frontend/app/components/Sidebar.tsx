@@ -111,6 +111,10 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         { name: "Exam Schedule", href: "/dashboard/exams/schedule" },
         { name: "Date Sheet", href: "/dashboard/exams/date-sheet" },
         { name: "Blank Award List", href: "/dashboard/exams/award-list" },
+        {
+          name: "Document Studio",
+          href: "/dashboard/exams/document-studio",
+        },
       ],
     },
     {

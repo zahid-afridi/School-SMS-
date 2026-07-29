@@ -1,40 +1,23 @@
 "use client";
 
-export type ExamDocumentTemplate =
-  | "classic"
-  | "modern"
-  | "royal"
-  | "minimal";
+import {
+  BUILTIN_TEMPLATES,
+  type ExamDocumentTemplate,
+} from "@/lib/documentStyles";
 
-const templates: Array<{
-  id: ExamDocumentTemplate;
-  name: string;
-  description: string;
-  colors: [string, string, string];
-}> = [
+export type { ExamDocumentTemplate } from "@/lib/documentStyles";
+
+const templates = [
+  ...BUILTIN_TEMPLATES,
   {
-    id: "classic",
-    name: "Classic",
-    description: "Traditional school document",
-    colors: ["bg-slate-900", "bg-slate-300", "bg-white"],
-  },
-  {
-    id: "modern",
-    name: "Modern",
-    description: "Clean contemporary layout",
-    colors: ["bg-black", "bg-sky-500", "bg-slate-100"],
-  },
-  {
-    id: "royal",
-    name: "Royal",
-    description: "Premium formal presentation",
-    colors: ["bg-emerald-900", "bg-amber-400", "bg-amber-50"],
-  },
-  {
-    id: "minimal",
-    name: "Minimal",
-    description: "Simple ink-friendly design",
-    colors: ["bg-zinc-800", "bg-zinc-400", "bg-white"],
+    id: "custom" as const,
+    name: "Custom",
+    description: "Your saved color style",
+    colors: ["bg-blue-700", "bg-amber-400", "bg-slate-100"] as [
+      string,
+      string,
+      string,
+    ],
   },
 ];
 
@@ -42,11 +25,17 @@ export default function ExamTemplatePicker({
   value,
   onChange,
   title = "Choose document template",
+  showCustom = true,
 }: {
   value: ExamDocumentTemplate;
   onChange: (template: ExamDocumentTemplate) => void;
   title?: string;
+  showCustom?: boolean;
 }) {
+  const list = showCustom
+    ? templates
+    : templates.filter((t) => t.id !== "custom");
+
   return (
     <div className="print:hidden">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -57,12 +46,12 @@ export default function ExamTemplatePicker({
           <h3 className="mt-0.5 font-semibold text-slate-900">{title}</h3>
         </div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
-          {templates.length} templates
+          {list.length} templates
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {templates.map((template) => {
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {list.map((template) => {
           const selected = value === template.id;
           return (
             <button

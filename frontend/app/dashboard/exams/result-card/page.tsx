@@ -14,6 +14,7 @@ import type {
   ResultCardData,
   ResultSheetData,
 } from "@/redux/features/exams/examTypes";
+import type { DocumentCustomStyle } from "@/lib/documentStyles";
 import {
   ExamBreadcrumb,
   ExamStepTitle,
@@ -23,11 +24,16 @@ import ExamTemplatePicker, {
   type ExamDocumentTemplate,
 } from "../_components/ExamTemplatePicker";
 import StudentResultCard from "../_components/StudentResultCard";
+import DocumentExportBar from "../_components/DocumentExportBar";
+import DocumentStyleCustomizer from "../_components/DocumentStyleCustomizer";
 
 export default function ResultCardPage() {
   const [mode, setMode] = useState<"student" | "class">("student");
   const [template, setTemplate] =
     useState<ExamDocumentTemplate>("classic");
+  const [customStyle, setCustomStyle] = useState<DocumentCustomStyle | null>(
+    null
+  );
   const { data: exams = [] } = useGetExamsQuery();
   const { data: classes = [] } = useGetAllClassesQuery();
   const [examId, setExamId] = useState("");
@@ -164,6 +170,12 @@ export default function ResultCardPage() {
             />
           </div>
 
+          {template === "custom" && (
+            <div className="mb-7">
+              <DocumentStyleCustomizer onActiveChange={setCustomStyle} compact />
+            </div>
+          )}
+
           <div className="flex gap-2 mb-6">
             <button
               type="button"
@@ -298,29 +310,39 @@ export default function ResultCardPage() {
           </button>
         </div>
 
+        {(card || classCards.length > 0) && (
+          <div className="mb-4">
+            <DocumentExportBar
+              elementId="result-card-print-area"
+              filename={
+                card
+                  ? `result-card-${card.student.name.replace(/\s+/g, "-")}`
+                  : `result-cards-${sheet?.class.className ?? "class"}`
+              }
+              label="Print, PDF, or Word"
+              resultCards={card ? [card] : classCards}
+            />
+          </div>
+        )}
+
         <div id="result-card-print-area">
           {card && (
             <StudentResultCard
               card={card}
               template={template}
+              customStyle={customStyle}
+              hideToolbar
               onPrint={() => window.print()}
             />
           )}
 
           {classCards.length > 0 && (
             <div className="space-y-8">
-              <div className="flex justify-between items-center print:hidden">
+              <div className="flex justify-between items-center print:hidden" data-export-ignore>
                 <p className="text-sm text-slate-600">
                   {classCards.length} result card(s)
                   {sheet ? ` · ${sheet.class.className}` : ""}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 h-10 rounded-lg bg-black text-white text-sm font-semibold"
-                >
-                  Print All Cards
-                </button>
               </div>
               {classCards.map((c, idx) => (
                 <div
@@ -329,7 +351,12 @@ export default function ResultCardPage() {
                     idx < classCards.length - 1 ? "result-card-page-break" : ""
                   }
                 >
-                  <StudentResultCard card={c} template={template} />
+                  <StudentResultCard
+                    card={c}
+                    template={template}
+                    customStyle={customStyle}
+                    hideToolbar
+                  />
                 </div>
               ))}
             </div>

@@ -77,15 +77,17 @@ function formFromTeacher(t: Teacher) {
 export default function TeacherModal({
   teacher,
   onClose,
+  initialEditing = false,
 }: {
   teacher: Teacher;
   onClose: () => void;
+  initialEditing?: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newPhoto, setNewPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [removePhoto, setRemovePhoto] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialEditing);
 
   const { data: fullTeacher, isLoading: isLoadingDetails } =
     useGetTeacherByIdQuery(teacher.id);

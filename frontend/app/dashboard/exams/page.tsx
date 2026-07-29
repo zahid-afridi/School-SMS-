@@ -59,6 +59,12 @@ const tiles = [
     desc: "Print blank mark entry list",
     icon: <FaListOl className="text-violet-600" />,
   },
+  {
+    href: "/dashboard/exams/document-studio",
+    title: "Document Studio",
+    desc: "Templates, custom styles, PDF & Word",
+    icon: <FaFileAlt className="text-violet-600" />,
+  },
 ];
 
 export default function ExamsHubPage() {

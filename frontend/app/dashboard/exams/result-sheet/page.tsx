@@ -13,6 +13,7 @@ import {
   ExamBreadcrumb,
   examInputClass,
 } from "../_components/ExamUI";
+import DocumentExportBar from "../_components/DocumentExportBar";
 
 export default function ResultSheetPage() {
   const { data: exams = [] } = useGetExamsQuery();
@@ -106,29 +107,31 @@ export default function ResultSheetPage() {
               ))}
             </select>
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex items-end">
             <button
               type="button"
               onClick={handleLoad}
               disabled={isFetching}
-              className="h-11 px-5 rounded-xl bg-black text-white font-semibold hover:bg-slate-800"
+              className="h-11 w-full px-5 rounded-xl bg-black text-white font-semibold hover:bg-slate-800"
             >
               {isFetching ? <ButtonLoader label="Loading sheet" /> : "Load Sheet"}
             </button>
-            {sheet && (
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="h-11 px-4 rounded-xl border border-slate-200 print:hidden"
-              >
-                Print
-              </button>
-            )}
           </div>
         </div>
 
         {sheet && (
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
+          <>
+            <div className="mb-4">
+              <DocumentExportBar
+                elementId="result-sheet-print-area"
+                filename={`result-sheet-${sheet.class.className}`}
+                label="Print, PDF, or Word"
+              />
+            </div>
+          <div
+            id="result-sheet-print-area"
+            className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm"
+          >
             <div className="px-5 py-4 border-b">
               <h2 className="font-semibold text-lg">
                 {sheet.exam.name} — {sheet.class.className}
@@ -205,6 +208,7 @@ export default function ResultSheetPage() {
               </table>
             )}
           </div>
+          </>
         )}
       </div>
     </div>

@@ -10,11 +10,14 @@ import {
   useLazyGetDateSheetQuery,
 } from "@/redux/features/exams/examApi";
 import type { DateSheetData } from "@/redux/features/exams/examTypes";
+import type { DocumentCustomStyle } from "@/lib/documentStyles";
 import { ExamBreadcrumb, examInputClass } from "../_components/ExamUI";
 import DateSheetDocument from "../_components/DateSheetDocument";
 import ExamTemplatePicker, {
   type ExamDocumentTemplate,
 } from "../_components/ExamTemplatePicker";
+import DocumentExportBar from "../_components/DocumentExportBar";
+import DocumentStyleCustomizer from "../_components/DocumentStyleCustomizer";
 
 export default function DateSheetPage() {
   const { data: exams = [] } = useGetExamsQuery();
@@ -25,6 +28,9 @@ export default function DateSheetPage() {
   const [data, setData] = useState<DateSheetData | null>(null);
   const [template, setTemplate] =
     useState<ExamDocumentTemplate>("classic");
+  const [customStyle, setCustomStyle] = useState<DocumentCustomStyle | null>(
+    null
+  );
   const [load, { isFetching }] = useLazyGetDateSheetQuery();
 
   useEffect(() => {
@@ -96,6 +102,10 @@ export default function DateSheetPage() {
             title="Choose date sheet template"
           />
 
+          {template === "custom" && (
+            <DocumentStyleCustomizer onActiveChange={setCustomStyle} compact />
+          )}
+
           <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-5 md:grid-cols-3">
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">
@@ -131,12 +141,12 @@ export default function DateSheetPage() {
                 ))}
               </select>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex items-end">
               <button
                 type="button"
                 onClick={handleLoad}
                 disabled={isFetching}
-                className="h-11 flex-1 rounded-xl bg-black px-5 font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                className="h-11 w-full rounded-xl bg-black px-5 font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
                 {isFetching ? (
                   <ButtonLoader label="Loading date sheet" />
@@ -144,27 +154,28 @@ export default function DateSheetPage() {
                   "View Date Sheet"
                 )}
               </button>
-              {data && (
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="h-11 rounded-xl bg-black px-5 font-semibold text-white hover:bg-slate-800"
-                >
-                  Print
-                </button>
-              )}
             </div>
           </div>
         </div>
 
         {data && (
-          <div id="date-sheet-print-area">
-            <DateSheetDocument
-              data={data}
-              school={school}
-              template={template}
-            />
-          </div>
+          <>
+            <div className="mb-4">
+              <DocumentExportBar
+                elementId="date-sheet-print-area"
+                filename={`date-sheet-${data.exam.name.replace(/\s+/g, "-")}`}
+                label="Print, PDF, or Word"
+              />
+            </div>
+            <div id="date-sheet-print-area">
+              <DateSheetDocument
+                data={data}
+                school={school}
+                template={template}
+                customStyle={customStyle}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>
