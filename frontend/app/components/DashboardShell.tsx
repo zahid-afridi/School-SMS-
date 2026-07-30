@@ -11,23 +11,35 @@ export default function DashboardShell({
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    let frame = 0;
     try {
       const saved = localStorage.getItem(SIDEBAR_KEY);
-      if (saved === "0") setSidebarVisible(false);
-      else if (saved === "1") setSidebarVisible(true);
-      else if (window.innerWidth < 1024) setSidebarVisible(false);
+      frame = window.requestAnimationFrame(() => {
+        setSidebarVisible(window.innerWidth >= 1024 && saved !== "0");
+        setHydrated(true);
+      });
     } catch {
-      // ignore storage errors
+      frame = window.requestAnimationFrame(() => setHydrated(true));
     }
-    setHydrated(true);
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) setSidebarVisible(false);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
+    // Never persist mobile drawer state — it would wipe the desktop preference.
+    if (typeof window !== "undefined" && window.innerWidth < 1024) return;
     try {
       localStorage.setItem(SIDEBAR_KEY, sidebarVisible ? "1" : "0");
     } catch {
@@ -48,7 +60,7 @@ export default function DashboardShell({
   const toggleSidebar = () => setSidebarVisible((v) => !v);
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    <div className="flex h-dvh min-h-dvh flex-col overflow-hidden bg-slate-100">
       <div className="print:hidden shrink-0">
         <Header
           sidebarVisible={sidebarVisible}
@@ -77,6 +89,9 @@ export default function DashboardShell({
                 : "-translate-x-full opacity-0 pointer-events-none lg:w-0 lg:overflow-hidden lg:opacity-0 lg:pointer-events-none"
             }
           `}
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+          }}
         >
           <Sidebar onNavigate={() => {
             if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -85,8 +100,15 @@ export default function DashboardShell({
           }} />
         </div>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-3 print:overflow-visible print:bg-white print:p-0 sm:p-4 md:p-6">
-          <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+        <main
+          className="dashboard-scroll min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-100 px-2.5 py-3 print:overflow-visible print:bg-white print:p-0 sm:p-4 md:p-6"
+          style={{
+            paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+          }}
+        >
+          <div className="dashboard-content mx-auto w-full max-w-[1600px]">
+            {children}
+          </div>
         </main>
       </div>
     </div>

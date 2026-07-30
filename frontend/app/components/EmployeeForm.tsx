@@ -214,16 +214,16 @@ export default function EmployeeForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50/40 p-6 md:p-8">
+    <div className="min-h-full bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50/40 p-0 sm:p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-5 sm:mb-8">
           <div className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 text-blue-700 px-3 py-1 text-xs font-semibold mb-3">
             <FaUserTie />
             Staff Onboarding
           </div>
 
-          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
             Employee Registration
           </h1>
 
@@ -502,7 +502,7 @@ export default function EmployeeForm() {
           </Section>
 
           {/* Buttons */}
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row sm:gap-3">
             <button
               type="button"
               onClick={() => {
@@ -517,7 +517,7 @@ export default function EmployeeForm() {
             <button
               type="submit"
               disabled={isLoading}
-              className="px-8 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+              className="min-h-11 w-full rounded-xl bg-blue-600 px-8 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {isLoading ? "Saving..." : "Save Employee"}
             </button>
@@ -540,7 +540,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white/90 backdrop-blur rounded-3xl border border-slate-200/80 shadow-sm p-6 md:p-8">
+    <section className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm backdrop-blur sm:rounded-3xl sm:p-6 md:p-8">
       <div className="mb-5 flex items-start gap-3">
         {icon && (
           <div className="mt-0.5 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">

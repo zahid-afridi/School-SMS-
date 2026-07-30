@@ -23,14 +23,10 @@ import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
 import type { Student } from "@/redux/features/students/studentTypes";
 import StudentModal from "@/app/components/StudentModal";
 
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
+import { resolveUploadUrl } from "@/lib/apiBase";
 
 function resolvePhoto(photo?: string | null): string | null {
-  if (!photo) return null;
-  return photo.startsWith("http")
-    ? photo
-    : `${IMAGE_BASE}/${photo.replace(/^\//, "")}`;
+  return resolveUploadUrl(photo);
 }
 
 export default function Page() {
@@ -117,7 +113,7 @@ function StudentsPageInner() {
   return (
     <div className="w-full min-w-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
             <FaUserGraduate className="text-blue-600" />
@@ -125,7 +121,7 @@ function StudentsPageInner() {
             <span>/</span>
             <span className="text-slate-800 font-medium">All Students</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
             All Students ({data?.pagination.total ?? students.length})
           </h1>
         </div>
@@ -133,7 +129,7 @@ function StudentsPageInner() {
           type="button"
           onClick={() => refetch()}
           disabled={isFetching}
-          className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
         >
           <FaRedo className={isFetching ? "animate-spin" : ""} />
           Reload
@@ -141,7 +137,7 @@ function StudentsPageInner() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 md:p-5 mb-6">
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm sm:mb-6 md:p-5">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
           <div className="xl:col-span-2">
             <label className="block text-[11px] font-semibold tracking-wide text-slate-500 mb-1.5">
@@ -227,7 +223,7 @@ function StudentsPageInner() {
           </button>
           <Link
             href="/dashboard/students/Add-students"
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shadow-sm"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 sm:w-auto"
           >
             <FaPlus /> Add Student
           </Link>
@@ -240,7 +236,7 @@ function StudentsPageInner() {
       ) : isError ? (
         <p className="text-red-500 text-center py-16">Failed to load students.</p>
       ) : (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           {students.map((student) => {
             const photoSrc = resolvePhoto(student.photoUrl);
             const enrollment = student.enrollments?.[0];

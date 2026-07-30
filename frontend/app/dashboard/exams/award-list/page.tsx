@@ -1,7 +1,7 @@
 "use client";
 
 import { ButtonLoader } from "@/app/components/PageLoader";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
 import {
@@ -24,6 +24,31 @@ export default function AwardListPage() {
   const [subjectId, setSubjectId] = useState("");
   const [blank, setBlank] = useState(true);
   const [list, setList] = useState<AwardListData | null>(null);
+
+  useEffect(() => {
+    const styleId = "award-list-print-style";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      @media print {
+        @page { size: A4 portrait; margin: 10mm; }
+        body * { visibility: hidden !important; }
+        #award-list-print-area, #award-list-print-area * {
+          visibility: visible !important;
+        }
+        #award-list-print-area {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
 
   const selectedClass = classes.find((c) => c.id === classId);
   const { data: schedule = [] } = useGetExamScheduleQuery(
@@ -65,14 +90,14 @@ export default function AwardListPage() {
     <div className="w-full min-w-0">
       <div className="max-w-5xl mx-auto">
         <ExamBreadcrumb current="Blank Award List" />
-        <h1 className="text-3xl font-bold text-slate-900 mb-2 print:hidden">
+        <h1 className="mb-2 break-words text-xl font-bold text-slate-900 sm:text-2xl md:text-3xl print:hidden">
           Blank Award List
         </h1>
-        <p className="text-slate-500 mb-6 print:hidden">
+        <p className="mb-6 text-slate-500 print:hidden">
           Print a blank (or filled) mark list for teachers to record awards.
         </p>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 print:hidden">
+        <div className="mb-6 grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:grid-cols-2 print:hidden">
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">
               EXAM
@@ -156,12 +181,12 @@ export default function AwardListPage() {
               Blank list (hide obtained marks)
             </label>
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <button
               type="button"
               onClick={handleLoad}
               disabled={isFetching}
-              className="h-11 px-5 rounded-xl bg-black text-white font-semibold"
+              className="h-11 w-full rounded-xl bg-black px-5 font-semibold text-white sm:w-auto"
             >
               {isFetching ? (
                 <ButtonLoader label="Generating" />
@@ -173,7 +198,7 @@ export default function AwardListPage() {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="h-11 px-4 rounded-xl border print:hidden"
+                className="h-11 w-full rounded-xl border px-4 print:hidden sm:w-auto"
               >
                 Print
               </button>
@@ -182,7 +207,10 @@ export default function AwardListPage() {
         </div>
 
         {list && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div
+            id="award-list-print-area"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
+          >
             <div className="text-center mb-6">
               <h2 className="text-xl font-bold">{list.exam.name}</h2>
               <p className="text-slate-500">
@@ -198,7 +226,8 @@ export default function AwardListPage() {
                 No active students found in this class.
               </p>
             ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full min-w-[640px] text-sm print:min-w-0">
               <thead className="bg-slate-50 text-left">
                 <tr>
                   <th className="px-3 py-2 w-12">Sr</th>
@@ -230,6 +259,7 @@ export default function AwardListPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             )}
             <div className="mt-8 grid grid-cols-2 gap-8 text-sm text-slate-500 print:mt-12">
               <p>Teacher Signature: ________________</p>

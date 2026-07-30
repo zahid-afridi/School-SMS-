@@ -7,11 +7,10 @@ import { FaCog, FaCamera, FaSyncAlt, FaTrash, FaGlobe, FaPhone, FaEnvelope, FaMa
 import toast from "react-hot-toast";
 import { useGetMySchoolQuery, useUpdateSchoolMutation, useDeleteSchoolMutation } from "@/redux/features/settings/SettingApi";
 
-const IMG_BASE = "http://localhost:5000";
+import { resolveUploadUrl } from "@/lib/apiBase";
 
 function resolveUrl(url?: string | null) {
-  if (!url) return null;
-  return url.startsWith("http") ? url : `${IMG_BASE}/${url.replace(/^\//, "")}`;
+  return resolveUploadUrl(url);
 }
 
 export default function SettingsPage() {
@@ -115,78 +114,79 @@ export default function SettingsPage() {
   const coverSrc = coverPreview ?? resolveUrl(school.coverUrl);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="w-full min-w-0">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
-        <FaCog size={13} />
+      <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2 text-sm text-gray-500 sm:mb-6">
+        <FaCog size={13} className="shrink-0" />
         <span>General Settings</span>
         <span className="text-gray-300">/</span>
-        <span className="text-gray-800 font-semibold">School Profile</span>
+        <span className="font-semibold text-gray-800">School Profile</span>
       </div>
 
-      <form onSubmit={handleUpdate} className="space-y-6 max-w-5xl">
+      <form onSubmit={handleUpdate} className="mx-auto max-w-5xl space-y-6">
 
         {/* Cover + Logo card */}
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
           <div
-            className="relative h-44 bg-gradient-to-r from-slate-700 to-slate-900 cursor-pointer group"
+            className="group relative h-36 cursor-pointer bg-gradient-to-r from-slate-700 to-slate-900 sm:h-44"
             onClick={() => coverRef.current?.click()}
           >
             {coverSrc ? (
-              <img src={coverSrc} alt="Cover" className="w-full h-full object-cover" />
+              <img src={coverSrc} alt="Cover" className="h-full w-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <p className="text-white/30 text-sm">Click to upload cover image</p>
+              <div className="flex h-full w-full items-center justify-center">
+                <p className="text-sm text-white/30">Click to upload cover image</p>
               </div>
             )}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 text-white text-sm font-medium">
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-sm font-medium text-white opacity-0 transition group-hover:opacity-100">
               <FaCamera size={16} /> Change Cover
             </div>
             <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
           </div>
 
-          <div className="px-8 pb-6">
-            <div className="flex items-end gap-5 -mt-10">
+          <div className="px-4 pb-5 sm:px-8 sm:pb-6">
+            <div className="-mt-10 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:gap-5">
               <div
-                className="relative w-20 h-20 rounded-2xl border-4 border-white shadow-md bg-white overflow-hidden cursor-pointer group flex-shrink-0"
+                className="group relative h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-2xl border-4 border-white bg-white shadow-md"
                 onClick={() => logoRef.current?.click()}
               >
                 {logoSrc ? (
-                  <img src={logoSrc} alt="Logo" className="w-full h-full object-cover" />
+                  <img src={logoSrc} alt="Logo" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <div className="flex h-full w-full items-center justify-center bg-gray-100">
                     <FaSchool className="text-gray-400" size={28} />
                   </div>
                 )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
                   <FaCamera className="text-white" size={14} />
                 </div>
                 <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
               </div>
 
-              <div className="pb-1 flex-1">
-                <h2 className="text-xl font-bold text-gray-900">{school.name}</h2>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className={`w-2 h-2 rounded-full ${school.isActive ? "bg-emerald-500" : "bg-gray-400"}`} />
-                  <span className="text-xs text-gray-500">{school.isActive ? "Active" : "Inactive"}</span>
+              <div className="min-w-0 flex-1 pb-1">
+                <h2 className="break-words text-lg font-bold text-gray-900 sm:text-xl">{school.name}</h2>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`h-2 w-2 rounded-full ${school.isActive ? "bg-emerald-500" : "bg-gray-400"}`} />
+                    <span className="text-xs text-gray-500">{school.isActive ? "Active" : "Inactive"}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
+                    <FaCheckCircle className="text-emerald-400" size={12} />
+                    <span className="font-mono">{school.id.slice(0, 8)}...</span>
+                  </span>
                 </div>
-              </div>
-
-              <div className="pb-1 flex items-center gap-1.5 text-xs text-gray-400">
-                <FaCheckCircle className="text-emerald-400" size={12} />
-                <span className="font-mono">{school.id.slice(0, 8)}...</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Fields */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <h3 className="text-base font-bold text-gray-800 mb-6 flex items-center gap-2">
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-8">
+          <h3 className="mb-6 flex items-center gap-2 text-base font-bold text-gray-800">
             <FaCog size={14} className="text-gray-400" /> School Information
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <Field label="School Name" name="name" value={form.name} onChange={handleChange}
               icon={<FaSchool size={13} className="text-gray-400" />} placeholder="e.g. Sunrise Academy" required />
             <Field label="Phone Number" name="phone" value={form.phone} onChange={handleChange}
@@ -201,17 +201,17 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <p className="text-xs text-gray-400 mt-4">
+          <p className="mt-4 text-xs text-gray-400">
             Logo (JPG/PNG, max 500KB) and Cover (JPG/PNG, max 2MB) — click the images above to change them.
           </p>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={() => setShowDeleteModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 transition"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-500 transition hover:bg-red-50 sm:w-auto"
           >
             <FaTrash size={13} /> Delete School
           </button>
@@ -219,7 +219,7 @@ export default function SettingsPage() {
           <button
             type="submit"
             disabled={isUpdating}
-            className="flex items-center gap-2 px-8 py-2.5 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-black px-8 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             <FaSyncAlt size={13} className={isUpdating ? "animate-spin" : ""} />
             {isUpdating ? "Saving..." : "Save Changes"}

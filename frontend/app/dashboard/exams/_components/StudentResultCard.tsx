@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import type { ResultCardData } from "@/redux/features/exams/examTypes";
+import { resolveUploadUrl } from "@/lib/apiBase";
 import {
   customInline,
   resolveTheme,
@@ -10,14 +11,8 @@ import {
 } from "@/lib/documentStyles";
 import { formatExamDate } from "./ExamUI";
 
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
-
 function resolveUrl(path?: string | null) {
-  if (!path) return null;
-  return path.startsWith("http")
-    ? path
-    : `${IMAGE_BASE}/${path.replace(/^\//, "")}`;
+  return resolveUploadUrl(path);
 }
 
 function formatDob(value?: string | null) {
@@ -87,20 +82,20 @@ export default function StudentResultCard({
       />
 
       <div
-        className="p-6 md:p-8 print:p-[5mm] print:text-[11px]"
+        className="p-3.5 sm:p-6 md:p-8 print:p-[5mm] print:text-[11px]"
         id="student-result-card"
       >
         <div
-          className={`mb-5 flex items-start gap-4 border-b-2 pb-4 print:mb-3 print:pb-3 ${theme.headerBorder}`}
+          className={`mb-4 flex flex-col items-center gap-3 border-b-2 pb-3 text-center sm:mb-5 sm:flex-row sm:items-start sm:gap-4 sm:pb-4 sm:text-left print:mb-3 print:flex-row print:items-start print:gap-4 print:pb-3 print:text-left ${theme.headerBorder}`}
           style={customInline(theme, "headerBorder")}
         >
-          <div className="w-20 h-20 shrink-0 rounded-xl border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 sm:h-20 sm:w-20 print:h-20 print:w-20">
             {logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logo}
                 alt={school?.name ?? "School"}
-                className="w-full h-full object-contain"
+                className="h-full w-full object-contain"
               />
             ) : (
               <span className="text-2xl font-bold text-slate-400">
@@ -108,29 +103,29 @@ export default function StudentResultCard({
               </span>
             )}
           </div>
-          <div className="flex-1 min-w-0 text-center sm:text-left">
+          <div className="min-w-0 flex-1">
             <h1
-              className={`text-2xl font-bold tracking-tight md:text-3xl print:text-2xl ${theme.title}`}
+              className={`break-words text-lg font-bold tracking-tight sm:text-2xl md:text-3xl print:text-2xl ${theme.title}`}
               style={customInline(theme, "title")}
             >
               {school?.name ?? "School Name"}
             </h1>
             {school?.address && (
-              <p className="text-sm text-slate-600 mt-1">{school.address}</p>
+              <p className="mt-1 break-words text-sm text-slate-600">{school.address}</p>
             )}
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="mt-1 break-words text-xs text-slate-500">
               {[school?.phone, school?.email, school?.website]
                 .filter(Boolean)
                 .join(" · ") || "—"}
             </p>
           </div>
-          <div className="w-20 h-24 shrink-0 rounded-lg border border-slate-300 overflow-hidden bg-slate-50 flex items-center justify-center">
+          <div className="flex h-16 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-300 bg-slate-50 sm:h-24 sm:w-20 print:h-24 print:w-20">
             {photo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={photo}
                 alt={student.name}
-                className="w-full h-full object-cover"
+                className="h-full w-full object-cover"
               />
             ) : (
               <span className="text-xl font-bold text-slate-400">
@@ -191,7 +186,7 @@ export default function StudentResultCard({
           </div>
         </div>
 
-        <div className="mb-5 overflow-hidden rounded-xl border border-slate-300 print:mb-3">
+        <div className="mb-5 overflow-x-auto rounded-xl border border-slate-300 print:mb-3 print:overflow-visible">
           <div
             className={`px-4 py-2 text-xs font-semibold uppercase tracking-wide print:py-1.5 ${theme.section}`}
             style={customInline(theme, "section")}
@@ -204,7 +199,7 @@ export default function StudentResultCard({
               in Exam Schedule, then enter marks.
             </p>
           ) : (
-            <table className="w-full text-sm print:text-[10px]">
+            <table className="w-full min-w-[640px] text-sm print:min-w-0 print:text-[10px]">
               <thead
                 className={`text-left ${theme.tableHead}`}
                 style={customInline(theme, "tableHead")}
@@ -293,7 +288,7 @@ export default function StudentResultCard({
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-6 text-center text-sm text-slate-600 pt-8">
+        <div className="grid grid-cols-3 gap-2 pt-8 text-center text-[10px] text-slate-600 sm:gap-6 sm:text-sm print:gap-6 print:text-sm">
           <div>
             <div className="border-t border-slate-400 pt-2">Class Teacher</div>
           </div>

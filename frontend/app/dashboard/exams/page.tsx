@@ -74,27 +74,27 @@ export default function ExamsHubPage() {
     <div className="w-full min-w-0">
       <div className="max-w-7xl mx-auto">
         <ExamBreadcrumb current="Overview" />
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Exams</h1>
+        <div className="mb-5 flex flex-col gap-3 sm:mb-8 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Exams</h1>
             <p className="text-slate-500 mt-1">
               Create exams, schedule papers, enter marks, and print results
             </p>
           </div>
           <Link
             href="/dashboard/exams/create"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black text-white font-semibold hover:bg-slate-800"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 font-semibold text-white hover:bg-slate-800 md:w-auto"
           >
             <FaPlus size={12} /> Create Exam
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:mb-8 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {tiles.map((t) => (
             <Link
               key={t.href}
               href={t.href}
-              className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-violet-200 transition"
+              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-violet-200 hover:shadow-md sm:p-5"
             >
               <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center mb-3">
                 {t.icon}

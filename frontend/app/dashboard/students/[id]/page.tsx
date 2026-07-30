@@ -13,14 +13,10 @@ import {
 } from "react-icons/fa";
 import { useGetStudentByIdQuery } from "@/redux/features/students/studentApi";
 
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
+import { resolveUploadUrl } from "@/lib/apiBase";
 
 function resolvePhoto(photo?: string | null): string | null {
-  if (!photo) return null;
-  return photo.startsWith("http")
-    ? photo
-    : `${IMAGE_BASE}/${photo.replace(/^\//, "")}`;
+  return resolveUploadUrl(photo);
 }
 
 function formatDate(value?: string | null) {

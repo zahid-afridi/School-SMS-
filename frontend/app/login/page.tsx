@@ -116,7 +116,8 @@ export default function LoginPage() {
             <h2 className="text-xl font-semibold text-primary">Welcome Back</h2>
           </header>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {/* method="post" keeps credentials out of the URL if JS hasn't loaded */}
+          <form method="post" onSubmit={handleSubmit} className="space-y-6">
             <div className="border-b border-outline-variant py-4 flex items-center gap-3">
               <span className="material-symbols-outlined text-secondary">
                 mail

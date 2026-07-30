@@ -18,12 +18,10 @@ import { useAppDispatch } from "@/redux/hooks";
 import { useRouter } from "next/navigation";
 import { useGetMySchoolQuery } from "@/redux/features/school/schoolApi";
 
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
+import { resolveUploadUrl } from "@/lib/apiBase";
 
 function resolveUrl(url?: string | null): string | null {
-  if (!url) return null;
-  return url.startsWith("http") ? url : `${IMAGE_BASE}/${url.replace(/^\//, "")}`;
+  return resolveUploadUrl(url);
 }
 
 type HeaderProps = {
@@ -53,12 +51,18 @@ export default function Header({
   };
 
   return (
-    <nav className="h-14 sm:h-16 md:h-20 shrink-0 bg-white flex items-center justify-between gap-2 px-3 sm:px-4 md:px-6 shadow-sm relative z-30">
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <nav
+      className="h-14 sm:h-16 md:h-20 shrink-0 bg-white flex items-center justify-between gap-2 px-2.5 sm:px-4 md:px-6 shadow-sm relative z-30"
+      style={{
+        paddingLeft: "max(0.625rem, env(safe-area-inset-left))",
+        paddingRight: "max(0.625rem, env(safe-area-inset-right))",
+      }}
+    >
+      <div className="flex flex-1 items-center gap-1.5 sm:gap-3 min-w-0">
         <button
           type="button"
           onClick={onToggleSidebar}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100"
+          className="flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-xl text-slate-700 transition active:bg-slate-100 hover:bg-slate-100"
           aria-label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
           title={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
         >
@@ -73,18 +77,14 @@ export default function Header({
           key={logoUrl ?? "default"}
           src={headerLogo}
           alt={instituteName}
-          className="h-9 sm:h-11 md:h-14 object-contain max-w-[120px] sm:max-w-[160px] md:max-w-none"
+          className="h-8 max-w-[96px] object-contain sm:h-11 sm:max-w-[160px] md:h-14 md:max-w-[220px]"
           onError={() => {
             if (logoUrl && !logoFailed) setLogoFailed(true);
           }}
         />
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3 md:gap-5 shrink-0">
-        <div className="hidden sm:flex w-9 h-9 md:w-11 md:h-11 rounded-full bg-gray-200 items-center justify-center">
-          <User className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
-        </div>
-
+      <div className="flex items-center gap-1.5 sm:gap-3 md:gap-5 shrink-0">
         <MessageSquare className="hidden md:block w-5 h-5 cursor-pointer text-slate-600" />
         <Bell className="hidden md:block w-5 h-5 cursor-pointer text-slate-600" />
         <ShoppingCart className="hidden lg:block w-5 h-5 cursor-pointer text-slate-600" />
@@ -93,7 +93,7 @@ export default function Header({
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            className="flex items-center gap-2 sm:gap-3 min-w-0"
+            className="flex min-h-11 touch-manipulation items-center gap-1.5 sm:gap-3 min-w-0"
           >
             {logoUrl ? (
               <img
@@ -115,7 +115,7 @@ export default function Header({
             </span>
 
             <ChevronDown
-              className={`w-4 h-4 shrink-0 transition ${open ? "rotate-180" : ""}`}
+              className={`hidden h-4 w-4 shrink-0 transition sm:block ${open ? "rotate-180" : ""}`}
             />
           </button>
 
@@ -127,7 +127,7 @@ export default function Header({
                 aria-label="Close profile menu"
                 onClick={() => setOpen(false)}
               />
-              <div className="absolute right-0 top-12 sm:top-14 w-52 bg-white rounded-xl shadow-lg border py-2 z-50">
+              <div className="fixed inset-x-2 top-[calc(3.5rem+0.35rem)] z-50 rounded-2xl border bg-white py-2 shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-56">
                 <button
                   type="button"
                   onClick={() => {

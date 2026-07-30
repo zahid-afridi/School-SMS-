@@ -19,14 +19,10 @@ import {
 } from "@/redux/features/attendance/attendanceApi";
 import type { AttendanceStatus } from "@/redux/features/attendance/attendanceTypes";
 
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
+import { resolveUploadUrl } from "@/lib/apiBase";
 
 function resolvePhoto(photo?: string | null): string | null {
-  if (!photo) return null;
-  return photo.startsWith("http")
-    ? photo
-    : `${IMAGE_BASE}/${photo.replace(/^\//, "")}`;
+  return resolveUploadUrl(photo);
 }
 
 function formatDisplayDate(dateKey: string) {
@@ -158,8 +154,8 @@ export default function MarkStudentAttendancePage() {
   return (
     <div className="w-full min-w-0">
       <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3 mb-6 inline-flex items-center gap-2 text-sm text-slate-600 shadow-sm">
-          <FaCalendarAlt className="text-indigo-500" />
+        <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600 shadow-sm sm:mb-6 sm:px-5">
+          <FaCalendarAlt className="shrink-0 text-indigo-500" />
           <Link
             href="/dashboard/attendance/students"
             className="font-medium text-slate-800 hover:text-indigo-600"
@@ -167,29 +163,29 @@ export default function MarkStudentAttendancePage() {
             Attendance
           </Link>
           <span className="text-slate-400">›</span>
-          <span>Add / Update Attendance</span>
+          <span className="min-w-0 break-words">Add / Update Attendance</span>
         </div>
 
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-8">
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-8">
+          <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
               <button
                 type="button"
                 onClick={() => router.push("/dashboard/attendance/students")}
-                className="text-xs text-slate-400 hover:text-indigo-600 inline-flex items-center gap-1 mb-2"
+                className="mb-2 inline-flex min-h-10 items-center gap-1 text-xs text-slate-400 hover:text-indigo-600"
               >
                 <FaArrowLeft size={10} /> Change class/date
               </button>
-              <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-wide">
+              <h1 className="break-words text-xl font-bold uppercase tracking-wide text-slate-900 sm:text-2xl">
                 {data.class.className}
                 {data.section ? ` - ${data.section.sectionName}` : ""}
               </h1>
-              <p className="text-slate-500 text-sm mt-1">
+              <p className="mt-1 text-sm text-slate-500">
                 {formatDisplayDate(data.dateKey)}
               </p>
             </div>
             {data.alreadyTaken && (
-              <span className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
+              <span className="inline-flex shrink-0 items-center gap-1 self-start rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
                 <FaCheck size={10} /> ALREADY TAKEN
               </span>
             )}
@@ -219,30 +215,32 @@ export default function MarkStudentAttendancePage() {
                 return (
                   <div
                     key={student.studentId}
-                    className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white"
+                    className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-3 hover:border-slate-200 min-[400px]:flex-row min-[400px]:items-center"
                   >
-                    {photo ? (
-                      <img
-                        src={photo}
-                        alt={student.name}
-                        className="w-12 h-12 rounded-full object-cover border"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                        <FaUser />
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      {photo ? (
+                        <img
+                          src={photo}
+                          alt={student.name}
+                          className="h-12 w-12 shrink-0 rounded-full border object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                          <FaUser />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold capitalize text-slate-800">
+                          {student.name}
+                        </p>
+                        <p className="truncate text-xs text-slate-400">
+                          {student.registrationNo}
+                          {student.parentName ? ` • ${student.parentName}` : ""}
+                          {student.rollNo ? ` • Roll ${student.rollNo}` : ""}
+                        </p>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 truncate capitalize">
-                        {student.name}
-                      </p>
-                      <p className="text-xs text-slate-400 truncate">
-                        {student.registrationNo}
-                        {student.parentName ? ` • ${student.parentName}` : ""}
-                        {student.rollNo ? ` • Roll ${student.rollNo}` : ""}
-                      </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex shrink-0 items-center justify-end gap-2">
                       <StatusBtn
                         label="P"
                         active={status === "PRESENT"}
@@ -273,7 +271,7 @@ export default function MarkStudentAttendancePage() {
               type="button"
               onClick={handleSave}
               disabled={isSaving || data.students.length === 0}
-              className="inline-flex items-center gap-2 px-10 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition disabled:opacity-60"
+              className="inline-flex h-12 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-indigo-600 px-10 font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60 sm:w-auto"
             >
               <FaSync className={isSaving ? "animate-spin" : ""} />
               {isSaving
@@ -333,7 +331,7 @@ function StatusBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`w-10 h-10 rounded-full border text-sm font-bold transition ${
+      className={`h-11 w-11 touch-manipulation rounded-full border text-sm font-bold transition ${
         active
           ? activeClass
           : "border-slate-300 text-slate-400 hover:border-slate-400"

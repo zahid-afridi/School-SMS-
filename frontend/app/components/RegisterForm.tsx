@@ -73,7 +73,12 @@ export default function RegisterForm() {
         setRole={(role: string) => setUser((prev) => ({ ...prev, role }))}
       />
 
-      <form onSubmit={handleSubmit} className="space-y-4 md:space-y-5">
+      {/* method="post" keeps credentials out of the URL if JS hasn't loaded */}
+      <form
+        method="post"
+        onSubmit={handleSubmit}
+        className="space-y-4 md:space-y-5"
+      >
         <div className="border-b py-3 md:py-4 flex gap-3 items-center">
           <span className="material-symbols-outlined shrink-0">person</span>
 

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { DateSheetData } from "@/redux/features/exams/examTypes";
 import type { School } from "@/redux/features/school/schoolTypes";
+import { resolveUploadUrl } from "@/lib/apiBase";
 import {
   customInline,
   resolveTheme,
@@ -9,14 +10,8 @@ import {
 } from "@/lib/documentStyles";
 import { formatExamDate } from "./ExamUI";
 
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
-
 function resolveUrl(path?: string | null) {
-  if (!path) return null;
-  return path.startsWith("http")
-    ? path
-    : `${IMAGE_BASE}/${path.replace(/^\//, "")}`;
+  return resolveUploadUrl(path);
 }
 
 function dayName(value?: string | null) {
@@ -71,9 +66,9 @@ export default function DateSheetDocument({
         style={customInline(theme, "topBar")}
       />
 
-      <div className="p-6 md:p-8 print:p-[7mm]">
-        <header className="flex items-center gap-5 border-b border-slate-200 pb-5 print:pb-3">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white print:h-16 print:w-16">
+      <div className="p-3.5 sm:p-6 md:p-8 print:p-[7mm]">
+        <header className="flex items-center gap-2.5 border-b border-slate-200 pb-4 sm:gap-5 sm:pb-5 print:gap-5 print:pb-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white sm:h-20 sm:w-20 sm:rounded-2xl print:h-16 print:w-16">
             {logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -100,7 +95,7 @@ export default function DateSheetDocument({
               Official Examination Schedule
             </p>
             <h1
-              className={`mt-1 text-2xl font-black tracking-tight md:text-3xl print:text-2xl ${theme.title}`}
+              className={`mt-1 text-lg font-black tracking-tight sm:text-2xl md:text-3xl print:text-2xl ${theme.title}`}
               style={customInline(theme, "title")}
             >
               {school?.name ?? "School Name"}
@@ -167,8 +162,8 @@ export default function DateSheetDocument({
             No schedule entries. Add papers in Exam Schedule.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-300">
-            <table className="w-full text-sm print:text-[10px]">
+          <div className="overflow-x-auto rounded-xl border border-slate-300 print:overflow-visible">
+            <table className="w-full min-w-[640px] text-sm print:min-w-0 print:text-[10px]">
               <thead
                 className={theme.tableHead}
                 style={customInline(theme, "tableHead")}

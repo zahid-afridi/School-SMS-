@@ -21,14 +21,10 @@ import {
 } from "@/redux/features/students/studentApi";
 import type { Student } from "@/redux/features/students/studentTypes";
 
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
+import { resolveUploadUrl } from "@/lib/apiBase";
 
 function resolvePhoto(photo?: string | null): string | null {
-  if (!photo) return null;
-  return photo.startsWith("http")
-    ? photo
-    : `${IMAGE_BASE}/${photo.replace(/^\//, "")}`;
+  return resolveUploadUrl(photo);
 }
 
 function toDateInput(value?: string | null): string {
@@ -166,11 +162,13 @@ export default function StudentModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-[560px] max-w-full shadow-2xl relative p-8 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
+      <div className="relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[90vh] sm:w-[560px] sm:max-w-full sm:rounded-2xl sm:p-8">
         <button
+          type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 text-xl text-gray-400 hover:text-red-500 transition"
+          className="sticky top-0 z-10 ml-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white/95 text-xl text-gray-500 shadow-sm backdrop-blur transition hover:text-red-500 sm:absolute sm:right-5 sm:top-5 sm:shadow-none"
+          aria-label="Close student details"
         >
           <FaTimes />
         </button>
@@ -184,14 +182,14 @@ export default function StudentModal({
               <img
                 src={displayPhoto}
                 alt={s.name}
-                className="w-28 h-28 rounded-full object-cover border-4 border-blue-500"
+                className="h-20 w-20 rounded-full border-4 border-blue-500 object-cover sm:h-28 sm:w-28"
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).src =
                     "https://placehold.co/112x112?text=No+Photo";
                 }}
               />
             ) : (
-              <div className="w-28 h-28 rounded-full bg-blue-100 flex justify-center items-center text-5xl font-bold text-blue-600">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-3xl font-bold text-blue-600 sm:h-28 sm:w-28 sm:text-5xl">
                 {s.name?.charAt(0).toUpperCase() ?? "?"}
               </div>
             )}
@@ -210,7 +208,7 @@ export default function StudentModal({
           />
         </div>
 
-        <h2 className="text-center text-2xl font-bold mt-4">{s.name}</h2>
+        <h2 className="mt-3 text-center text-xl font-bold sm:mt-4 sm:text-2xl">{s.name}</h2>
         <p className="text-center text-blue-500 font-medium mb-1">
           {enrollment?.class?.className ?? "No class"}
           {enrollment?.section?.sectionName
@@ -372,7 +370,7 @@ export default function StudentModal({
           </div>
         )}
 
-        <div className="flex gap-3 mt-8">
+        <div className="mt-6 flex flex-col gap-2 sm:mt-8 sm:flex-row sm:gap-3">
           {!isEditing ? (
             <>
               <button

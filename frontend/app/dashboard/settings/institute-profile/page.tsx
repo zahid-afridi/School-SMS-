@@ -10,12 +10,10 @@ import {
   useUpdateSchoolMutation,
 } from "@/redux/features/school/schoolApi";
 
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
+import { resolveUploadUrl } from "@/lib/apiBase";
 
 function resolveUrl(url?: string | null): string | null {
-  if (!url) return null;
-  return url.startsWith("http") ? url : `${IMAGE_BASE}/${url.replace(/^\//, "")}`;
+  return resolveUploadUrl(url);
 }
 
 const inputClass =

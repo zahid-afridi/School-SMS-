@@ -5,11 +5,9 @@
  */
 
 import type { ResultCardData } from "@/redux/features/exams/examTypes";
+import { resolveUploadUrl } from "@/lib/apiBase";
 
 export type ExportFormat = "print" | "pdf" | "word";
-
-const IMAGE_BASE =
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000";
 
 const UNSUPPORTED_COLOR_FN = /(oklch|oklab|lch|lab|color-mix|color)\s*\(/i;
 
@@ -23,10 +21,7 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 function resolveAssetUrl(path?: string | null): string | null {
-  if (!path) return null;
-  return path.startsWith("http")
-    ? path
-    : `${IMAGE_BASE}/${path.replace(/^\//, "")}`;
+  return resolveUploadUrl(path);
 }
 
 function escapeHtml(value: string) {

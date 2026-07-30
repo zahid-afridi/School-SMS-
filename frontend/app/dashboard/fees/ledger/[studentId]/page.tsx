@@ -159,8 +159,8 @@ export default function StudentFeeLedgerPage() {
         {payments.length === 0 ? (
           <p className="text-slate-400">No payments recorded yet.</p>
         ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+            <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-slate-50 text-slate-500 text-left">
                 <tr>
                   <th className="px-4 py-3">Receipt</th>

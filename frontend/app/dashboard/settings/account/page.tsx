@@ -111,7 +111,7 @@ export default function Page() {
 
   return (
     <div className="w-full min-w-0">
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
         <div>
           <div className="inline-flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-full font-medium mb-2">
             <FaUserCog /> General Settings
@@ -125,7 +125,7 @@ export default function Page() {
         </div>
 
         {/* Account info */}
-        <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6 md:p-8">
           <div className="flex flex-wrap items-center gap-3 mb-5">
             <h2 className="text-lg font-semibold text-slate-900">
               Login Details
@@ -188,7 +188,7 @@ export default function Page() {
               <button
                 type="submit"
                 disabled={isUpdating}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 font-medium"
+                className="min-h-11 w-full rounded-xl bg-blue-600 px-6 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-60 sm:w-auto"
               >
                 {isUpdating ? "Saving..." : "Save Account"}
               </button>
@@ -197,7 +197,7 @@ export default function Page() {
         </section>
 
         {/* Password */}
-        <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6 md:p-8">
           <div className="flex items-center gap-2 mb-5">
             <FaLock className="text-blue-600" />
             <h2 className="text-lg font-semibold text-slate-900">
@@ -205,7 +205,11 @@ export default function Page() {
             </h2>
           </div>
 
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+          <form
+            method="post"
+            onSubmit={handlePasswordSubmit}
+            className="space-y-4"
+          >
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Current Password
@@ -264,7 +268,7 @@ export default function Page() {
               <button
                 type="submit"
                 disabled={isChangingPassword}
-                className="px-6 py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-60 font-medium"
+                className="min-h-11 w-full rounded-xl bg-slate-900 px-6 py-2.5 font-medium text-white hover:bg-slate-700 disabled:opacity-60 sm:w-auto"
               >
                 {isChangingPassword ? "Updating..." : "Update Password"}
               </button>

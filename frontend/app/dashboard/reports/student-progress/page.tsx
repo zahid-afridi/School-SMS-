@@ -167,11 +167,11 @@ export default function StudentProgressReportPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
             <div className="px-4 py-3 border-b border-slate-100 font-semibold">
               Recent fee invoices
             </div>
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[560px] text-sm">
               <thead className="bg-slate-50 text-slate-500 text-left">
                 <tr>
                   <th className="px-4 py-2">Invoice</th>
@@ -223,7 +223,8 @@ export default function StudentProgressReportPage() {
                       {exam.obtained}/{exam.total} · {exam.percentage}%
                     </span>
                   </div>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-sm">
                     <thead className="bg-slate-50 text-slate-500 text-left">
                       <tr>
                         <th className="px-4 py-2">Subject</th>
@@ -248,6 +249,7 @@ export default function StudentProgressReportPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               ))
             )}

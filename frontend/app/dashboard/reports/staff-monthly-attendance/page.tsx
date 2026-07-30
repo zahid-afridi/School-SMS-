@@ -75,15 +75,15 @@ function StaffMonthlyAttendanceInner() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="w-full min-w-0">
       <ReportBreadcrumb current="Staff Monthly Attendance Report" />
       <ReportHeader
         title="Staff Monthly Attendance Report"
         subtitle="Monthly staff attendance matrix — mark daily attendance when needed"
       />
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 print:hidden flex flex-col lg:flex-row gap-3 lg:items-end">
-        <div className="grid grid-cols-2 gap-3 flex-1">
+      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 lg:flex-row lg:items-end print:hidden">
+        <div className="grid flex-1 grid-cols-1 gap-3 min-[420px]:grid-cols-2">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Year</label>
             <select
@@ -116,7 +116,7 @@ function StaffMonthlyAttendanceInner() {
         <button
           type="button"
           onClick={() => setShowMark((v) => !v)}
-          className="h-11 px-5 rounded-xl bg-black text-white text-sm font-semibold"
+          className="h-11 w-full shrink-0 rounded-xl bg-black px-5 text-sm font-semibold text-white lg:w-auto"
         >
           {showMark ? "Hide daily marking" : "Mark daily attendance"}
         </button>
@@ -124,9 +124,9 @@ function StaffMonthlyAttendanceInner() {
 
       {showMark ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 print:hidden">
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-end mb-4">
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Date</label>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="sm:w-48">
+              <label className="mb-1 block text-xs text-slate-500">Date</label>
               <input
                 type="date"
                 value={markDate}
@@ -138,7 +138,7 @@ function StaffMonthlyAttendanceInner() {
               type="button"
               onClick={handleSaveMark}
               disabled={saving || sheetLoading || !sheet}
-              className="h-11 px-5 rounded-xl bg-emerald-600 text-white text-sm font-semibold disabled:opacity-50"
+              className="h-11 w-full shrink-0 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"
             >
               {saving ? "Saving…" : "Save attendance"}
             </button>
@@ -148,46 +148,79 @@ function StaffMonthlyAttendanceInner() {
           ) : sheet.employees.length === 0 ? (
             <p className="text-slate-400 text-sm">No active staff found.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-left">
-                  <tr>
-                    <th className="px-3 py-2">Staff</th>
-                    <th className="px-3 py-2">Code</th>
-                    <th className="px-3 py-2">Designation</th>
-                    <th className="px-3 py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sheet.employees.map((row) => (
-                    <tr key={row.employee.id} className="border-t border-slate-100">
-                      <td className="px-3 py-2 font-medium">
-                        {row.employee.name ?? "—"}
-                      </td>
-                      <td className="px-3 py-2">{row.employee.employeeCode}</td>
-                      <td className="px-3 py-2">{row.employee.designation}</td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={localStatuses[row.employee.id] ?? "PRESENT"}
-                          onChange={(e) =>
-                            setLocalStatuses((prev) => ({
-                              ...prev,
-                              [row.employee.id]: e.target
-                                .value as AttendanceStatus,
-                            }))
-                          }
-                          className="h-9 rounded-lg border border-slate-200 px-2"
-                        >
-                          <option value="PRESENT">Present</option>
-                          <option value="LEAVE">Leave</option>
-                          <option value="ABSENT">Absent</option>
-                        </select>
-                      </td>
+            <>
+              {/* Stacked cards on phones — the 4-column table is unreadable there. */}
+              <div className="space-y-3 md:hidden">
+                {sheet.employees.map((row) => (
+                  <div
+                    key={row.employee.id}
+                    className="rounded-xl border border-slate-200 p-3"
+                  >
+                    <p className="break-words font-medium text-slate-800">
+                      {row.employee.name ?? "—"}
+                    </p>
+                    <p className="mt-0.5 break-words text-xs text-slate-400">
+                      {row.employee.employeeCode} · {row.employee.designation}
+                    </p>
+                    <select
+                      value={localStatuses[row.employee.id] ?? "PRESENT"}
+                      onChange={(e) =>
+                        setLocalStatuses((prev) => ({
+                          ...prev,
+                          [row.employee.id]: e.target.value as AttendanceStatus,
+                        }))
+                      }
+                      className="mt-3 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                    >
+                      <option value="PRESENT">Present</option>
+                      <option value="LEAVE">Leave</option>
+                      <option value="ABSENT">Absent</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead className="bg-slate-50 text-slate-500 text-left">
+                    <tr>
+                      <th className="px-3 py-2">Staff</th>
+                      <th className="px-3 py-2">Code</th>
+                      <th className="px-3 py-2">Designation</th>
+                      <th className="px-3 py-2">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {sheet.employees.map((row) => (
+                      <tr key={row.employee.id} className="border-t border-slate-100">
+                        <td className="px-3 py-2 font-medium">
+                          {row.employee.name ?? "—"}
+                        </td>
+                        <td className="px-3 py-2">{row.employee.employeeCode}</td>
+                        <td className="px-3 py-2">{row.employee.designation}</td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={localStatuses[row.employee.id] ?? "PRESENT"}
+                            onChange={(e) =>
+                              setLocalStatuses((prev) => ({
+                                ...prev,
+                                [row.employee.id]: e.target
+                                  .value as AttendanceStatus,
+                              }))
+                            }
+                            className="h-11 min-w-[7.5rem] rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                          >
+                            <option value="PRESENT">Present</option>
+                            <option value="LEAVE">Leave</option>
+                            <option value="ABSENT">Absent</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       ) : null}

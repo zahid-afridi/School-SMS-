@@ -17,21 +17,21 @@ export default function ClassesPage() {
 
   return (
     <div className="w-full min-w-0">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Classes</h1>
+      <div className="mb-5 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Classes</h1>
           <p className="text-gray-500 mt-1">Manage your school classes and sections</p>
         </div>
         <Link
           href="/dashboard/classes/add-class"
-          className="flex items-center gap-2 bg-black text-white px-5 py-3 rounded-xl font-semibold hover:bg-gray-800 transition"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 font-semibold text-white transition hover:bg-gray-800 sm:w-auto"
         >
           <FaPlus size={14} /> Add Class
         </Link>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
+      <div className="mb-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:mb-10 sm:grid-cols-3 sm:gap-5">
         <StatCard
           icon={<FaListAlt className="text-blue-500" size={22} />}
           label="Total Classes"
@@ -53,7 +53,7 @@ export default function ClassesPage() {
       </div>
 
       {/* Nav Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
         <NavCard
           href="/dashboard/classes/all-classes"
           title="All Classes"
@@ -92,7 +92,7 @@ function StatCard({
   bg: string;
 }) {
   return (
-    <div className={`${bg} rounded-2xl p-6 flex items-center gap-4`}>
+    <div className={`${bg} flex items-center gap-3 rounded-2xl p-4 sm:gap-4 sm:p-6`}>
       <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
         {icon}
       </div>
@@ -118,7 +118,7 @@ function NavCard({
   bg: string;
 }) {
   return (
-    <Link href={href} className="block bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition p-6 group">
+    <Link href={href} className="group block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-6">
       <div className={`w-14 h-14 ${bg} bg-opacity-10 rounded-xl flex items-center justify-center mb-4`}>
         {icon}
       </div>

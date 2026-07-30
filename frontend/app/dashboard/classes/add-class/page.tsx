@@ -148,7 +148,7 @@ export default function AddClassPage() {
 
             <div className="space-y-3">
               {sections.map((section, index) => (
-                <div key={index} className="flex gap-3 items-start">
+                <div key={index} className="flex flex-col gap-3 sm:flex-row sm:items-start">
                   <input
                     type="text"
                     value={section.sectionName}
@@ -156,14 +156,14 @@ export default function AddClassPage() {
                       updateSection(index, "sectionName", e.target.value)
                     }
                     placeholder={`Section name (e.g. A)`}
-                    className="flex-1 h-11 rounded-xl border border-gray-300 px-4 text-sm outline-none focus:border-black transition"
+                    className="h-11 w-full flex-1 rounded-xl border border-gray-300 px-4 text-sm outline-none transition focus:border-black"
                   />
                   <select
                     value={section.teacherId}
                     onChange={(e) =>
                       updateSection(index, "teacherId", e.target.value)
                     }
-                    className="flex-1 h-11 rounded-xl border border-gray-300 px-3 text-sm outline-none focus:border-black transition"
+                    className="h-11 w-full flex-1 rounded-xl border border-gray-300 px-3 text-sm outline-none transition focus:border-black"
                   >
                     <option value="">-- No Teacher --</option>
                     {teachers?.map((t) => (
@@ -176,7 +176,7 @@ export default function AddClassPage() {
                     <button
                       type="button"
                       onClick={() => removeSection(index)}
-                      className="w-11 h-11 flex items-center justify-center rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl border border-red-200 text-red-500 transition hover:bg-red-50 sm:self-start"
                     >
                       <FaTrash size={13} />
                     </button>
@@ -187,18 +187,18 @@ export default function AddClassPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-between pt-4">
+          <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-between">
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-6 h-11 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-100 transition"
+              className="h-11 w-full rounded-xl border border-gray-300 px-6 font-semibold text-gray-700 transition hover:bg-gray-100 sm:w-auto"
             >
               ← Back
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-8 h-11 rounded-xl bg-black text-white font-semibold hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="h-11 w-full rounded-xl bg-black px-8 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {isLoading ? "Creating..." : "+ Create Class"}
             </button>

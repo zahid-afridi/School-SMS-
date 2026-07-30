@@ -264,12 +264,12 @@ export default function Page() {
   return (
     <div className="w-full min-w-0">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
+        <div className="mb-5 sm:mb-8">
           <div className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 text-blue-700 px-3 py-1 text-xs font-semibold mb-3">
             <FaUserGraduate />
             New Admission
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
             Student Registration
           </h1>
           <p className="text-slate-500 mt-2 max-w-2xl">
@@ -753,18 +753,18 @@ export default function Page() {
             />
           </Section>
 
-          <div className="flex flex-col sm:flex-row justify-end gap-3 sticky bottom-4 z-10">
+          <div className="sticky bottom-2 z-10 flex flex-col-reverse justify-end gap-2 rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-xl backdrop-blur sm:bottom-4 sm:flex-row sm:gap-3 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
             <button
               type="button"
               onClick={resetAll}
-              className="px-6 py-3 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 shadow-sm"
+              className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-6 py-3 text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto"
             >
               Reset
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-8 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 disabled:opacity-60 font-medium"
+              className="min-h-11 w-full rounded-xl bg-blue-600 px-8 py-3 font-medium text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-60 sm:w-auto"
             >
               {isLoading ? "Saving..." : "Save Student"}
             </button>
@@ -787,7 +787,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white/90 backdrop-blur rounded-3xl border border-slate-200/80 shadow-sm p-6 md:p-8">
+    <section className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm backdrop-blur sm:rounded-3xl sm:p-6 md:p-8">
       <div className="mb-5 flex items-start gap-3">
         {icon && (
           <div className="mt-0.5 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">

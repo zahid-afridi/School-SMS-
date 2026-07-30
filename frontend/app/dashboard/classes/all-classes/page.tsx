@@ -123,9 +123,9 @@ export default function AllClassesPage() {
   return (
     <div className="w-full min-w-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+      <div className="mb-5 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
             All Classes ({visibleClasses.length}
             {search.trim() ? ` of ${classes.length}` : ""})
           </h1>
@@ -133,7 +133,7 @@ export default function AllClassesPage() {
         </div>
         <Link
           href="/dashboard/classes/add-class"
-          className="flex items-center gap-2 bg-black text-white px-5 py-3 rounded-xl font-semibold hover:bg-gray-800 transition"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 font-semibold text-white transition hover:bg-gray-800 sm:w-auto"
         >
           <FaPlus size={13} /> Add Class
         </Link>
@@ -165,17 +165,17 @@ export default function AllClassesPage() {
               className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
             >
               {/* Class Row */}
-              <div className="flex items-center justify-between px-6 py-4">
+              <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div
-                  className="flex items-center gap-4 flex-1 cursor-pointer"
+                  className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 sm:items-center sm:gap-4"
                   onClick={() => toggleExpand(cls.id)}
                 >
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
                     {cls.className.slice(0, 2).toUpperCase()}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-semibold text-gray-800">{cls.className}</p>
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mt-0.5">
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 sm:text-sm">
                       <span className="flex items-center gap-1">
                         <FaMoneyBillWave size={12} /> PKR {cls.montlyFee.toLocaleString()}/mo
                       </span>
@@ -189,7 +189,7 @@ export default function AllClassesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
                   <button
                     onClick={() => startEdit(cls)}
                     className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50 transition"
@@ -218,7 +218,7 @@ export default function AllClassesPage() {
 
               {/* Sections Expand */}
               {expandedId === cls.id && (
-                <div className="border-t border-gray-100 px-6 py-4 bg-gray-50">
+                <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 sm:px-6">
                   {cls.sections?.length === 0 ? (
                     <p className="text-sm text-gray-400">No sections yet.</p>
                   ) : (

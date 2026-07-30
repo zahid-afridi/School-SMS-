@@ -1,7 +1,7 @@
 "use client";
 
 import { ButtonLoader } from "@/app/components/PageLoader";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
 import {
@@ -25,6 +25,31 @@ export default function ResultSheetPage() {
   const [loadSheet, { isFetching }] = useLazyGetResultSheetQuery();
 
   const selectedClass = classes.find((c) => c.id === classId);
+
+  useEffect(() => {
+    const styleId = "result-sheet-print-style";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      @media print {
+        @page { size: A4 landscape; margin: 8mm; }
+        body * { visibility: hidden !important; }
+        #result-sheet-print-area, #result-sheet-print-area * {
+          visibility: visible !important;
+        }
+        #result-sheet-print-area {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
 
   const handleLoad = async () => {
     if (!examId || !classId) {
@@ -50,9 +75,11 @@ export default function ResultSheetPage() {
     <div className="w-full min-w-0">
       <div className="max-w-7xl mx-auto">
         <ExamBreadcrumb current="Result Sheet" />
-        <h1 className="text-3xl font-bold text-slate-900 mb-6 print:hidden">Result Sheet</h1>
+        <h1 className="mb-6 break-words text-xl font-bold text-slate-900 sm:text-2xl md:text-3xl print:hidden">
+          Result Sheet
+        </h1>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 print:hidden">
+        <div className="mb-6 grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:grid-cols-4 print:hidden">
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">
               EXAM

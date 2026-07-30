@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -25,7 +25,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const [openMenu, setOpenMenu] = useState("");
 
-  const menus = [
+  const menus = useMemo(() => [
     {
       name: "Dashboard",
       href: "/dashboard",
@@ -175,19 +175,37 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         },
       ],
     },
-  ];
+  ], []);
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 
+  useEffect(() => {
+    const activeGroup = menus.find((item) =>
+      item.children?.some((child) =>
+        child.href === "/dashboard"
+          ? pathname === child.href
+          : pathname.startsWith(child.href)
+      )
+    );
+    if (!activeGroup) return;
+    const frame = window.requestAnimationFrame(() =>
+      setOpenMenu(activeGroup.name)
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [menus, pathname]);
+
   return (
-    <aside className="w-[min(18rem,85vw)] sm:w-72 h-full min-h-0 shrink-0 bg-white shadow-lg overflow-y-auto overscroll-contain border-r border-slate-100">
-      <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between lg:hidden">
+    <aside
+      className="h-full min-h-0 w-[min(19rem,88vw)] shrink-0 overflow-y-auto overscroll-contain border-r border-slate-100 bg-white shadow-lg sm:w-72"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-2.5 backdrop-blur lg:hidden">
         <span className="font-semibold text-slate-800">Menu</span>
         <button
           type="button"
           onClick={onNavigate}
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100"
+          className="flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl text-slate-500 active:bg-slate-100 hover:bg-slate-100"
           aria-label="Close sidebar"
         >
           <FaTimes />
@@ -205,7 +223,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
                     onClick={() =>
                       setOpenMenu(openMenu === item.name ? "" : item.name)
                     }
-                    className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all group"
+                    className="group flex min-h-12 w-full touch-manipulation items-center justify-between rounded-xl px-3 py-2.5 transition-all hover:bg-blue-50 hover:text-blue-600 sm:px-4 sm:py-3"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="shrink-0">{item.icon}</span>
@@ -221,7 +239,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
                   <div
                     className={`overflow-hidden transition-all duration-300 ${
                       openMenu === item.name
-                        ? "max-h-[600px] opacity-100"
+                        ? "max-h-[min(70vh,720px)] overflow-y-auto opacity-100"
                         : "max-h-0 opacity-0"
                     }`}
                   >
@@ -231,7 +249,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
                           <Link
                             href={child.href}
                             onClick={onNavigate}
-                            className={`block rounded-lg px-2.5 sm:px-3 py-2 text-sm transition-all break-words ${
+                            className={`block min-h-11 touch-manipulation rounded-lg px-2.5 py-2.5 text-sm transition-all break-words sm:px-3 ${
                               isActive(child.href)
                                 ? "bg-blue-100 text-blue-700 font-medium"
                                 : "text-gray-600 hover:bg-blue-100 hover:text-blue-600"
@@ -248,7 +266,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
                 <Link
                   href={item.href!}
                   onClick={onNavigate}
-                  className={`flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl transition-all ${
+                  className={`flex min-h-12 touch-manipulation items-center gap-3 rounded-xl px-3 py-2.5 transition-all sm:px-4 sm:py-3 ${
                     isActive(item.href!)
                       ? "bg-blue-50 text-blue-700"
                       : "hover:bg-blue-50 hover:text-blue-600"

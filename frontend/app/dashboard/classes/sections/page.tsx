@@ -157,16 +157,16 @@ export default function SectionsPage() {
   return (
     <div className="w-full min-w-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+      <div className="mb-5 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
             Sections ({totalSections})
           </h1>
           <p className="text-gray-500 mt-1">Manage class sections and assign teachers</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-black text-white px-5 py-3 rounded-xl font-semibold hover:bg-gray-800 transition"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 font-semibold text-white transition hover:bg-gray-800 sm:w-auto"
         >
           <FaPlus size={13} /> Add Section
         </button>
@@ -186,12 +186,12 @@ export default function SectionsPage() {
               className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
             >
               {/* Class Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-gray-50 px-4 py-4 sm:px-6">
+                <div className="flex min-w-0 items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
                     {cls.className.slice(0, 2).toUpperCase()}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-bold text-gray-800">{cls.className}</p>
                     <p className="text-xs text-gray-500">
                       {cls.sections?.length ?? 0} section(s) · PKR {cls.montlyFee.toLocaleString()}/mo
@@ -203,14 +203,14 @@ export default function SectionsPage() {
                     setAddForm((f) => ({ ...f, classId: cls.id }));
                     setShowAddModal(true);
                   }}
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition"
+                  className="flex min-h-10 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 hover:text-blue-800 sm:px-3"
                 >
                   <FaPlus size={10} /> Add Section
                 </button>
               </div>
 
               {/* Sections Grid */}
-              <div className="p-6">
+              <div className="p-3.5 sm:p-6">
                 {!cls.sections || cls.sections.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-4">
                     No sections yet. Add one above.
@@ -220,7 +220,7 @@ export default function SectionsPage() {
                     {cls.sections.map((sec) => (
                       <div
                         key={sec.id}
-                        className="border border-gray-200 rounded-xl p-4 flex items-start justify-between hover:border-blue-300 transition"
+                        className="flex items-start justify-between rounded-xl border border-gray-200 p-3.5 transition hover:border-blue-300 sm:p-4"
                       >
                         <div>
                           <div className="flex items-center gap-2 mb-1">
@@ -252,14 +252,14 @@ export default function SectionsPage() {
                         <div className="flex flex-col gap-1.5 ml-2">
                           <button
                             onClick={() => startEdit(sec, cls.id)}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50 transition"
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-blue-600 transition hover:bg-blue-50"
                           >
                             <FaEdit size={12} />
                           </button>
                           <button
                             onClick={() => handleDelete(sec, cls.id)}
                             disabled={isDeleting}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-red-500 hover:bg-red-50 transition disabled:opacity-50"
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-red-500 transition hover:bg-red-50 disabled:opacity-50"
                           >
                             <FaTrash size={12} />
                           </button>

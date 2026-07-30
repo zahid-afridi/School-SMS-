@@ -42,19 +42,19 @@ export default function DocumentExportBar({
   };
 
   return (
-    <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="print:hidden flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-4">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
           Output
         </p>
         <h3 className="mt-0.5 font-semibold text-slate-900">{label}</h3>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 sm:flex sm:flex-wrap">
         <button
           type="button"
           disabled={!!busy || disabled}
           onClick={() => run("print")}
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
         >
           <FaPrint />
           {busy === "print" ? "Opening…" : "Print"}
@@ -63,7 +63,7 @@ export default function DocumentExportBar({
           type="button"
           disabled={!!busy || disabled}
           onClick={() => run("pdf")}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
         >
           <FaFilePdf />
           {busy === "pdf" ? "Saving PDF…" : "Download PDF"}
@@ -72,7 +72,7 @@ export default function DocumentExportBar({
           type="button"
           disabled={!!busy || disabled}
           onClick={() => run("word")}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
         >
           <FaFileWord />
           {busy === "word" ? "Saving Word…" : "Download Word"}

@@ -180,7 +180,7 @@ export default function DashboardPage() {
             attendance
           </p>
         </div>
-        <div className="flex flex-col xs:flex-row sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="grid w-full grid-cols-1 gap-2 min-[420px]:grid-cols-2 sm:flex sm:w-auto sm:flex-row">
           <Link
             href="/dashboard/students/Add-students"
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold"
@@ -201,7 +201,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6">
+      <div className="mb-4 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:mb-6 sm:gap-4 md:gap-6 xl:grid-cols-4">
         <StatCard
           label="Active Students"
           value={data.counts.activeStudents.toLocaleString()}

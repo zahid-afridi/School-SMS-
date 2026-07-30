@@ -2,7 +2,7 @@
 
 
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
@@ -21,6 +21,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "SMS Register",
   description: "School Management System",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -43,7 +49,12 @@ export default function RootLayout({
       <body>
         <ReduxProvider>
           {children}
-          <Toaster />
+          <Toaster
+            position="top-center"
+            containerStyle={{
+              top: "max(12px, env(safe-area-inset-top))",
+            }}
+          />
         </ReduxProvider>
       </body>
     </html>
