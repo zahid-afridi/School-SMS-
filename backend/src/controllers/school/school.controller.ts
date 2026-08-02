@@ -51,7 +51,7 @@ const updateSchool = async (req: Request, res: Response) => {
     throw new AppError(ApiMessages.SCHOOL_NOT_FOUND, HttpStatus.NOT_FOUND);
   }
 
-  const { name, address, phone, email, website } = req.body;
+  const { name, address, phone, email, website, documentDesign } = req.body;
   const files = req.files as {
     logo?: Express.Multer.File[];
     cover?: Express.Multer.File[];
@@ -63,6 +63,7 @@ const updateSchool = async (req: Request, res: Response) => {
     phone?: string | null;
     email?: string | null;
     website?: string | null;
+    documentDesign?: string | null;
     logoUrl?: string;
     coverUrl?: string;
   } = {};
@@ -82,6 +83,24 @@ const updateSchool = async (req: Request, res: Response) => {
   }
   if (website !== undefined) {
     updateData.website = String(website).trim() || null;
+  }
+
+  if (documentDesign !== undefined) {
+    const value = String(documentDesign).trim();
+    if (value.length > 20_000) {
+      throw new AppError("Document design is too large", HttpStatus.BAD_REQUEST);
+    }
+    if (value) {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("Invalid design");
+        }
+      } catch {
+        throw new AppError("Invalid document design", HttpStatus.BAD_REQUEST);
+      }
+    }
+    updateData.documentDesign = value || null;
   }
 
   if (email !== undefined) {

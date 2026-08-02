@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { FaFilePdf, FaFileWord, FaPrint } from "react-icons/fa";
 import { exportDocument, type ExportFormat } from "@/lib/documentExport";
 import type { ResultCardData } from "@/redux/features/exams/examTypes";
+import type { SchoolDocumentDesign } from "@/lib/schoolDocumentDesign";
 
 export default function DocumentExportBar({
   elementId,
@@ -12,6 +13,7 @@ export default function DocumentExportBar({
   disabled,
   label = "Export & print",
   resultCards,
+  design,
 }: {
   elementId: string;
   filename: string;
@@ -19,6 +21,7 @@ export default function DocumentExportBar({
   label?: string;
   /** When set, PDF/Word use a reliable jsPDF / HTML builder (not a screenshot). */
   resultCards?: ResultCardData[];
+  design?: SchoolDocumentDesign;
 }) {
   const [busy, setBusy] = useState<ExportFormat | null>(null);
 
@@ -29,7 +32,12 @@ export default function DocumentExportBar({
     }
     setBusy(format);
     try {
-      await exportDocument(format, { elementId, filename, resultCards });
+      await exportDocument(format, {
+        elementId,
+        filename,
+        resultCards,
+        design,
+      });
       if (format === "pdf") toast.success("PDF downloaded");
       if (format === "word") toast.success("Word file downloaded");
     } catch (err: unknown) {

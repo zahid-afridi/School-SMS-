@@ -9,6 +9,11 @@ import {
   type ExamDocumentTemplate,
 } from "@/lib/documentStyles";
 import { formatExamDate } from "./ExamUI";
+import {
+  documentFontClass,
+  documentRadiusClass,
+  type SchoolDocumentDesign,
+} from "@/lib/schoolDocumentDesign";
 
 function resolveUrl(path?: string | null) {
   return resolveUploadUrl(path);
@@ -36,11 +41,13 @@ export default function DateSheetDocument({
   school,
   template = "classic",
   customStyle,
+  design,
 }: {
   data: DateSheetData;
   school?: School;
   template?: ExamDocumentTemplate;
   customStyle?: DocumentCustomStyle | null;
+  design?: SchoolDocumentDesign;
 }) {
   const theme = resolveTheme(template, customStyle);
   const logo = resolveUrl(school?.logoUrl);
@@ -57,18 +64,29 @@ export default function DateSheetDocument({
 
   return (
     <article
-      className={`date-sheet-document overflow-hidden rounded-2xl border bg-white shadow-sm print:rounded-none print:shadow-none ${theme.shell}`}
+      className={`date-sheet-document overflow-hidden border bg-white shadow-sm print:rounded-none print:shadow-none ${theme.shell} ${
+        design ? documentRadiusClass(design.shape) : "rounded-2xl"
+      } ${design ? documentFontClass(design.font) : ""}`}
       data-template={template}
+      data-layout={design?.dateSheetLayout}
       style={theme.cssVars as CSSProperties | undefined}
     >
-      <div
-        className={`h-2 ${theme.topBar}`}
-        style={customInline(theme, "topBar")}
-      />
+      {design?.dateSheetLayout !== "compact" ? (
+        <div
+          className={`h-2 ${theme.topBar}`}
+          style={customInline(theme, "topBar")}
+        />
+      ) : null}
 
-      <div className="p-3.5 sm:p-6 md:p-8 print:p-[7mm]">
+      <div
+        className={`print:p-[7mm] ${
+          design?.density === "compact"
+            ? "p-3 sm:p-4 md:p-5"
+            : "p-3.5 sm:p-6 md:p-8"
+        }`}
+      >
         <header className="flex items-center gap-2.5 border-b border-slate-200 pb-4 sm:gap-5 sm:pb-5 print:gap-5 print:pb-3">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white sm:h-20 sm:w-20 sm:rounded-2xl print:h-16 print:w-16">
+          {design?.showLogo !== false ? <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white sm:h-20 sm:w-20 sm:rounded-2xl print:h-16 print:w-16">
             {logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -85,7 +103,7 @@ export default function DateSheetDocument({
                 {(school?.name ?? "S").charAt(0)}
               </span>
             )}
-          </div>
+          </div> : null}
 
           <div className="min-w-0 flex-1 text-center">
             <p

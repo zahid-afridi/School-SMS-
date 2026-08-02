@@ -10,6 +10,7 @@ import AttendanceRouter from "./attendance/attendance.route.js";
 import ExamRouter from "./exams/exam.route.js";
 import ReportsRouter from "./reports/reports.route.js";
 import DashboardRouter from "./dashboard/dashboard.route.js";
+import WhatsAppRouter from "./whatsapp/whatsapp.route.js";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/attendance", AttendanceRouter);
 router.use("/exams", ExamRouter);
 router.use("/reports", ReportsRouter);
 router.use("/dashboard", DashboardRouter);
+router.use("/whatsapp", WhatsAppRouter);
 
 export default router;

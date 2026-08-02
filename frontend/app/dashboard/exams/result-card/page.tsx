@@ -14,7 +14,6 @@ import type {
   ResultCardData,
   ResultSheetData,
 } from "@/redux/features/exams/examTypes";
-import type { DocumentCustomStyle } from "@/lib/documentStyles";
 import {
   ExamBreadcrumb,
   ExamStepTitle,
@@ -25,14 +24,39 @@ import ExamTemplatePicker, {
 } from "../_components/ExamTemplatePicker";
 import StudentResultCard from "../_components/StudentResultCard";
 import DocumentExportBar from "../_components/DocumentExportBar";
-import DocumentStyleCustomizer from "../_components/DocumentStyleCustomizer";
+import ResultCardFormatPicker from "../_components/ResultCardFormatPicker";
+import SchoolDocumentDesigner from "@/app/components/SchoolDocumentDesigner";
+import { useGetMySchoolQuery } from "@/redux/features/school/schoolApi";
+import {
+  DEFAULT_SCHOOL_DOCUMENT_DESIGN,
+  designToCustomStyle,
+  parseSchoolDocumentDesign,
+  type ResultCardLayout,
+  type SchoolDocumentDesign,
+} from "@/lib/schoolDocumentDesign";
 
 export default function ResultCardPage() {
   const [mode, setMode] = useState<"student" | "class">("student");
   const [template, setTemplate] =
-    useState<ExamDocumentTemplate>("classic");
-  const [customStyle, setCustomStyle] = useState<DocumentCustomStyle | null>(
+    useState<ExamDocumentTemplate>("custom");
+  const [layoutOverride, setLayoutOverride] =
+    useState<ResultCardLayout | null>(null);
+  const [draftDesign, setDraftDesign] = useState<SchoolDocumentDesign | null>(
     null
+  );
+  const { data: school } = useGetMySchoolQuery();
+  const persistedDesign = useMemo(
+    () =>
+      school
+        ? parseSchoolDocumentDesign(school.documentDesign)
+        : DEFAULT_SCHOOL_DOCUMENT_DESIGN,
+    [school]
+  );
+  const schoolDesign = draftDesign ?? persistedDesign;
+  const layout = layoutOverride ?? schoolDesign.resultCardLayout;
+  const customStyle = useMemo(
+    () => designToCustomStyle(schoolDesign),
+    [schoolDesign]
   );
   const { data: exams = [] } = useGetExamsQuery();
   const { data: classes = [] } = useGetAllClassesQuery();
@@ -48,7 +72,10 @@ export default function ResultCardPage() {
     { search: studentSearch || undefined, status: "ACTIVE", limit: 20 },
     { skip: mode !== "student" || studentSearch.trim().length < 1 }
   );
-  const students = studentsData?.students ?? [];
+  const students = useMemo(
+    () => studentsData?.students ?? [],
+    [studentsData?.students]
+  );
 
   const [loadCard, { isFetching: loadingCard }] = useLazyGetResultCardQuery();
   const [loadSheet, { isFetching: loadingSheet }] = useLazyGetResultSheetQuery();
@@ -163,16 +190,29 @@ export default function ResultCardPage() {
 
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm print:hidden mb-6">
           <div className="mb-7">
+            <ResultCardFormatPicker
+              value={layout}
+              onChange={setLayoutOverride}
+              title="Choose result card format"
+            />
+          </div>
+
+          <div className="mb-7">
             <ExamTemplatePicker
               value={template}
               onChange={setTemplate}
-              title="Choose result card template"
+              title="Choose color theme"
             />
           </div>
 
           {template === "custom" && (
             <div className="mb-7">
-              <DocumentStyleCustomizer onActiveChange={setCustomStyle} compact />
+              <SchoolDocumentDesigner
+                compact
+                onChange={(next) => {
+                  setDraftDesign(next);
+                }}
+              />
             </div>
           )}
 
@@ -321,6 +361,7 @@ export default function ResultCardPage() {
               }
               label="Print, PDF, or Word"
               resultCards={card ? [card] : classCards}
+              design={template === "custom" ? schoolDesign : undefined}
             />
           </div>
         )}
@@ -331,6 +372,8 @@ export default function ResultCardPage() {
               card={card}
               template={template}
               customStyle={customStyle}
+              design={template === "custom" ? schoolDesign : undefined}
+              layout={layout}
               hideToolbar
               onPrint={() => window.print()}
             />
@@ -355,6 +398,8 @@ export default function ResultCardPage() {
                     card={c}
                     template={template}
                     customStyle={customStyle}
+                    design={template === "custom" ? schoolDesign : undefined}
+                    layout={layout}
                     hideToolbar
                   />
                 </div>

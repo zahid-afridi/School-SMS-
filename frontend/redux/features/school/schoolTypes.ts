@@ -7,6 +7,8 @@ export interface School {
   website?: string | null;
   logoUrl?: string | null;
   coverUrl?: string | null;
+  /** Versioned JSON document design profile. */
+  documentDesign?: string | null;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

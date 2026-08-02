@@ -107,6 +107,8 @@ model School {
   website   String?
   logoUrl   String?
   coverUrl  String?
+  /// Per-school document design profile stored as versioned JSON.
+  documentDesign String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -124,6 +126,7 @@ model School {
   staffAttendanceSheets StaffAttendanceSheet[]
   subjects       Subject[]
   exams          Exam[]
+  whatsappMessages WhatsAppMessage[]
 
   @@index([name])
 }
@@ -276,6 +279,7 @@ model Student {
   feePayments   FeePayment[]
   attendanceEntries StudentAttendanceEntry[]
   examMarks     ExamMark[]
+  whatsappMessages WhatsAppMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -744,4 +748,46 @@ model ExamMark {
   @@index([examId])
   @@index([examSubjectId])
   @@index([studentId])
+}
+
+enum WhatsAppMessageType {
+  CUSTOM
+  ATTENDANCE
+  FEES
+  RESULT
+  ANNOUNCEMENT
+}
+
+enum WhatsAppMessageStatus {
+  PENDING
+  SENT
+  FAILED
+  DELIVERED
+}
+
+/// Outbound WhatsApp messages sent via OpenWA
+model WhatsAppMessage {
+  id           String                @id @default(uuid())
+  studentId    String?
+  student      Student?              @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  phone        String
+  messageType  WhatsAppMessageType
+  message      String
+  messageId    String?
+  status       WhatsAppMessageStatus @default(PENDING)
+  error        String?
+  schoolId     String
+  school       School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  sentByUserId String?
+  timestamp    DateTime              @default(now())
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([phone])
+  @@index([messageType])
+  @@index([status])
+  @@index([timestamp])
+  @@index([messageId])
 }

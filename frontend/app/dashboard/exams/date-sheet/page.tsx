@@ -1,7 +1,7 @@
 "use client";
 
 import { ButtonLoader } from "@/app/components/PageLoader";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
 import { useGetMySchoolQuery } from "@/redux/features/school/schoolApi";
@@ -10,14 +10,19 @@ import {
   useLazyGetDateSheetQuery,
 } from "@/redux/features/exams/examApi";
 import type { DateSheetData } from "@/redux/features/exams/examTypes";
-import type { DocumentCustomStyle } from "@/lib/documentStyles";
 import { ExamBreadcrumb, examInputClass } from "../_components/ExamUI";
 import DateSheetDocument from "../_components/DateSheetDocument";
 import ExamTemplatePicker, {
   type ExamDocumentTemplate,
 } from "../_components/ExamTemplatePicker";
 import DocumentExportBar from "../_components/DocumentExportBar";
-import DocumentStyleCustomizer from "../_components/DocumentStyleCustomizer";
+import SchoolDocumentDesigner from "@/app/components/SchoolDocumentDesigner";
+import {
+  DEFAULT_SCHOOL_DOCUMENT_DESIGN,
+  designToCustomStyle,
+  parseSchoolDocumentDesign,
+  type SchoolDocumentDesign,
+} from "@/lib/schoolDocumentDesign";
 
 export default function DateSheetPage() {
   const { data: exams = [] } = useGetExamsQuery();
@@ -27,9 +32,21 @@ export default function DateSheetPage() {
   const [classId, setClassId] = useState("");
   const [data, setData] = useState<DateSheetData | null>(null);
   const [template, setTemplate] =
-    useState<ExamDocumentTemplate>("classic");
-  const [customStyle, setCustomStyle] = useState<DocumentCustomStyle | null>(
+    useState<ExamDocumentTemplate>("custom");
+  const [draftDesign, setDraftDesign] = useState<SchoolDocumentDesign | null>(
     null
+  );
+  const persistedDesign = useMemo(
+    () =>
+      school
+        ? parseSchoolDocumentDesign(school.documentDesign)
+        : DEFAULT_SCHOOL_DOCUMENT_DESIGN,
+    [school]
+  );
+  const schoolDesign = draftDesign ?? persistedDesign;
+  const customStyle = useMemo(
+    () => designToCustomStyle(schoolDesign),
+    [schoolDesign]
   );
   const [load, { isFetching }] = useLazyGetDateSheetQuery();
 
@@ -103,7 +120,12 @@ export default function DateSheetPage() {
           />
 
           {template === "custom" && (
-            <DocumentStyleCustomizer onActiveChange={setCustomStyle} compact />
+            <SchoolDocumentDesigner
+              compact
+              onChange={(next) => {
+                setDraftDesign(next);
+              }}
+            />
           )}
 
           <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-5 md:grid-cols-3">
@@ -173,6 +195,7 @@ export default function DateSheetPage() {
                 school={school}
                 template={template}
                 customStyle={customStyle}
+                design={template === "custom" ? schoolDesign : undefined}
               />
             </div>
           </>

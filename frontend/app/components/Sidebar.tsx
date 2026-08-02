@@ -12,6 +12,7 @@ import {
   FaFileAlt,
   FaChartBar,
   FaMoneyBillWave,
+  FaComments,
   FaChevronDown,
   FaCog,
   FaTimes,
@@ -44,6 +45,10 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           href: "/dashboard/settings/fees-structure",
         },
         {
+          name: "Document Design",
+          href: "/dashboard/settings/document-design",
+        },
+        {
           name: "Account Settings",
           href: "/dashboard/settings/account",
         },
@@ -55,6 +60,14 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       children: [
         { name: "All Students", href: "/dashboard/students" },
         { name: "Add Student", href: "/dashboard/students/Add-students" },
+        {
+          name: "Admission Letter",
+          href: "/dashboard/students/admission-letter",
+        },
+        {
+          name: "ID Card",
+          href: "/dashboard/students/id-card",
+        },
         { name: "Promote Student", href: "/dashboard/students/promote" },
         {
           name: "Manage Student Promotion",
@@ -173,6 +186,19 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           name: "Fee Structure",
           href: "/dashboard/settings/fees-structure",
         },
+      ],
+    },
+    {
+      name: "Messages",
+      icon: <FaComments size={18} />,
+      children: [
+        { name: "Overview", href: "/dashboard/messages" },
+        { name: "Send Message", href: "/dashboard/messages/send" },
+        { name: "Attendance Notice", href: "/dashboard/messages/attendance" },
+        { name: "Fee Reminder", href: "/dashboard/messages/fees" },
+        { name: "Result Notice", href: "/dashboard/messages/results" },
+        { name: "Announcement", href: "/dashboard/messages/announcement" },
+        { name: "Message History", href: "/dashboard/messages/history" },
       ],
     },
   ], []);

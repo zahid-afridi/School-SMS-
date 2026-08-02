@@ -45,4 +45,10 @@ export const ApiMessages = {
   ONLINE_STORAGE_NOT_CONFIGURED: "Online file storage is not configured",
   UPLOAD_SUCCESS: "File uploaded successfully",
   DELETE_SUCCESS: "File deleted successfully",
+  WHATSAPP_SENT: "WhatsApp message sent successfully",
+  WHATSAPP_PARTIAL: "Some WhatsApp messages failed to send",
+  WHATSAPP_FAILED: "Failed to send WhatsApp message",
+  WHATSAPP_NOT_CONFIGURED: "OpenWA WhatsApp is not configured",
+  WHATSAPP_MESSAGE_NOT_FOUND: "WhatsApp message not found",
+  WHATSAPP_PHONE_REQUIRED: "A valid phone number is required",
 } as const;

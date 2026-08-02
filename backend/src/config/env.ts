@@ -31,6 +31,11 @@ export const env = {
   awsS3Bucket: process.env.AWS_S3_BUCKET ?? "",
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
+
+  // OpenWA WhatsApp (optional — validated when sending)
+  openwaUrl: process.env.OPENWA_URL ?? "",
+  openwaApiKey: process.env.OPENWA_API_KEY ?? "",
+  openwaSessionId: process.env.OPENWA_SESSION_ID ?? "",
 } as const;
 
 export function validateEnv(): void {

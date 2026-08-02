@@ -7,15 +7,18 @@ import {
   FaPalette,
   FaPrint,
   FaUserGraduate,
+  FaIdCard,
 } from "react-icons/fa";
-import { BUILTIN_TEMPLATES } from "@/lib/documentStyles";
 import { ExamBreadcrumb } from "../_components/ExamUI";
-import DocumentStyleCustomizer from "../_components/DocumentStyleCustomizer";
-import ExamTemplatePicker from "../_components/ExamTemplatePicker";
-import { useState } from "react";
-import type { ExamDocumentTemplate } from "@/lib/documentStyles";
+import SchoolDocumentDesigner from "@/app/components/SchoolDocumentDesigner";
 
 const quickLinks = [
+  {
+    href: "/dashboard/students/id-card",
+    title: "Student ID Card",
+    desc: "School-branded front and back identity card",
+    icon: <FaIdCard className="text-blue-600" />,
+  },
   {
     href: "/dashboard/exams/result-card",
     title: "Result Card",
@@ -43,9 +46,6 @@ const quickLinks = [
 ];
 
 export default function DocumentStudioPage() {
-  const [previewTemplate, setPreviewTemplate] =
-    useState<ExamDocumentTemplate>("classic");
-
   return (
     <div className="w-full min-w-0">
       <div className="mx-auto max-w-6xl">
@@ -62,13 +62,13 @@ export default function DocumentStudioPage() {
             Document Studio
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Pick ready-made templates or build your own colors for result cards,
-            date sheets, and other printable school documents. Export as Print,
-            PDF, or Word from each document page.
+            Build one school identity for ID cards, result cards, date sheets,
+            and printable documents. The saved design belongs to this school
+            and follows administrators across devices.
           </p>
         </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {quickLinks.map((link) => (
             <Link
               key={link.href}
@@ -84,21 +84,7 @@ export default function DocumentStudioPage() {
           ))}
         </div>
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <ExamTemplatePicker
-            value={previewTemplate}
-            onChange={setPreviewTemplate}
-            title="Built-in templates (8 + Custom)"
-          />
-          <p className="mt-4 text-xs text-slate-500">
-            {BUILTIN_TEMPLATES.length} built-in looks:{" "}
-            {BUILTIN_TEMPLATES.map((t) => t.name).join(", ")}. Select{" "}
-            <strong>Custom</strong> on Result Card or Date Sheet to apply your
-            saved style.
-          </p>
-        </div>
-
-        <DocumentStyleCustomizer />
+        <SchoolDocumentDesigner />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import PageLoader from "@/app/components/PageLoader";
+import StudentIdCard from "@/app/components/StudentIdCard";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -45,6 +46,7 @@ export default function StudentModal({
   const [newPhoto, setNewPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(initialEditing);
+  const [showIdCard, setShowIdCard] = useState(false);
   const [removePhoto, setRemovePhoto] = useState(false);
 
   const { data: fullStudent, isLoading: isLoadingDetails } =
@@ -163,16 +165,39 @@ export default function StudentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
-      <div className="relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[90vh] sm:w-[560px] sm:max-w-full sm:rounded-2xl sm:p-8">
+      <div
+        className={`relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[90vh] sm:max-w-full sm:rounded-2xl sm:p-8 ${
+          showIdCard ? "sm:w-[860px]" : "sm:w-[560px]"
+        }`}
+      >
         <button
           type="button"
           onClick={onClose}
-          className="sticky top-0 z-10 ml-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white/95 text-xl text-gray-500 shadow-sm backdrop-blur transition hover:text-red-500 sm:absolute sm:right-5 sm:top-5 sm:shadow-none"
+          className="sticky top-0 z-10 ml-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white/95 text-xl text-gray-500 shadow-sm backdrop-blur transition hover:text-red-500 print:hidden sm:absolute sm:right-5 sm:top-5 sm:shadow-none"
           aria-label="Close student details"
         >
           <FaTimes />
         </button>
 
+        {showIdCard ? (
+          <div className="pt-2 sm:pt-4">
+            <h2 className="mb-1 text-center text-xl font-bold text-slate-900 print:hidden sm:text-2xl">
+              Student ID Card
+            </h2>
+            <p className="mb-5 text-center text-sm text-slate-500 print:hidden">
+              {s.name} · {s.registrationNo}
+            </p>
+            {isLoadingDetails && !fullStudent ? (
+              <PageLoader compact label="Loading student" />
+            ) : (
+              <StudentIdCard
+                student={s}
+                onBack={() => setShowIdCard(false)}
+              />
+            )}
+          </div>
+        ) : (
+          <>
         <div className="flex justify-center">
           <div
             className={`relative ${isEditing ? "cursor-pointer group" : ""}`}
@@ -374,15 +399,24 @@ export default function StudentModal({
           {!isEditing ? (
             <>
               <button
+                type="button"
+                onClick={() => setShowIdCard(true)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-3 font-medium text-slate-800 transition hover:bg-slate-50"
+              >
+                <FaIdCard /> ID Card
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsEditing(true)}
-                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-black py-3 text-white transition hover:bg-neutral-800"
               >
                 <FaEdit /> Update
               </button>
               <button
+                type="button"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-black py-3 text-white transition hover:bg-neutral-800 disabled:opacity-60"
               >
                 <FaTrash />
                 {isDeleting ? "Deleting..." : "Delete"}
@@ -391,27 +425,31 @@ export default function StudentModal({
           ) : (
             <>
               <button
+                type="button"
                 onClick={handleUpdate}
                 disabled={isUpdating}
-                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition disabled:opacity-60"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-black py-3 text-white transition hover:bg-neutral-800 disabled:opacity-60"
               >
                 <FaSave />
                 {isUpdating ? "Saving..." : "Save"}
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setIsEditing(false);
                   setNewPhoto(null);
                   setPreviewUrl(null);
                   setRemovePhoto(false);
                 }}
-                className="flex-1 bg-black hover:bg-neutral-800 text-white py-3 rounded-lg flex justify-center items-center gap-2 transition"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-black py-3 text-white transition hover:bg-neutral-800"
               >
                 <FaBan /> Cancel
               </button>
             </>
           )}
         </div>
+          </>
+        )}
       </div>
     </div>
   );

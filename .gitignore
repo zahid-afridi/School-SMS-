@@ -1,0 +1,9 @@
+# Local OpenWA install, sessions, and secrets — do not push
+Whatsapp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

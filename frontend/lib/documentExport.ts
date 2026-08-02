@@ -6,6 +6,7 @@
 
 import type { ResultCardData } from "@/redux/features/exams/examTypes";
 import { resolveUploadUrl } from "@/lib/apiBase";
+import type { SchoolDocumentDesign } from "@/lib/schoolDocumentDesign";
 
 export type ExportFormat = "print" | "pdf" | "word";
 
@@ -30,6 +31,16 @@ function escapeHtml(value: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const normalized = hex.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) return [15, 23, 42];
+  return [
+    Number.parseInt(normalized.slice(0, 2), 16),
+    Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16),
+  ];
 }
 
 function formatDate(value?: string | null) {
@@ -231,7 +242,8 @@ async function canvasToPdfPages(
 /** Reliable PDF for result cards — drawn with jsPDF (no html2canvas text loss). */
 export async function exportResultCardsToPdf(
   cards: ResultCardData[],
-  filename: string
+  filename: string,
+  design?: SchoolDocumentDesign
 ) {
   if (!cards.length) throw new Error("No result card to export");
 
@@ -240,7 +252,7 @@ export async function exportResultCardsToPdf(
 
   for (let i = 0; i < cards.length; i += 1) {
     if (i > 0) pdf.addPage();
-    await drawResultCardPage(pdf, cards[i]);
+    await drawResultCardPage(pdf, cards[i], design);
   }
 
   pdf.save(filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
@@ -248,7 +260,8 @@ export async function exportResultCardsToPdf(
 
 async function drawResultCardPage(
   pdf: InstanceType<typeof import("jspdf").jsPDF>,
-  card: ResultCardData
+  card: ResultCardData,
+  design?: SchoolDocumentDesign
 ) {
   const { school, exam, student, summary, lines } = card;
   const pageW = pdf.internal.pageSize.getWidth();
@@ -256,18 +269,24 @@ async function drawResultCardPage(
   const contentW = pageW - margin * 2;
   let y = margin;
 
-  const ink = "#0f172a";
+  const ink = design?.text ?? "#0f172a";
   const muted = "#64748b";
   const line = "#cbd5e1";
+  const primary = hexToRgb(design?.primary ?? "#0f172a");
+  const tableHead = hexToRgb(design?.tableHead ?? "#f1f5f9");
 
   // Top accent bar
-  pdf.setFillColor(15, 23, 42);
+  pdf.setFillColor(...primary);
   pdf.rect(0, 0, pageW, 4, "F");
   y = 10;
 
   // Logo + school header + photo
-  const logoUrl = resolveAssetUrl(school?.logoUrl);
-  const photoUrl = resolveAssetUrl(student.photoUrl);
+  const logoUrl =
+    design?.showLogo === false ? null : resolveAssetUrl(school?.logoUrl);
+  const photoUrl =
+    design?.showStudentPhoto === false
+      ? null
+      : resolveAssetUrl(student.photoUrl);
   const [logoImg, photoImg] = await Promise.all([
     logoUrl ? loadImage(logoUrl) : Promise.resolve(null),
     photoUrl ? loadImage(photoUrl) : Promise.resolve(null),
@@ -375,14 +394,14 @@ async function drawResultCardPage(
   pdf.setLineWidth(0.3);
   pdf.roundedRect(margin, boxTop, contentW, boxH, 2, 2, "S");
 
-  pdf.setFillColor(15, 23, 42);
+  pdf.setFillColor(...primary);
   pdf.rect(margin, boxTop, contentW, 7, "F");
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
   pdf.setTextColor("#ffffff");
   pdf.text("STUDENT PARTICULARS", margin + 3, boxTop + 4.8);
 
-  let py = boxTop + 12;
+  const py = boxTop + 12;
   const colW = contentW / 2;
   particulars.forEach(([label, value], idx) => {
     const col = idx % 2;
@@ -402,7 +421,7 @@ async function drawResultCardPage(
 
   // Marks table
   const tableTop = y;
-  pdf.setFillColor(15, 23, 42);
+  pdf.setFillColor(...primary);
   pdf.rect(margin, tableTop, contentW, 7, "F");
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
@@ -422,7 +441,7 @@ async function drawResultCardPage(
   ];
 
   // Header row
-  pdf.setFillColor(241, 245, 249);
+  pdf.setFillColor(...tableHead);
   pdf.rect(margin, y, contentW, 7, "F");
   pdf.setDrawColor(line);
   pdf.rect(margin, y, contentW, 7, "S");
@@ -732,7 +751,7 @@ export async function exportElementToPdf(
 
   const documents = Array.from(
     element.querySelectorAll<HTMLElement>(
-      ".result-card-document, .date-sheet-document"
+      ".result-card-document, .date-sheet-document, .student-id-card-face, .admission-letter-document"
     )
   );
   const targets = documents.length > 0 ? documents : [element];
@@ -807,6 +826,7 @@ export async function exportDocument(
     elementId: string;
     filename: string;
     resultCards?: ResultCardData[];
+    design?: SchoolDocumentDesign;
   }
 ) {
   if (format === "print") {
@@ -816,7 +836,11 @@ export async function exportDocument(
 
   if (options.resultCards && options.resultCards.length > 0) {
     if (format === "pdf") {
-      await exportResultCardsToPdf(options.resultCards, options.filename);
+      await exportResultCardsToPdf(
+        options.resultCards,
+        options.filename,
+        options.design
+      );
       return;
     }
     exportResultCardsToWord(options.resultCards, options.filename);

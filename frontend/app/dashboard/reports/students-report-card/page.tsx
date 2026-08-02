@@ -17,16 +17,39 @@ import StudentResultCard from "@/app/dashboard/exams/_components/StudentResultCa
 import ExamTemplatePicker, {
   type ExamDocumentTemplate,
 } from "@/app/dashboard/exams/_components/ExamTemplatePicker";
+import ResultCardFormatPicker from "@/app/dashboard/exams/_components/ResultCardFormatPicker";
 import {
   ReportBreadcrumb,
   ReportHeader,
   reportInputClass,
 } from "../_components/ReportUI";
+import { useGetMySchoolQuery } from "@/redux/features/school/schoolApi";
+import {
+  DEFAULT_SCHOOL_DOCUMENT_DESIGN,
+  designToCustomStyle,
+  parseSchoolDocumentDesign,
+  type ResultCardLayout,
+} from "@/lib/schoolDocumentDesign";
 
 export default function StudentsReportCardPage() {
   const [mode, setMode] = useState<"student" | "class">("student");
   const [template, setTemplate] =
-    useState<ExamDocumentTemplate>("classic");
+    useState<ExamDocumentTemplate>("custom");
+  const [layoutOverride, setLayoutOverride] =
+    useState<ResultCardLayout | null>(null);
+  const { data: school } = useGetMySchoolQuery();
+  const schoolDesign = useMemo(
+    () =>
+      school
+        ? parseSchoolDocumentDesign(school.documentDesign)
+        : DEFAULT_SCHOOL_DOCUMENT_DESIGN,
+    [school]
+  );
+  const customStyle = useMemo(
+    () => designToCustomStyle(schoolDesign),
+    [schoolDesign]
+  );
+  const layout = layoutOverride ?? schoolDesign.resultCardLayout;
   const { data: exams = [] } = useGetExamsQuery();
   const { data: classes = [] } = useGetAllClassesQuery();
   const [examId, setExamId] = useState("");
@@ -41,7 +64,10 @@ export default function StudentsReportCardPage() {
     { search: studentSearch || undefined, status: "ACTIVE", limit: 20 },
     { skip: mode !== "student" || studentSearch.trim().length < 1 }
   );
-  const students = studentsData?.students ?? [];
+  const students = useMemo(
+    () => studentsData?.students ?? [],
+    [studentsData?.students]
+  );
 
   const [loadCard, { isFetching: loadingCard }] = useLazyGetResultCardQuery();
   const [loadSheet, { isFetching: loadingSheet }] = useLazyGetResultSheetQuery();
@@ -135,10 +161,15 @@ export default function StudentsReportCardPage() {
       />
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-6 print:hidden space-y-4">
+        <ResultCardFormatPicker
+          value={layout}
+          onChange={setLayoutOverride}
+          title="Choose result card format"
+        />
         <ExamTemplatePicker
           value={template}
           onChange={setTemplate}
-          title="Choose result card template"
+          title="Choose color theme"
         />
 
         <div className="flex gap-2">
@@ -233,13 +264,29 @@ export default function StudentsReportCardPage() {
       </div>
 
       <div id="result-card-print-area">
-        {card ? <StudentResultCard card={card} template={template} /> : null}
+        {card ? (
+          <StudentResultCard
+            card={card}
+            template={template}
+            customStyle={customStyle}
+            design={template === "custom" ? schoolDesign : undefined}
+            layout={layout}
+            hideToolbar
+          />
+        ) : null}
         {classCards.map((c, idx) => (
           <div
             key={c.student.id}
             className={idx < classCards.length - 1 ? "result-card-page-break" : ""}
           >
-            <StudentResultCard card={c} template={template} />
+            <StudentResultCard
+              card={c}
+              template={template}
+              customStyle={customStyle}
+              design={template === "custom" ? schoolDesign : undefined}
+              layout={layout}
+              hideToolbar
+            />
           </div>
         ))}
         {!card && classCards.length === 0 && sheet && sheet.rows.length === 0 ? (
