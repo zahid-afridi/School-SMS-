@@ -46,7 +46,7 @@ export async function uploadImage(
 ): Promise<SavedFile> {
   return saveFile(file, FOLDERS.image, schoolId);
 }
-// hello haroon
+// hello haroon hello
 export async function uploadMultipleImages(
   files: Express.Multer.File[],
   schoolId: string
