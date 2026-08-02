@@ -1,5 +1,6 @@
 # Local OpenWA install, sessions, and secrets — do not push
-Whatsapp/
+# Leading slash = repo root only (do NOT ignore backend/src/**/whatsapp)
+/Whatsapp/
 
 # OS / editor
 .DS_Store
