@@ -9,7 +9,10 @@ import { getPrisma } from "../../lib/prisma.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { AppError } from "../../utils/AppError.js";
 import { validateEnum, validateRequired } from "../../utils/validate.js";
-import { normalizePhoneDigits, toWhatsAppChatId } from "../../services/whatsapp/phone.util.js";
+import {
+  normalizePhoneDigits,
+  toWhatsAppChatId,
+} from "../../services/whatsapp/phone.util.js";
 import { WhatsAppTemplates } from "../../services/whatsapp/templates.js";
 import { WhatsAppService } from "../../services/whatsapp/whatsapp.service.js";
 
@@ -61,7 +64,7 @@ function asTrimmedString(value: unknown): string {
 async function resolveStudentPhone(
   schoolId: string,
   studentId: string
-): Promise<{ studentName: string; phone: string }> {
+): Promise<{ studentName: string; parentName: string | null; phone: string }> {
   const student = await getPrisma().student.findFirst({
     where: { id: studentId, schoolId },
     select: {
@@ -74,6 +77,7 @@ async function resolveStudentPhone(
         select: {
           parent: {
             select: {
+              name: true,
               whatsappNo: true,
               mobileNo: true,
             },
@@ -95,34 +99,84 @@ async function resolveStudentPhone(
     student.emergencyPhone?.trim() ||
     "";
 
-  // Return empty phone — the caller will use the explicit override or throw
-  return { studentName: student.name, phone };
+  return {
+    studentName: student.name,
+    parentName: primaryParent?.name ?? null,
+    phone,
+  };
 }
 
-async function resolvePhoneAndStudent(params: {
+async function resolveEmployeePhone(
+  schoolId: string,
+  employeeId: string
+): Promise<{ employeeName: string; phone: string }> {
+  const employee = await getPrisma().employee.findFirst({
+    where: { id: employeeId, schoolId },
+    select: { id: true, name: true, phone: true },
+  });
+  if (!employee) {
+    throw new AppError("Employee not found", HttpStatus.NOT_FOUND);
+  }
+  const phone = employee.phone?.trim() || "";
+  return {
+    employeeName: employee.name?.trim() || "Staff",
+    phone,
+  };
+}
+
+/**
+ * Resolve recipient phone.
+ * When studentId or employeeId is set, client phone is IGNORED (locked on server).
+ */
+async function resolveRecipient(params: {
   schoolId: string;
   phone?: unknown;
   studentId?: unknown;
-}): Promise<{ phone: string; studentId: string | null; studentName: string | null }> {
-  const explicitPhone = asTrimmedString(params.phone);
+  employeeId?: unknown;
+}): Promise<{
+  phone: string;
+  studentId: string | null;
+  studentName: string | null;
+  parentName: string | null;
+  employeeName: string | null;
+}> {
   const studentId = asTrimmedString(params.studentId) || null;
+  const employeeId = asTrimmedString(params.employeeId) || null;
+  const explicitPhone = asTrimmedString(params.phone);
 
   if (studentId) {
     const resolved = await resolveStudentPhone(params.schoolId, studentId);
-    const finalPhone = explicitPhone || resolved.phone;
-
-    if (!finalPhone) {
+    if (!resolved.phone) {
       throw new AppError(
         ApiMessages.WHATSAPP_PHONE_REQUIRED,
         HttpStatus.BAD_REQUEST,
-        ["No WhatsApp/mobile number found for this student or parent. Enter a phone number manually."]
+        ["No WhatsApp/mobile number found for this student or parent."]
       );
     }
-
     return {
-      phone: finalPhone,
+      phone: resolved.phone,
       studentId,
       studentName: resolved.studentName,
+      parentName: resolved.parentName,
+      employeeName: null,
+    };
+  }
+
+  if (employeeId) {
+    const resolved = await resolveEmployeePhone(params.schoolId, employeeId);
+    if (!resolved.phone) {
+      throw new AppError(
+        ApiMessages.WHATSAPP_PHONE_REQUIRED,
+        HttpStatus.BAD_REQUEST,
+        ["No mobile number found for this employee."]
+      );
+    }
+    return {
+      phone: resolved.phone,
+      studentId: null,
+      studentName: null,
+      parentName: null,
+      employeeName: resolved.employeeName,
     };
   }
 
@@ -130,11 +184,17 @@ async function resolvePhoneAndStudent(params: {
     throw new AppError(
       ApiMessages.WHATSAPP_PHONE_REQUIRED,
       HttpStatus.BAD_REQUEST,
-      ["Provide phone or studentId"]
+      ["Select a recipient or provide a phone number"]
     );
   }
 
-  return { phone: explicitPhone, studentId: null, studentName: null };
+  return {
+    phone: explicitPhone,
+    studentId: null,
+    studentName: null,
+    parentName: null,
+    employeeName: null,
+  };
 }
 
 async function persistAndSend(params: {
@@ -173,8 +233,12 @@ async function persistAndSend(params: {
   });
 
   try {
-    const result = await WhatsAppService.sendText(chatId, params.message, params.schoolId);
-    const updated = await prisma.whatsAppMessage.update({
+    const result = await WhatsAppService.sendText(
+      chatId,
+      params.message,
+      params.schoolId
+    );
+    return await prisma.whatsAppMessage.update({
       where: { id: record.id },
       data: {
         status: "SENT",
@@ -184,7 +248,6 @@ async function persistAndSend(params: {
       },
       select: messageSelect,
     });
-    return updated;
   } catch (err) {
     const errorMessage =
       err instanceof AppError
@@ -212,15 +275,17 @@ export async function sendCustomMessage(req: Request, res: Response) {
   const schoolId = requireSchoolId(req);
   validateRequired(req.body as Record<string, unknown>, ["message"]);
 
-  const message = WhatsAppTemplates.custom(asTrimmedString(req.body.message));
+  const rawMessage = asTrimmedString(req.body.message);
+  const message = await WhatsAppTemplates.custom(schoolId, rawMessage);
   if (!message) {
     throw new AppError("Message text is required", HttpStatus.BAD_REQUEST);
   }
 
-  const resolved = await resolvePhoneAndStudent({
+  const resolved = await resolveRecipient({
     schoolId,
     phone: req.body.phone,
     studentId: req.body.studentId,
+    employeeId: req.body.employeeId,
   });
 
   const saved = await persistAndSend({
@@ -242,16 +307,17 @@ export async function sendAttendanceNotification(req: Request, res: Response) {
   const schoolId = requireSchoolId(req);
   validateRequired(req.body as Record<string, unknown>, ["studentId"]);
 
-  const resolved = await resolvePhoneAndStudent({
+  const resolved = await resolveRecipient({
     schoolId,
-    phone: req.body.phone,
     studentId: req.body.studentId,
   });
 
   const studentName =
-    asTrimmedString(req.body.studentName) || resolved.studentName || "your child";
+    asTrimmedString(req.body.studentName) ||
+    resolved.studentName ||
+    "your child";
 
-  const message = WhatsAppTemplates.attendance({ studentName });
+  const message = await WhatsAppTemplates.attendance(schoolId, { studentName });
 
   const saved = await persistAndSend({
     schoolId,
@@ -278,13 +344,13 @@ export async function sendFeeReminder(req: Request, res: Response) {
     throw new AppError("amount is required", HttpStatus.BAD_REQUEST);
   }
 
-  const resolved = await resolvePhoneAndStudent({
+  const resolved = await resolveRecipient({
     schoolId,
-    phone: req.body.phone,
     studentId: req.body.studentId,
+    phone: req.body.studentId ? undefined : req.body.phone,
   });
 
-  const message = WhatsAppTemplates.fees({ amount, dueDate });
+  const message = await WhatsAppTemplates.fees(schoolId, { amount, dueDate });
 
   const saved = await persistAndSend({
     schoolId,
@@ -305,16 +371,17 @@ export async function sendResultNotification(req: Request, res: Response) {
   const schoolId = requireSchoolId(req);
   validateRequired(req.body as Record<string, unknown>, ["studentId"]);
 
-  const resolved = await resolvePhoneAndStudent({
+  const resolved = await resolveRecipient({
     schoolId,
-    phone: req.body.phone,
     studentId: req.body.studentId,
   });
 
   const studentName =
-    asTrimmedString(req.body.studentName) || resolved.studentName || "your child";
+    asTrimmedString(req.body.studentName) ||
+    resolved.studentName ||
+    "your child";
 
-  const message = WhatsAppTemplates.result({ studentName });
+  const message = await WhatsAppTemplates.result(schoolId, { studentName });
 
   const saved = await persistAndSend({
     schoolId,
@@ -340,36 +407,46 @@ export async function sendAnnouncement(req: Request, res: Response) {
     throw new AppError("announcement is required", HttpStatus.BAD_REQUEST);
   }
 
-  const message = WhatsAppTemplates.announcement({ announcement });
+  const message = await WhatsAppTemplates.announcement(schoolId, {
+    announcement,
+  });
 
   type Target = { phone: string; studentId: string | null };
   const targets: Target[] = [];
 
   const studentIds = Array.isArray(req.body.studentIds)
-    ? (req.body.studentIds as unknown[]).map((id) => asTrimmedString(id)).filter(Boolean)
+    ? (req.body.studentIds as unknown[])
+        .map((id) => asTrimmedString(id))
+        .filter(Boolean)
     : [];
-  const phones = Array.isArray(req.body.phones)
-    ? (req.body.phones as unknown[]).map((p) => asTrimmedString(p)).filter(Boolean)
+  const employeeIds = Array.isArray(req.body.employeeIds)
+    ? (req.body.employeeIds as unknown[])
+        .map((id) => asTrimmedString(id))
+        .filter(Boolean)
     : [];
 
   if (studentIds.length > 0) {
     for (const studentId of studentIds) {
       const resolved = await resolveStudentPhone(schoolId, studentId);
-      if (!resolved.phone) continue; // will surface as a failed send below
+      if (!resolved.phone) continue;
       targets.push({ phone: resolved.phone, studentId });
     }
   }
 
-  for (const phone of phones) {
-    targets.push({ phone, studentId: null });
+  if (employeeIds.length > 0) {
+    for (const employeeId of employeeIds) {
+      const resolved = await resolveEmployeePhone(schoolId, employeeId);
+      if (!resolved.phone) continue;
+      targets.push({ phone: resolved.phone, studentId: null });
+    }
   }
 
-  // Single recipient fallback
   if (targets.length === 0) {
-    const resolved = await resolvePhoneAndStudent({
+    const resolved = await resolveRecipient({
       schoolId,
       phone: req.body.phone,
       studentId: req.body.studentId,
+      employeeId: req.body.employeeId,
     });
     targets.push({ phone: resolved.phone, studentId: resolved.studentId });
   }
@@ -396,11 +473,7 @@ export async function sendAnnouncement(req: Request, res: Response) {
   }
 
   if (results.length === 0) {
-    throw new AppError(
-      ApiMessages.WHATSAPP_FAILED,
-      HttpStatus.BAD_GATEWAY,
-      errors
-    );
+    throw new AppError(ApiMessages.WHATSAPP_FAILED, HttpStatus.BAD_GATEWAY, errors);
   }
 
   return ApiResponse.success(res, {
@@ -434,7 +507,9 @@ export async function getMessageHistory(req: Request, res: Response) {
       MESSAGE_TYPES,
       "Invalid messageType"
     );
-    messageType = asTrimmedString(req.query.messageType).toUpperCase() as WhatsAppMessageType;
+    messageType = asTrimmedString(
+      req.query.messageType
+    ).toUpperCase() as WhatsAppMessageType;
   }
 
   if (req.query.status) {

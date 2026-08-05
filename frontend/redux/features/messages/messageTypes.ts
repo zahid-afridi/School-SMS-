@@ -87,12 +87,12 @@ export type SaveWhatsAppConfigPayload = {
 export type SendCustomPayload = {
   phone?: string;
   studentId?: string;
+  employeeId?: string;
   message: string;
 };
 
 export type SendAttendancePayload = {
   studentId: string;
-  phone?: string;
   studentName?: string;
 };
 
@@ -105,7 +105,6 @@ export type SendFeesPayload = {
 
 export type SendResultPayload = {
   studentId: string;
-  phone?: string;
   studentName?: string;
 };
 
@@ -113,8 +112,45 @@ export type SendAnnouncementPayload = {
   announcement: string;
   phone?: string;
   studentId?: string;
-  phones?: string[];
+  employeeId?: string;
   studentIds?: string[];
+  employeeIds?: string[];
+};
+
+export type MessageTemplate = {
+  id: string;
+  schoolId: string;
+  key: string;
+  name: string;
+  body: string;
+  isSystem: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaveMessageTemplatesPayload = {
+  templates: Array<{
+    key: string;
+    name: string;
+    body: string;
+    isActive?: boolean;
+  }>;
+};
+
+export type MessageRecipientRole = "student" | "parent" | "teacher" | "other";
+
+export type MessageRecipient = {
+  role: MessageRecipientRole;
+  id: string;
+  label: string;
+  subtitle?: string;
+  phone: string;
+  studentId?: string;
+  employeeId?: string;
+  studentName?: string;
+  parentName?: string;
+  employeeName?: string;
 };
 
 export type WhatsAppSessionInfo = {

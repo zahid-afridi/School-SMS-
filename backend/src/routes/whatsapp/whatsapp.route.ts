@@ -23,14 +23,25 @@ import {
   resetSession,
   saveWhatsAppConfig,
 } from "../../controllers/whatsapp/whatsapp.session.controller.js";
+import {
+  getMessageTemplates,
+  removeMessageTemplate,
+  saveMessageTemplates,
+} from "../../controllers/whatsapp/whatsapp.templates.controller.js";
 
 const WhatsAppRouter = Router();
 
-// Gateway settings (school owner configures OpenWA URL + API key here)
 WhatsAppRouter.get("/config", auth("ADMIN", "STAFF"), asyncHandler(getWhatsAppConfig));
 WhatsAppRouter.put("/config", auth("ADMIN"), asyncHandler(saveWhatsAppConfig));
 
-// Session / phone link
+WhatsAppRouter.get("/templates", auth("ADMIN", "STAFF"), asyncHandler(getMessageTemplates));
+WhatsAppRouter.put("/templates", auth("ADMIN"), asyncHandler(saveMessageTemplates));
+WhatsAppRouter.delete(
+  "/templates/:key",
+  auth("ADMIN"),
+  asyncHandler(removeMessageTemplate)
+);
+
 WhatsAppRouter.get("/session/status", auth("ADMIN", "STAFF"), asyncHandler(getSessionStatus));
 WhatsAppRouter.get("/session/qr", auth("ADMIN", "STAFF"), asyncHandler(getQRCode));
 WhatsAppRouter.post("/session/connect", auth("ADMIN", "STAFF"), asyncHandler(connectSession));
@@ -40,12 +51,10 @@ WhatsAppRouter.post("/session/logout", auth("ADMIN"), asyncHandler(logoutSession
 WhatsAppRouter.post("/session/reset", auth("ADMIN"), asyncHandler(resetSession));
 WhatsAppRouter.post("/session/pairing-code", auth("ADMIN", "STAFF"), asyncHandler(requestPairingCode));
 
-// Stats & history
 WhatsAppRouter.get("/stats", auth("ADMIN", "STAFF"), asyncHandler(getWhatsAppStats));
 WhatsAppRouter.get("/messages", auth("ADMIN", "STAFF"), asyncHandler(getMessageHistory));
 WhatsAppRouter.get("/messages/:id", auth("ADMIN", "STAFF"), asyncHandler(getMessageById));
 
-// Send
 WhatsAppRouter.post("/send", auth("ADMIN", "STAFF"), asyncHandler(sendCustomMessage));
 WhatsAppRouter.post("/attendance", auth("ADMIN", "STAFF"), asyncHandler(sendAttendanceNotification));
 WhatsAppRouter.post("/fees", auth("ADMIN", "STAFF"), asyncHandler(sendFeeReminder));

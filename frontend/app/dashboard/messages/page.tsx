@@ -4,22 +4,22 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import PageLoader from "@/app/components/PageLoader";
 import {
-  FaBullhorn,
   FaCheckCircle,
-  FaClipboardList,
   FaComments,
   FaExclamationTriangle,
-  FaGraduationCap,
   FaHistory,
-  FaMoneyBillWave,
   FaPaperPlane,
   FaPlug,
   FaQrcode,
   FaSyncAlt,
   FaTimesCircle,
   FaWifi,
+  FaFileAlt,
 } from "react-icons/fa";
-import { useGetWhatsAppStatsQuery, useGetWhatsAppSessionStatusQuery } from "@/redux/features/messages/messageApi";
+import {
+  useGetWhatsAppStatsQuery,
+  useGetWhatsAppSessionStatusQuery,
+} from "@/redux/features/messages/messageApi";
 import type { WhatsAppSessionStatus } from "@/redux/features/messages/messageTypes";
 
 function statusTone(status: string) {
@@ -27,8 +27,6 @@ function statusTone(status: string) {
   if (status === "FAILED") return "text-rose-700 bg-rose-50";
   return "text-amber-700 bg-amber-50";
 }
-
-// ─── Connection Status Badge ──────────────────────────────────────────────────
 
 function ConnectionBadge({ status }: { status?: WhatsAppSessionStatus }) {
   if (!status || status === "disconnected" || status === "stopped") {
@@ -70,6 +68,7 @@ export default function MessagesOverviewPage() {
   const { data, isLoading, isError } = useGetWhatsAppStatsQuery();
   const { data: sessionInfo } = useGetWhatsAppSessionStatusQuery(undefined, {
     pollingInterval: 15000,
+    skip: !data?.configured,
   });
 
   if (isLoading) {
@@ -100,15 +99,15 @@ export default function MessagesOverviewPage() {
               Messages Overview
             </h1>
             <p className="text-slate-500 mt-1 text-sm sm:text-base">
-              Send parent notifications and track delivery history
+              Compose to students, parents, and teachers — track delivery history
             </p>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto">
             <Link
-              href="/dashboard/messages/send"
+              href="/dashboard/messages/compose"
               className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800"
             >
-              <FaPaperPlane size={12} /> Send Message
+              <FaPaperPlane size={12} /> Compose
             </Link>
             <Link
               href="/dashboard/messages/history"
@@ -119,7 +118,6 @@ export default function MessagesOverviewPage() {
           </div>
         </div>
 
-        {/* WhatsApp connection status banner */}
         <div className="mb-5 rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
@@ -128,12 +126,11 @@ export default function MessagesOverviewPage() {
             <div>
               <p className="text-sm font-semibold text-slate-800">WhatsApp Connection</p>
               <div className="flex items-center gap-2 mt-0.5">
-                <ConnectionBadge status={sessionInfo?.status} />
-                {sessionInfo?.phone && (
-                  <span className="text-xs text-slate-400 font-mono">{sessionInfo.phone}</span>
-                )}
-                {sessionInfo?.pushName && (
-                  <span className="text-xs text-slate-400">{sessionInfo.pushName}</span>
+                <ConnectionBadge status={sessionInfo?.status ?? data.connectionStatus ?? undefined} />
+                {(sessionInfo?.phone || data.connectionPhone) && (
+                  <span className="text-xs text-slate-400 font-mono">
+                    {sessionInfo?.phone || data.connectionPhone}
+                  </span>
                 )}
               </div>
             </div>
@@ -161,20 +158,22 @@ export default function MessagesOverviewPage() {
             </div>
           </div>
         )}
-        {data.configured && data.connectionStatus && data.connectionStatus !== "ready" && (
-          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3 items-start">
-            <FaExclamationTriangle className="mt-0.5 shrink-0" />
-            <div>
-              WhatsApp phone is not linked yet.{" "}
-              <Link
-                href="/dashboard/messages/connection"
-                className="font-semibold underline underline-offset-2"
-              >
-                Connect now
-              </Link>
+        {data.configured &&
+          data.connectionStatus &&
+          data.connectionStatus !== "ready" && (
+            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3 items-start">
+              <FaExclamationTriangle className="mt-0.5 shrink-0" />
+              <div>
+                WhatsApp phone is not linked yet.{" "}
+                <Link
+                  href="/dashboard/messages/connection"
+                  className="font-semibold underline underline-offset-2"
+                >
+                  Connect now
+                </Link>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
           <StatCard label="Total" value={String(data.totals.total)} />
@@ -184,48 +183,30 @@ export default function MessagesOverviewPage() {
           <StatCard label="Failed" value={String(data.totals.failed)} tone="rose" />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <NavTile
-            href="/dashboard/messages/send"
-            title="Custom Message"
-            desc="Send any WhatsApp text to a parent"
+            href="/dashboard/messages/compose"
+            title="Compose"
+            desc="Message students, parents, or teachers"
             icon={<FaComments className="text-sky-600" />}
-          />
-          <NavTile
-            href="/dashboard/messages/attendance"
-            title="Attendance Notice"
-            desc="Notify parents about absences"
-            icon={<FaClipboardList className="text-orange-600" />}
-          />
-          <NavTile
-            href="/dashboard/messages/fees"
-            title="Fee Reminder"
-            desc="Remind parents about due fees"
-            icon={<FaMoneyBillWave className="text-emerald-600" />}
-          />
-          <NavTile
-            href="/dashboard/messages/results"
-            title="Result Notice"
-            desc="Announce published exam results"
-            icon={<FaGraduationCap className="text-indigo-600" />}
-          />
-          <NavTile
-            href="/dashboard/messages/announcement"
-            title="Announcement"
-            desc="Broadcast a school announcement"
-            icon={<FaBullhorn className="text-rose-600" />}
           />
           <NavTile
             href="/dashboard/messages/history"
             title="Message History"
-            desc="Search, filter, and check status"
+            desc="Search and track delivery status"
             icon={<FaHistory className="text-slate-600" />}
           />
           <NavTile
             href="/dashboard/messages/connection"
             title="Connect WhatsApp"
-            desc="Scan QR once to link this school’s number"
+            desc="Scan QR to link this school’s number"
             icon={<FaPlug className="text-teal-600" />}
+          />
+          <NavTile
+            href="/dashboard/settings/message-templates"
+            title="Message Templates"
+            desc="Edit attendance, fees, and custom texts"
+            icon={<FaFileAlt className="text-indigo-600" />}
           />
         </div>
 
@@ -265,9 +246,7 @@ export default function MessagesOverviewPage() {
                       </td>
                       <td className="px-4 py-3">{msg.messageType}</td>
                       <td className="px-4 py-3 font-mono text-xs">{msg.phone}</td>
-                      <td className="px-4 py-3">
-                        {msg.student?.name ?? "—"}
-                      </td>
+                      <td className="px-4 py-3">{msg.student?.name ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold ${statusTone(msg.status)}`}

@@ -1,5 +1,7 @@
 import { rootApi } from "../../rootApi";
 import type {
+  MessageTemplate,
+  SaveMessageTemplatesPayload,
   SaveWhatsAppConfigPayload,
   SendAnnouncementPayload,
   SendAttendancePayload,
@@ -47,6 +49,30 @@ export const messageApi = rootApi.injectEndpoints({
     saveWhatsAppConfig: builder.mutation<WhatsAppConfig, SaveWhatsAppConfigPayload>({
       query: (body) => ({ url: "/whatsapp/config", method: "PUT", body }),
       transformResponse: (res: ApiData<WhatsAppConfig>) => res.data,
+      invalidatesTags: ["Messages"],
+    }),
+
+    getMessageTemplates: builder.query<MessageTemplate[], void>({
+      query: () => "/whatsapp/templates",
+      transformResponse: (res: ApiData<MessageTemplate[]>) => res.data,
+      providesTags: ["Messages"],
+    }),
+
+    saveMessageTemplates: builder.mutation<
+      MessageTemplate[],
+      SaveMessageTemplatesPayload
+    >({
+      query: (body) => ({ url: "/whatsapp/templates", method: "PUT", body }),
+      transformResponse: (res: ApiData<MessageTemplate[]>) => res.data,
+      invalidatesTags: ["Messages"],
+    }),
+
+    deleteMessageTemplate: builder.mutation<MessageTemplate[], string>({
+      query: (key) => ({
+        url: `/whatsapp/templates/${encodeURIComponent(key)}`,
+        method: "DELETE",
+      }),
+      transformResponse: (res: ApiData<MessageTemplate[]>) => res.data,
       invalidatesTags: ["Messages"],
     }),
 
@@ -177,6 +203,9 @@ export const {
   useGetWhatsAppStatsQuery,
   useGetWhatsAppConfigQuery,
   useSaveWhatsAppConfigMutation,
+  useGetMessageTemplatesQuery,
+  useSaveMessageTemplatesMutation,
+  useDeleteMessageTemplateMutation,
   useGetWhatsAppMessagesQuery,
   useSendCustomWhatsAppMutation,
   useSendAttendanceWhatsAppMutation,

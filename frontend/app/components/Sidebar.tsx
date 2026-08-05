@@ -52,6 +52,10 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           name: "Account Settings",
           href: "/dashboard/settings/account",
         },
+        {
+          name: "Message Templates",
+          href: "/dashboard/settings/message-templates",
+        },
       ],
     },
     {
@@ -194,11 +198,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       children: [
         { name: "Connect WhatsApp", href: "/dashboard/messages/connection" },
         { name: "Overview", href: "/dashboard/messages" },
-        { name: "Send Message", href: "/dashboard/messages/send" },
-        { name: "Attendance Notice", href: "/dashboard/messages/attendance" },
-        { name: "Fee Reminder", href: "/dashboard/messages/fees" },
-        { name: "Result Notice", href: "/dashboard/messages/results" },
-        { name: "Announcement", href: "/dashboard/messages/announcement" },
+        { name: "Compose", href: "/dashboard/messages/compose" },
         { name: "Message History", href: "/dashboard/messages/history" },
       ],
     },
