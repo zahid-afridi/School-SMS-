@@ -5,6 +5,7 @@ import Link from "next/link";
 import PageLoader from "@/app/components/PageLoader";
 import {
   FaBullhorn,
+  FaCheckCircle,
   FaClipboardList,
   FaComments,
   FaExclamationTriangle,
@@ -12,8 +13,14 @@ import {
   FaHistory,
   FaMoneyBillWave,
   FaPaperPlane,
+  FaPlug,
+  FaQrcode,
+  FaSyncAlt,
+  FaTimesCircle,
+  FaWifi,
 } from "react-icons/fa";
-import { useGetWhatsAppStatsQuery } from "@/redux/features/messages/messageApi";
+import { useGetWhatsAppStatsQuery, useGetWhatsAppSessionStatusQuery } from "@/redux/features/messages/messageApi";
+import type { WhatsAppSessionStatus } from "@/redux/features/messages/messageTypes";
 
 function statusTone(status: string) {
   if (status === "SENT" || status === "DELIVERED") return "text-emerald-700 bg-emerald-50";
@@ -21,8 +28,49 @@ function statusTone(status: string) {
   return "text-amber-700 bg-amber-50";
 }
 
+// ─── Connection Status Badge ──────────────────────────────────────────────────
+
+function ConnectionBadge({ status }: { status?: WhatsAppSessionStatus }) {
+  if (!status || status === "disconnected" || status === "stopped") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100">
+        <FaWifi size={10} /> Disconnected
+      </span>
+    );
+  }
+  if (status === "ready") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50">
+        <FaCheckCircle size={10} /> Connected
+      </span>
+    );
+  }
+  if (status === "qr_ready") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50">
+        <FaQrcode size={10} /> Scan QR
+      </span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50">
+        <FaTimesCircle size={10} /> Failed
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50">
+      <FaSyncAlt size={10} className="animate-spin" /> {status}
+    </span>
+  );
+}
+
 export default function MessagesOverviewPage() {
   const { data, isLoading, isError } = useGetWhatsAppStatsQuery();
+  const { data: sessionInfo } = useGetWhatsAppSessionStatusQuery(undefined, {
+    pollingInterval: 15000,
+  });
 
   if (isLoading) {
     return (
@@ -69,6 +117,33 @@ export default function MessagesOverviewPage() {
               <FaHistory size={14} /> History
             </Link>
           </div>
+        </div>
+
+        {/* WhatsApp connection status banner */}
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-white shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
+              <FaWifi className="text-slate-500" size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-800">WhatsApp Connection</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <ConnectionBadge status={sessionInfo?.status} />
+                {sessionInfo?.phone && (
+                  <span className="text-xs text-slate-400 font-mono">{sessionInfo.phone}</span>
+                )}
+                {sessionInfo?.pushName && (
+                  <span className="text-xs text-slate-400">{sessionInfo.pushName}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/messages/connection"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors shrink-0"
+          >
+            <FaPlug size={12} /> Manage Connection
+          </Link>
         </div>
 
         {!data.configured && (
@@ -128,6 +203,12 @@ export default function MessagesOverviewPage() {
             title="Message History"
             desc="Search, filter, and check status"
             icon={<FaHistory className="text-slate-600" />}
+          />
+          <NavTile
+            href="/dashboard/messages/connection"
+            title="Manage Connection"
+            desc="Connect, scan QR, or disconnect WhatsApp"
+            icon={<FaPlug className="text-teal-600" />}
           />
         </div>
 

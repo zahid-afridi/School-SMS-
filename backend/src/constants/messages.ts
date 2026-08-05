@@ -51,4 +51,10 @@ export const ApiMessages = {
   WHATSAPP_NOT_CONFIGURED: "OpenWA WhatsApp is not configured",
   WHATSAPP_MESSAGE_NOT_FOUND: "WhatsApp message not found",
   WHATSAPP_PHONE_REQUIRED: "A valid phone number is required",
+  WHATSAPP_SESSION_STATUS: "Session status retrieved",
+  WHATSAPP_SESSION_QR: "QR code retrieved",
+  WHATSAPP_SESSION_STARTED: "WhatsApp session started",
+  WHATSAPP_SESSION_STOPPED: "WhatsApp session stopped",
+  WHATSAPP_SESSION_RECONNECTED: "WhatsApp session reconnected",
+  WHATSAPP_PAIRING_CODE: "Pairing code generated",
 } as const;

@@ -87,3 +87,37 @@ export type SendAnnouncementPayload = {
   phones?: string[];
   studentIds?: string[];
 };
+
+// ─── Session / Connection ────────────────────────────────────────────────────
+
+export type WhatsAppSessionStatus =
+  | "created"
+  | "initializing"
+  | "qr_ready"
+  | "authenticating"
+  | "action_required"
+  | "ready"
+  | "disconnected"
+  | "failed"
+  | "stopped";
+
+export type WhatsAppSessionInfo = {
+  id: string;
+  name: string;
+  status: WhatsAppSessionStatus;
+  phone: string | null;
+  pushName: string | null;
+  connectedAt: string | null;
+  lastActive: string | null;
+  lastError: string | null;
+  engineLoaded: boolean;
+};
+
+export type WhatsAppQRResult = {
+  qrCode: string; // data URL
+  status: WhatsAppSessionStatus;
+};
+
+export type WhatsAppPairingCodeResult = {
+  pairingCode: string;
+};

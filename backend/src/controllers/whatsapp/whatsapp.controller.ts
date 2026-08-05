@@ -95,14 +95,7 @@ async function resolveStudentPhone(
     student.emergencyPhone?.trim() ||
     "";
 
-  if (!phone) {
-    throw new AppError(
-      ApiMessages.WHATSAPP_PHONE_REQUIRED,
-      HttpStatus.BAD_REQUEST,
-      ["No WhatsApp/mobile number found for this student or parent"]
-    );
-  }
-
+  // Return empty phone — the caller will use the explicit override or throw
   return { studentName: student.name, phone };
 }
 
@@ -116,8 +109,18 @@ async function resolvePhoneAndStudent(params: {
 
   if (studentId) {
     const resolved = await resolveStudentPhone(params.schoolId, studentId);
+    const finalPhone = explicitPhone || resolved.phone;
+
+    if (!finalPhone) {
+      throw new AppError(
+        ApiMessages.WHATSAPP_PHONE_REQUIRED,
+        HttpStatus.BAD_REQUEST,
+        ["No WhatsApp/mobile number found for this student or parent. Enter a phone number manually."]
+      );
+    }
+
     return {
-      phone: explicitPhone || resolved.phone,
+      phone: finalPhone,
       studentId,
       studentName: resolved.studentName,
     };
@@ -170,7 +173,7 @@ async function persistAndSend(params: {
   });
 
   try {
-    const result = await WhatsAppService.sendText(chatId, params.message);
+    const result = await WhatsAppService.sendText(chatId, params.message, params.schoolId);
     const updated = await prisma.whatsAppMessage.update({
       where: { id: record.id },
       data: {
@@ -352,6 +355,7 @@ export async function sendAnnouncement(req: Request, res: Response) {
   if (studentIds.length > 0) {
     for (const studentId of studentIds) {
       const resolved = await resolveStudentPhone(schoolId, studentId);
+      if (!resolved.phone) continue; // will surface as a failed send below
       targets.push({ phone: resolved.phone, studentId });
     }
   }

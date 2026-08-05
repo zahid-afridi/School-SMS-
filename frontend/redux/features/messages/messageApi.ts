@@ -9,6 +9,9 @@ import type {
   WhatsAppMessage,
   WhatsAppMessageStatus,
   WhatsAppMessageType,
+  WhatsAppPairingCodeResult,
+  WhatsAppQRResult,
+  WhatsAppSessionInfo,
   WhatsAppStats,
 } from "./messageTypes";
 
@@ -106,6 +109,41 @@ export const messageApi = rootApi.injectEndpoints({
       ) => res.data,
       invalidatesTags: ["Messages"],
     }),
+
+    // ─── Session Management ────────────────────────────────────────────────────
+    getWhatsAppSessionStatus: builder.query<WhatsAppSessionInfo, void>({
+      query: () => "/whatsapp/session/status",
+      transformResponse: (res: ApiData<WhatsAppSessionInfo>) => res.data,
+      providesTags: ["Messages"],
+    }),
+
+    getWhatsAppQRCode: builder.query<WhatsAppQRResult, void>({
+      query: () => "/whatsapp/session/qr",
+      transformResponse: (res: ApiData<WhatsAppQRResult>) => res.data,
+    }),
+
+    connectWhatsApp: builder.mutation<WhatsAppSessionInfo, void>({
+      query: () => ({ url: "/whatsapp/session/connect", method: "POST" }),
+      transformResponse: (res: ApiData<WhatsAppSessionInfo>) => res.data,
+      invalidatesTags: ["Messages"],
+    }),
+
+    disconnectWhatsApp: builder.mutation<WhatsAppSessionInfo, void>({
+      query: () => ({ url: "/whatsapp/session/disconnect", method: "POST" }),
+      transformResponse: (res: ApiData<WhatsAppSessionInfo>) => res.data,
+      invalidatesTags: ["Messages"],
+    }),
+
+    reconnectWhatsApp: builder.mutation<WhatsAppSessionInfo, void>({
+      query: () => ({ url: "/whatsapp/session/reconnect", method: "POST" }),
+      transformResponse: (res: ApiData<WhatsAppSessionInfo>) => res.data,
+      invalidatesTags: ["Messages"],
+    }),
+
+    requestWhatsAppPairingCode: builder.mutation<WhatsAppPairingCodeResult, { phoneNumber: string }>({
+      query: (body) => ({ url: "/whatsapp/session/pairing-code", method: "POST", body }),
+      transformResponse: (res: ApiData<WhatsAppPairingCodeResult>) => res.data,
+    }),
   }),
 });
 
@@ -118,4 +156,10 @@ export const {
   useSendFeesWhatsAppMutation,
   useSendResultWhatsAppMutation,
   useSendAnnouncementWhatsAppMutation,
+  useGetWhatsAppSessionStatusQuery,
+  useGetWhatsAppQRCodeQuery,
+  useConnectWhatsAppMutation,
+  useDisconnectWhatsAppMutation,
+  useReconnectWhatsAppMutation,
+  useRequestWhatsAppPairingCodeMutation,
 } = messageApi;
