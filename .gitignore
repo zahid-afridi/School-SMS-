@@ -1,0 +1,16 @@
+# Dependencies
+**/node_modules/
+
+# OpenWA local runtime (keep source; ignore secrets & DBs)
+OpenWA/data/
+OpenWA/.env
+OpenWA/dist/
+OpenWA/dashboard/dist/
+OpenWA/logs/
+
+# School backend/frontend local
+backend/.env
+backend/data/
+frontend/.next/
+*.log
+.DS_Store

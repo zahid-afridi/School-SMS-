@@ -192,6 +192,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       name: "Messages",
       icon: <FaComments size={18} />,
       children: [
+        { name: "Connect WhatsApp", href: "/dashboard/messages/connection" },
         { name: "Overview", href: "/dashboard/messages" },
         { name: "Send Message", href: "/dashboard/messages/send" },
         { name: "Attendance Notice", href: "/dashboard/messages/attendance" },

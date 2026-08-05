@@ -142,7 +142,7 @@ export default function MessagesOverviewPage() {
             href="/dashboard/messages/connection"
             className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors shrink-0"
           >
-            <FaPlug size={12} /> Manage Connection
+            <FaPlug size={12} /> Connect WhatsApp
           </Link>
         </div>
 
@@ -150,11 +150,28 @@ export default function MessagesOverviewPage() {
           <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3 items-start">
             <FaExclamationTriangle className="mt-0.5 shrink-0" />
             <div>
-              OpenWA is not fully configured. Set{" "}
-              <code className="font-mono">OPENWA_URL</code>,{" "}
-              <code className="font-mono">OPENWA_API_KEY</code>, and{" "}
-              <code className="font-mono">OPENWA_SESSION_ID</code> in the backend
-              .env file.
+              WhatsApp is not connected yet.{" "}
+              <Link
+                href="/dashboard/messages/connection"
+                className="font-semibold underline underline-offset-2"
+              >
+                Connect WhatsApp
+              </Link>{" "}
+              (scan QR once for this school).
+            </div>
+          </div>
+        )}
+        {data.configured && data.connectionStatus && data.connectionStatus !== "ready" && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3 items-start">
+            <FaExclamationTriangle className="mt-0.5 shrink-0" />
+            <div>
+              WhatsApp phone is not linked yet.{" "}
+              <Link
+                href="/dashboard/messages/connection"
+                className="font-semibold underline underline-offset-2"
+              >
+                Connect now
+              </Link>
             </div>
           </div>
         )}
@@ -206,8 +223,8 @@ export default function MessagesOverviewPage() {
           />
           <NavTile
             href="/dashboard/messages/connection"
-            title="Manage Connection"
-            desc="Connect, scan QR, or disconnect WhatsApp"
+            title="Connect WhatsApp"
+            desc="Scan QR once to link this school’s number"
             icon={<FaPlug className="text-teal-600" />}
           />
         </div>

@@ -3,16 +3,8 @@ import { env } from "../../config/env.js";
 import { HttpStatus } from "../../constants/httpStatus.js";
 import { ApiMessages } from "../../constants/messages.js";
 import { AppError } from "../../utils/AppError.js";
-import { toWhatsAppChatId } from "./phone.util.js";
 import { getPrisma } from "../../lib/prisma.js";
-
-// ─── Shared response types ────────────────────────────────────────────────────
-
-export type OpenWaSendResult = {
-  chatId: string;
-  messageId: string | null;
-  raw: unknown;
-};
+import { toWhatsAppChatId } from "./phone.util.js";
 
 export type SessionStatus =
   | "created"
@@ -24,6 +16,12 @@ export type SessionStatus =
   | "disconnected"
   | "failed"
   | "stopped";
+
+export type OpenWaSendResult = {
+  chatId: string;
+  messageId: string | null;
+  raw: unknown;
+};
 
 export type OpenWaSessionInfo = {
   id: string;
@@ -38,55 +36,38 @@ export type OpenWaSessionInfo = {
 };
 
 export type OpenWaQRResult = {
-  qrCode: string; // data URL  e.g. "data:image/png;base64,..."
+  qrCode: string;
   status: SessionStatus;
 };
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
+export type WhatsAppGatewayConfig = {
+  url: string;
+  apiKey: string;
+  source: "school" | "env";
+};
 
-function assertOpenWaGlobalConfig(): void {
-  if (!env.openwaUrl || !env.openwaApiKey) {
-    throw new AppError(
-      ApiMessages.WHATSAPP_NOT_CONFIGURED,
-      HttpStatus.SERVICE_UNAVAILABLE,
-      ["Set OPENWA_URL and OPENWA_API_KEY in the backend .env file"]
-    );
-  }
-}
+export type WhatsAppConfigView = {
+  gatewayConfigured: boolean;
+  gatewaySource: "school" | "env" | "none";
+  gatewayUrl: string;
+  hasApiKey: boolean;
+  apiKeyPreview: string | null;
+  hasSession: boolean;
+  envDefaultsAvailable: boolean;
+};
 
-/**
- * Build an Axios client pointed at OpenWA.
- * Does NOT require openwaSessionId — used for session-management calls where
- * the session ID comes from the school record instead.
- */
-function createClient(): AxiosInstance {
-  assertOpenWaGlobalConfig();
-  return axios.create({
-    baseURL: env.openwaUrl.replace(/\/$/, ""),
-    timeout: 30_000,
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": env.openwaApiKey,
-    },
-  });
-}
+type SchoolWhatsAppRow = {
+  id: string;
+  name: string;
+  whatsappSessionId: string | null;
+  whatsappGatewayUrl: string | null;
+  whatsappGatewayApiKey: string | null;
+};
 
-function extractMessageId(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-  const obj = data as Record<string, unknown>;
-  for (const key of ["id", "messageId", "msgId", "_serialized"]) {
-    const value = obj[key];
-    if (typeof value === "string" && value.trim()) return value;
-  }
-  if (obj.message && typeof obj.message === "object") {
-    const nested = obj.message as Record<string, unknown>;
-    for (const key of ["id", "messageId", "_serialized"]) {
-      const value = nested[key];
-      if (typeof value === "string" && value.trim()) return value;
-    }
-  }
-  if (obj.data && typeof obj.data === "object") return extractMessageId(obj.data);
-  return null;
+function maskApiKey(key: string): string {
+  const trimmed = key.trim();
+  if (trimmed.length <= 12) return "••••••••";
+  return `${trimmed.slice(0, 8)}…${trimmed.slice(-4)}`;
 }
 
 function wrapAxiosError(err: unknown, operation: string): AppError {
@@ -108,39 +89,96 @@ function wrapAxiosError(err: unknown, operation: string): AppError {
   return new AppError(`OpenWA ${operation} failed`, HttpStatus.BAD_GATEWAY);
 }
 
-// ─── School session resolution ────────────────────────────────────────────────
+function extractMessageId(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+  for (const key of ["id", "messageId", "msgId", "_serialized"]) {
+    const value = obj[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  if (obj.message && typeof obj.message === "object") {
+    const nested = obj.message as Record<string, unknown>;
+    for (const key of ["id", "messageId", "_serialized"]) {
+      const value = nested[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+  }
+  if (obj.data && typeof obj.data === "object") return extractMessageId(obj.data);
+  return null;
+}
 
-/**
- * Get or create the OpenWA session ID for a school.
- *
- * Strategy:
- *   1. If School.whatsappSessionId is set → use it directly.
- *   2. Otherwise → create a new OpenWA session named after the school,
- *      persist the returned session ID on the School row, and return it.
- *
- * The session name is deterministic: `school-{schoolId-prefix}` so recreating
- * it after a DB reset hits a 409 (already exists in OpenWA) which we resolve
- * by fetching the existing session.
- */
-async function resolveSchoolSessionId(schoolId: string): Promise<string> {
-  const prisma = getPrisma();
-  const school = await prisma.school.findUnique({
+async function loadSchool(schoolId: string): Promise<SchoolWhatsAppRow> {
+  const school = await getPrisma().school.findUnique({
     where: { id: schoolId },
-    select: { id: true, whatsappSessionId: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      whatsappSessionId: true,
+      whatsappGatewayUrl: true,
+      whatsappGatewayApiKey: true,
+    },
   });
-
   if (!school) {
     throw new AppError(ApiMessages.SCHOOL_NOT_FOUND, HttpStatus.NOT_FOUND);
   }
+  return school;
+}
 
+function resolveGateway(school: SchoolWhatsAppRow): WhatsAppGatewayConfig | null {
+  const schoolUrl = school.whatsappGatewayUrl?.trim() ?? "";
+  const schoolKey = school.whatsappGatewayApiKey?.trim() ?? "";
+  if (schoolUrl && schoolKey) {
+    return { url: schoolUrl.replace(/\/$/, ""), apiKey: schoolKey, source: "school" };
+  }
+
+  const envUrl = env.openwaUrl.trim();
+  const envKey = env.openwaApiKey.trim();
+  if (envUrl && envKey) {
+    return { url: envUrl.replace(/\/$/, ""), apiKey: envKey, source: "env" };
+  }
+
+  return null;
+}
+
+function createClient(gateway: WhatsAppGatewayConfig): AxiosInstance {
+  return axios.create({
+    baseURL: gateway.url,
+    timeout: 30_000,
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": gateway.apiKey,
+    },
+  });
+}
+
+async function requireGateway(schoolId: string): Promise<{
+  school: SchoolWhatsAppRow;
+  gateway: WhatsAppGatewayConfig;
+  client: AxiosInstance;
+}> {
+  const school = await loadSchool(schoolId);
+  const gateway = resolveGateway(school);
+  if (!gateway) {
+    throw new AppError(
+      ApiMessages.WHATSAPP_NOT_CONFIGURED,
+      HttpStatus.SERVICE_UNAVAILABLE,
+      [
+        "Set OpenWA URL and API key in Messages → WhatsApp Setup, or in the backend .env (OPENWA_URL / OPENWA_API_KEY)",
+      ]
+    );
+  }
+  return { school, gateway, client: createClient(gateway) };
+}
+
+async function ensureSessionId(
+  school: SchoolWhatsAppRow,
+  client: AxiosInstance
+): Promise<string> {
   if (school.whatsappSessionId) {
     return school.whatsappSessionId;
   }
 
-  // No session yet — create one in OpenWA
-  const sessionName = `school-${schoolId.slice(0, 8)}`;
-  const client = createClient();
-
+  const sessionName = `school-${school.id.slice(0, 8)}`;
   let openwaSessionId: string;
 
   try {
@@ -149,9 +187,7 @@ async function resolveSchoolSessionId(schoolId: string): Promise<string> {
     });
     openwaSessionId = resp.data.id;
   } catch (err) {
-    // 409 = session name already exists in OpenWA (e.g. DB was reset)
     if (isAxiosError(err) && err.response?.status === 409) {
-      // Find it by listing sessions
       const list = await client.get<OpenWaSessionInfo[]>("/api/sessions");
       const found = list.data.find((s) => s.name === sessionName);
       if (!found) {
@@ -166,41 +202,109 @@ async function resolveSchoolSessionId(schoolId: string): Promise<string> {
     }
   }
 
-  // Persist the resolved session ID on the school
-  await prisma.school.update({
-    where: { id: schoolId },
+  await getPrisma().school.update({
+    where: { id: school.id },
     data: { whatsappSessionId: openwaSessionId },
   });
 
   return openwaSessionId;
 }
 
-// ─── WhatsAppService ──────────────────────────────────────────────────────────
-
 export class WhatsAppService {
-  // ── Messaging (school-scoped) ─────────────────────────────────────────────
+  static getConfigView(school: SchoolWhatsAppRow): WhatsAppConfigView {
+    const gateway = resolveGateway(school);
+    const envDefaultsAvailable = Boolean(
+      env.openwaUrl.trim() && env.openwaApiKey.trim()
+    );
 
-  /**
-   * Send a plain-text WhatsApp message for the given school.
-   * Uses the school's own OpenWA session.
-   */
+    return {
+      gatewayConfigured: Boolean(gateway),
+      gatewaySource: gateway?.source ?? "none",
+      gatewayUrl: gateway?.url ?? school.whatsappGatewayUrl?.trim() ?? env.openwaUrl.trim(),
+      hasApiKey: Boolean(gateway?.apiKey),
+      apiKeyPreview: gateway ? maskApiKey(gateway.apiKey) : null,
+      hasSession: Boolean(school.whatsappSessionId),
+      envDefaultsAvailable,
+    };
+  }
+
+  static async getConfig(schoolId: string): Promise<WhatsAppConfigView> {
+    const school = await loadSchool(schoolId);
+    return WhatsAppService.getConfigView(school);
+  }
+
+  static async saveGatewayConfig(
+    schoolId: string,
+    input: { gatewayUrl?: string | null; gatewayApiKey?: string | null; clearSchoolGateway?: boolean }
+  ): Promise<WhatsAppConfigView> {
+    const prisma = getPrisma();
+    const school = await loadSchool(schoolId);
+
+    if (input.clearSchoolGateway) {
+      await prisma.school.update({
+        where: { id: schoolId },
+        data: {
+          whatsappGatewayUrl: null,
+          whatsappGatewayApiKey: null,
+        },
+      });
+      return WhatsAppService.getConfig(schoolId);
+    }
+
+    const nextUrl =
+      input.gatewayUrl === undefined
+        ? school.whatsappGatewayUrl
+        : String(input.gatewayUrl ?? "").trim() || null;
+
+    let nextKey = school.whatsappGatewayApiKey;
+    if (input.gatewayApiKey !== undefined) {
+      const raw = String(input.gatewayApiKey ?? "").trim();
+      // Empty string = keep existing key when updating URL only
+      nextKey = raw || school.whatsappGatewayApiKey;
+    }
+
+    if ((nextUrl && !nextKey) || (!nextUrl && nextKey)) {
+      throw new AppError(
+        "Both OpenWA URL and API key are required",
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    await prisma.school.update({
+      where: { id: schoolId },
+      data: {
+        whatsappGatewayUrl: nextUrl,
+        whatsappGatewayApiKey: nextKey,
+      },
+    });
+
+    return WhatsAppService.getConfig(schoolId);
+  }
+
+  /** True if this school can reach an OpenWA gateway (school override or env). */
+  static async isConfiguredForSchool(schoolId: string): Promise<boolean> {
+    const school = await loadSchool(schoolId);
+    return Boolean(resolveGateway(school));
+  }
+
+  /** Legacy helper used by stats — env defaults only. Prefer isConfiguredForSchool. */
+  static isConfigured(): boolean {
+    return Boolean(env.openwaUrl.trim() && env.openwaApiKey.trim());
+  }
+
   static async sendText(
     phone: string,
     text: string,
-    schoolId?: string
+    schoolId: string
   ): Promise<OpenWaSendResult> {
     const chatId = toWhatsAppChatId(phone);
     const message = String(text ?? "").trim();
-
     if (!message) {
       throw new AppError("Message text is required", HttpStatus.BAD_REQUEST);
     }
 
-    const sessionId = schoolId
-      ? await resolveSchoolSessionId(schoolId)
-      : WhatsAppService.getLegacySessionId();
-
-    const client = createClient();
+    const { school, client } = await requireGateway(schoolId);
+    const sessionId = await ensureSessionId(school, client);
     const path = `/api/sessions/${encodeURIComponent(sessionId)}/messages/send-text`;
 
     try {
@@ -215,12 +319,9 @@ export class WhatsAppService {
     }
   }
 
-  // ── Session management (school-scoped) ────────────────────────────────────
-
-  /** Get current session status for a school. */
   static async getSessionStatus(schoolId: string): Promise<OpenWaSessionInfo> {
-    const sessionId = await resolveSchoolSessionId(schoolId);
-    const client = createClient();
+    const { school, client } = await requireGateway(schoolId);
+    const sessionId = await ensureSessionId(school, client);
     try {
       const resp = await client.get<OpenWaSessionInfo>(
         `/api/sessions/${encodeURIComponent(sessionId)}`
@@ -231,10 +332,9 @@ export class WhatsAppService {
     }
   }
 
-  /** Get the QR code for a school's session. */
   static async getQRCode(schoolId: string): Promise<OpenWaQRResult> {
-    const sessionId = await resolveSchoolSessionId(schoolId);
-    const client = createClient();
+    const { school, client } = await requireGateway(schoolId);
+    const sessionId = await ensureSessionId(school, client);
     try {
       const resp = await client.get<OpenWaQRResult>(
         `/api/sessions/${encodeURIComponent(sessionId)}/qr`
@@ -245,10 +345,9 @@ export class WhatsAppService {
     }
   }
 
-  /** Start (connect) a school's WhatsApp session. */
   static async startSession(schoolId: string): Promise<OpenWaSessionInfo> {
-    const sessionId = await resolveSchoolSessionId(schoolId);
-    const client = createClient();
+    const { school, client } = await requireGateway(schoolId);
+    const sessionId = await ensureSessionId(school, client);
     try {
       const resp = await client.post<OpenWaSessionInfo>(
         `/api/sessions/${encodeURIComponent(sessionId)}/start`
@@ -259,10 +358,9 @@ export class WhatsAppService {
     }
   }
 
-  /** Stop (disconnect) a school's WhatsApp session without logging out. */
   static async stopSession(schoolId: string): Promise<OpenWaSessionInfo> {
-    const sessionId = await resolveSchoolSessionId(schoolId);
-    const client = createClient();
+    const { school, client } = await requireGateway(schoolId);
+    const sessionId = await ensureSessionId(school, client);
     try {
       const resp = await client.post<OpenWaSessionInfo>(
         `/api/sessions/${encodeURIComponent(sessionId)}/stop`
@@ -273,15 +371,10 @@ export class WhatsAppService {
     }
   }
 
-  /**
-   * Reconnect: stop then start the session.
-   * OpenWA has no dedicated reconnect endpoint so we chain stop → start.
-   */
   static async reconnectSession(schoolId: string): Promise<OpenWaSessionInfo> {
-    const sessionId = await resolveSchoolSessionId(schoolId);
-    const client = createClient();
+    const { school, client } = await requireGateway(schoolId);
+    const sessionId = await ensureSessionId(school, client);
     try {
-      // Stop may fail if already stopped — tolerate that
       await client
         .post(`/api/sessions/${encodeURIComponent(sessionId)}/stop`)
         .catch(() => undefined);
@@ -294,16 +387,34 @@ export class WhatsAppService {
     }
   }
 
-  /**
-   * Request a pairing code (phone-number-based link) for a school's session.
-   * The session must already be started and in qr_ready state.
-   */
+  static async logoutSession(schoolId: string): Promise<OpenWaSessionInfo> {
+    const { school, client } = await requireGateway(schoolId);
+    const sessionId = await ensureSessionId(school, client);
+    try {
+      const resp = await client.post<OpenWaSessionInfo>(
+        `/api/sessions/${encodeURIComponent(sessionId)}/logout`
+      );
+      return resp.data;
+    } catch (err) {
+      throw wrapAxiosError(err, "logoutSession");
+    }
+  }
+
+  /** Clear saved session id so the next connect creates a fresh OpenWA session. */
+  static async resetSession(schoolId: string): Promise<WhatsAppConfigView> {
+    await getPrisma().school.update({
+      where: { id: schoolId },
+      data: { whatsappSessionId: null },
+    });
+    return WhatsAppService.getConfig(schoolId);
+  }
+
   static async requestPairingCode(
     schoolId: string,
     phoneNumber: string
   ): Promise<{ pairingCode: string }> {
-    const sessionId = await resolveSchoolSessionId(schoolId);
-    const client = createClient();
+    const { school, client } = await requireGateway(schoolId);
+    const sessionId = await ensureSessionId(school, client);
     try {
       const resp = await client.post<{ pairingCode: string }>(
         `/api/sessions/${encodeURIComponent(sessionId)}/pairing-code`,
@@ -313,27 +424,5 @@ export class WhatsAppService {
     } catch (err) {
       throw wrapAxiosError(err, "requestPairingCode");
     }
-  }
-
-  // ── Configuration helpers ─────────────────────────────────────────────────
-
-  /** True if OPENWA_URL and OPENWA_API_KEY are set (global config). */
-  static isConfigured(): boolean {
-    return Boolean(env.openwaUrl && env.openwaApiKey);
-  }
-
-  /**
-   * Legacy fallback: returns OPENWA_SESSION_ID from .env when no schoolId is
-   * available (e.g. the old single-school path). Throws if not set.
-   */
-  private static getLegacySessionId(): string {
-    if (!env.openwaSessionId) {
-      throw new AppError(
-        ApiMessages.WHATSAPP_NOT_CONFIGURED,
-        HttpStatus.SERVICE_UNAVAILABLE,
-        ["Set OPENWA_SESSION_ID in .env or pass a schoolId"]
-      );
-    }
-    return env.openwaSessionId;
   }
 }

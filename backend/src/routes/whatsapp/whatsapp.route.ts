@@ -16,38 +16,40 @@ import {
   disconnectSession,
   getQRCode,
   getSessionStatus,
+  getWhatsAppConfig,
+  logoutSession,
   reconnectSession,
   requestPairingCode,
+  resetSession,
+  saveWhatsAppConfig,
 } from "../../controllers/whatsapp/whatsapp.session.controller.js";
 
 const WhatsAppRouter = Router();
 
-// ─── Session Management ───────────────────────────────────────────────────────
+// Gateway settings (school owner configures OpenWA URL + API key here)
+WhatsAppRouter.get("/config", auth("ADMIN", "STAFF"), asyncHandler(getWhatsAppConfig));
+WhatsAppRouter.put("/config", auth("ADMIN"), asyncHandler(saveWhatsAppConfig));
+
+// Session / phone link
 WhatsAppRouter.get("/session/status", auth("ADMIN", "STAFF"), asyncHandler(getSessionStatus));
 WhatsAppRouter.get("/session/qr", auth("ADMIN", "STAFF"), asyncHandler(getQRCode));
 WhatsAppRouter.post("/session/connect", auth("ADMIN", "STAFF"), asyncHandler(connectSession));
 WhatsAppRouter.post("/session/disconnect", auth("ADMIN", "STAFF"), asyncHandler(disconnectSession));
 WhatsAppRouter.post("/session/reconnect", auth("ADMIN", "STAFF"), asyncHandler(reconnectSession));
+WhatsAppRouter.post("/session/logout", auth("ADMIN"), asyncHandler(logoutSession));
+WhatsAppRouter.post("/session/reset", auth("ADMIN"), asyncHandler(resetSession));
 WhatsAppRouter.post("/session/pairing-code", auth("ADMIN", "STAFF"), asyncHandler(requestPairingCode));
 
-// ─── Stats & History ──────────────────────────────────────────────────────────
+// Stats & history
 WhatsAppRouter.get("/stats", auth("ADMIN", "STAFF"), asyncHandler(getWhatsAppStats));
 WhatsAppRouter.get("/messages", auth("ADMIN", "STAFF"), asyncHandler(getMessageHistory));
 WhatsAppRouter.get("/messages/:id", auth("ADMIN", "STAFF"), asyncHandler(getMessageById));
 
-// ─── Send Messages ────────────────────────────────────────────────────────────
+// Send
 WhatsAppRouter.post("/send", auth("ADMIN", "STAFF"), asyncHandler(sendCustomMessage));
-WhatsAppRouter.post(
-  "/attendance",
-  auth("ADMIN", "STAFF"),
-  asyncHandler(sendAttendanceNotification)
-);
+WhatsAppRouter.post("/attendance", auth("ADMIN", "STAFF"), asyncHandler(sendAttendanceNotification));
 WhatsAppRouter.post("/fees", auth("ADMIN", "STAFF"), asyncHandler(sendFeeReminder));
 WhatsAppRouter.post("/results", auth("ADMIN", "STAFF"), asyncHandler(sendResultNotification));
-WhatsAppRouter.post(
-  "/announcement",
-  auth("ADMIN", "STAFF"),
-  asyncHandler(sendAnnouncement)
-);
+WhatsAppRouter.post("/announcement", auth("ADMIN", "STAFF"), asyncHandler(sendAnnouncement));
 
 export default WhatsAppRouter;

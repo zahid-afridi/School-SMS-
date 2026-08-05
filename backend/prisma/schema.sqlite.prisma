@@ -111,6 +111,9 @@ model School {
   documentDesign String?
   /// OpenWA session ID for this school's WhatsApp connection.
   whatsappSessionId String?
+  /// Optional per-school OpenWA gateway (falls back to OPENWA_* env).
+  whatsappGatewayUrl    String?
+  whatsappGatewayApiKey String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

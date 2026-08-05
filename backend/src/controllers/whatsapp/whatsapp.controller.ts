@@ -532,10 +532,25 @@ export async function getWhatsAppStats(req: Request, res: Response) {
     take: 5,
   });
 
+  const config = await WhatsAppService.getConfig(schoolId);
+  let connectionStatus: string | null = null;
+  let connectionPhone: string | null = null;
+  if (config.gatewayConfigured) {
+    try {
+      const session = await WhatsAppService.getSessionStatus(schoolId);
+      connectionStatus = session.status;
+      connectionPhone = session.phone;
+    } catch {
+      connectionStatus = null;
+    }
+  }
+
   return ApiResponse.success(res, {
     message: ApiMessages.SUCCESS,
     data: {
-      configured: WhatsAppService.isConfigured(),
+      configured: config.gatewayConfigured,
+      connectionStatus,
+      connectionPhone,
       totals: { total, sent, failed, pending, delivered },
       byType: byType.map((row) => ({
         messageType: row.messageType,

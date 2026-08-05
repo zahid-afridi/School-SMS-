@@ -11,6 +11,17 @@ export type WhatsAppMessageStatus =
   | "FAILED"
   | "DELIVERED";
 
+export type WhatsAppSessionStatus =
+  | "created"
+  | "initializing"
+  | "qr_ready"
+  | "authenticating"
+  | "action_required"
+  | "ready"
+  | "disconnected"
+  | "failed"
+  | "stopped";
+
 export type WhatsAppMessage = {
   id: string;
   studentId: string | null;
@@ -44,6 +55,8 @@ export type WhatsAppHistoryResponse = {
 
 export type WhatsAppStats = {
   configured: boolean;
+  connectionStatus?: WhatsAppSessionStatus | null;
+  connectionPhone?: string | null;
   totals: {
     total: number;
     sent: number;
@@ -53,6 +66,22 @@ export type WhatsAppStats = {
   };
   byType: Array<{ messageType: WhatsAppMessageType; count: number }>;
   recent: WhatsAppMessage[];
+};
+
+export type WhatsAppConfig = {
+  gatewayConfigured: boolean;
+  gatewaySource: "school" | "env" | "none";
+  gatewayUrl: string;
+  hasApiKey: boolean;
+  apiKeyPreview: string | null;
+  hasSession: boolean;
+  envDefaultsAvailable: boolean;
+};
+
+export type SaveWhatsAppConfigPayload = {
+  gatewayUrl?: string;
+  gatewayApiKey?: string;
+  clearSchoolGateway?: boolean;
 };
 
 export type SendCustomPayload = {
@@ -88,19 +117,6 @@ export type SendAnnouncementPayload = {
   studentIds?: string[];
 };
 
-// ─── Session / Connection ────────────────────────────────────────────────────
-
-export type WhatsAppSessionStatus =
-  | "created"
-  | "initializing"
-  | "qr_ready"
-  | "authenticating"
-  | "action_required"
-  | "ready"
-  | "disconnected"
-  | "failed"
-  | "stopped";
-
 export type WhatsAppSessionInfo = {
   id: string;
   name: string;
@@ -114,7 +130,7 @@ export type WhatsAppSessionInfo = {
 };
 
 export type WhatsAppQRResult = {
-  qrCode: string; // data URL
+  qrCode: string;
   status: WhatsAppSessionStatus;
 };
 

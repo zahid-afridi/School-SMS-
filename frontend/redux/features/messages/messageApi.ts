@@ -1,10 +1,12 @@
 import { rootApi } from "../../rootApi";
 import type {
+  SaveWhatsAppConfigPayload,
   SendAnnouncementPayload,
   SendAttendancePayload,
   SendCustomPayload,
   SendFeesPayload,
   SendResultPayload,
+  WhatsAppConfig,
   WhatsAppHistoryResponse,
   WhatsAppMessage,
   WhatsAppMessageStatus,
@@ -36,6 +38,18 @@ export const messageApi = rootApi.injectEndpoints({
       providesTags: ["Messages"],
     }),
 
+    getWhatsAppConfig: builder.query<WhatsAppConfig, void>({
+      query: () => "/whatsapp/config",
+      transformResponse: (res: ApiData<WhatsAppConfig>) => res.data,
+      providesTags: ["Messages"],
+    }),
+
+    saveWhatsAppConfig: builder.mutation<WhatsAppConfig, SaveWhatsAppConfigPayload>({
+      query: (body) => ({ url: "/whatsapp/config", method: "PUT", body }),
+      transformResponse: (res: ApiData<WhatsAppConfig>) => res.data,
+      invalidatesTags: ["Messages"],
+    }),
+
     getWhatsAppMessages: builder.query<
       WhatsAppHistoryResponse,
       {
@@ -49,12 +63,6 @@ export const messageApi = rootApi.injectEndpoints({
     >({
       query: (params) => `/whatsapp/messages${toQuery(params ?? {})}`,
       transformResponse: (res: ApiData<WhatsAppHistoryResponse>) => res.data,
-      providesTags: ["Messages"],
-    }),
-
-    getWhatsAppMessage: builder.query<WhatsAppMessage, string>({
-      query: (id) => `/whatsapp/messages/${id}`,
-      transformResponse: (res: ApiData<WhatsAppMessage>) => res.data,
       providesTags: ["Messages"],
     }),
 
@@ -110,7 +118,6 @@ export const messageApi = rootApi.injectEndpoints({
       invalidatesTags: ["Messages"],
     }),
 
-    // ─── Session Management ────────────────────────────────────────────────────
     getWhatsAppSessionStatus: builder.query<WhatsAppSessionInfo, void>({
       query: () => "/whatsapp/session/status",
       transformResponse: (res: ApiData<WhatsAppSessionInfo>) => res.data,
@@ -140,8 +147,27 @@ export const messageApi = rootApi.injectEndpoints({
       invalidatesTags: ["Messages"],
     }),
 
-    requestWhatsAppPairingCode: builder.mutation<WhatsAppPairingCodeResult, { phoneNumber: string }>({
-      query: (body) => ({ url: "/whatsapp/session/pairing-code", method: "POST", body }),
+    logoutWhatsApp: builder.mutation<WhatsAppSessionInfo, void>({
+      query: () => ({ url: "/whatsapp/session/logout", method: "POST" }),
+      transformResponse: (res: ApiData<WhatsAppSessionInfo>) => res.data,
+      invalidatesTags: ["Messages"],
+    }),
+
+    resetWhatsAppSession: builder.mutation<WhatsAppConfig, void>({
+      query: () => ({ url: "/whatsapp/session/reset", method: "POST" }),
+      transformResponse: (res: ApiData<WhatsAppConfig>) => res.data,
+      invalidatesTags: ["Messages"],
+    }),
+
+    requestWhatsAppPairingCode: builder.mutation<
+      WhatsAppPairingCodeResult,
+      { phoneNumber: string }
+    >({
+      query: (body) => ({
+        url: "/whatsapp/session/pairing-code",
+        method: "POST",
+        body,
+      }),
       transformResponse: (res: ApiData<WhatsAppPairingCodeResult>) => res.data,
     }),
   }),
@@ -149,8 +175,9 @@ export const messageApi = rootApi.injectEndpoints({
 
 export const {
   useGetWhatsAppStatsQuery,
+  useGetWhatsAppConfigQuery,
+  useSaveWhatsAppConfigMutation,
   useGetWhatsAppMessagesQuery,
-  useGetWhatsAppMessageQuery,
   useSendCustomWhatsAppMutation,
   useSendAttendanceWhatsAppMutation,
   useSendFeesWhatsAppMutation,
@@ -161,5 +188,7 @@ export const {
   useConnectWhatsAppMutation,
   useDisconnectWhatsAppMutation,
   useReconnectWhatsAppMutation,
+  useLogoutWhatsAppMutation,
+  useResetWhatsAppSessionMutation,
   useRequestWhatsAppPairingCodeMutation,
 } = messageApi;
