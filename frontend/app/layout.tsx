@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SMS Register",
+  title: "School Management System",
   description: "School Management System",
 };
 

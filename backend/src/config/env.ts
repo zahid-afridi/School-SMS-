@@ -1,3 +1,6 @@
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
+
 export type AppMode = "online" | "offline";
 export type StorageProvider = "local" | "s3";
 
@@ -9,6 +12,42 @@ function parseMode(value: string | undefined): AppMode {
 function parseStorageProvider(value: string | undefined): StorageProvider {
   if (value === "s3") return "s3";
   return "local";
+}
+
+// Absolute path to OpenWA's api-key file — resolved once at module load.
+// OpenWA writes this file in its own data/ folder regardless of where it is started from.
+const OPENWA_KEY_FILE_PATH = ((): string => {
+  const cwd = process.cwd(); // = backend/
+  const candidates = [
+    resolve(cwd, "../OpenWA/data/.api-key"),
+    resolve(cwd, "../Whatsapp/OpenWA/data/.api-key"),
+    resolve(cwd, "../../OpenWA/data/.api-key"),
+    resolve(cwd, "../../Whatsapp/OpenWA/data/.api-key"),
+  ];
+  return candidates.find((p) => existsSync(p)) ?? "";
+})();
+
+/**
+ * Read the OpenWA API key fresh on every call.
+ *
+ * Priority:
+ *   1. OPENWA_API_KEY in .env  (explicit pin — remove this line to go fully auto)
+ *   2. The live key file at OpenWA/data/.api-key  (auto-sync, survives restarts)
+ *
+ * Reading from the file on every request means the backend NEVER needs restarting
+ * after OpenWA regenerates its key — the next request will pick it up automatically.
+ */
+export function getOpenWaApiKey(): string {
+  // Env var always wins when set
+  const envKey = process.env.OPENWA_API_KEY?.trim();
+  if (envKey) return envKey;
+
+  // Live file read — fresh every call, so a key rotation is invisible
+  if (OPENWA_KEY_FILE_PATH && existsSync(OPENWA_KEY_FILE_PATH)) {
+    return readFileSync(OPENWA_KEY_FILE_PATH, "utf8").trim();
+  }
+
+  return "";
 }
 
 export const env = {
@@ -32,20 +71,19 @@ export const env = {
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
 
-  // OpenWA WhatsApp gateway defaults (optional — school can override in UI)
+  // OpenWA WhatsApp — URL only (key is read live via getOpenWaApiKey())
   openwaUrl: process.env.OPENWA_URL ?? "",
-  openwaApiKey: process.env.OPENWA_API_KEY ?? "",
+  // Legacy single-session fallback (used when schoolId is unavailable)
+  openwaSessionId: process.env.OPENWA_SESSION_ID ?? "",
 } as const;
 
 export function validateEnv(): void {
   if (env.mode === "online" && !env.databaseUrl) {
     throw new Error("DATABASE_URL is required when MODE=online");
   }
-
   if (!env.jwtSecret) {
     throw new Error("JWT_SECRET is required");
   }
-
   if (env.mode === "online" && env.storageProvider === "s3") {
     if (!env.awsS3Bucket || !env.awsRegion) {
       throw new Error("AWS_S3_BUCKET and AWS_REGION are required when STORAGE_PROVIDER=s3");

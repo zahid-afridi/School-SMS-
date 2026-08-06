@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance, isAxiosError } from "axios";
-import { env } from "../../config/env.js";
+import { env, getOpenWaApiKey } from "../../config/env.js";
 import { HttpStatus } from "../../constants/httpStatus.js";
 import { ApiMessages } from "../../constants/messages.js";
 import { AppError } from "../../utils/AppError.js";
@@ -132,7 +132,7 @@ function resolveGateway(school: SchoolWhatsAppRow): WhatsAppGatewayConfig | null
   }
 
   const envUrl = env.openwaUrl.trim();
-  const envKey = env.openwaApiKey.trim();
+  const envKey = getOpenWaApiKey().trim();
   if (envUrl && envKey) {
     return { url: envUrl.replace(/\/$/, ""), apiKey: envKey, source: "env" };
   }
@@ -214,7 +214,7 @@ export class WhatsAppService {
   static getConfigView(school: SchoolWhatsAppRow): WhatsAppConfigView {
     const gateway = resolveGateway(school);
     const envDefaultsAvailable = Boolean(
-      env.openwaUrl.trim() && env.openwaApiKey.trim()
+      env.openwaUrl.trim() && getOpenWaApiKey().trim()
     );
 
     return {
@@ -289,7 +289,7 @@ export class WhatsAppService {
 
   /** Legacy helper used by stats — env defaults only. Prefer isConfiguredForSchool. */
   static isConfigured(): boolean {
-    return Boolean(env.openwaUrl.trim() && env.openwaApiKey.trim());
+    return Boolean(env.openwaUrl.trim() && getOpenWaApiKey().trim());
   }
 
   static async sendText(
