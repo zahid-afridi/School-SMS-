@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Splash / build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local / OS
+.DS_Store
+Thumbs.db
+*.local
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+src-tauri/WixTools/
+
+# Generated / local config copies (keep example)
+schoolsms.config.json
+
+# Optional local env
+.env
+.env.*
+!.env.example

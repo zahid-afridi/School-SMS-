@@ -14,3 +14,10 @@ backend/data/
 frontend/.next/
 *.log
 .DS_Store
+
+# Desktop / Tauri
+desktop/node_modules/
+desktop/dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop-data/

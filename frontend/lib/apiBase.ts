@@ -19,10 +19,20 @@ export function getUploadBaseUrl(): string {
 
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
+    // Desktop / local shells should always hit the local API, never a custom scheme host.
+    const localHost =
+      !hostname ||
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.endsWith(".localhost") ||
+      hostname.includes("tauri");
+    if (localHost) {
+      return `http://127.0.0.1:${BACKEND_PORT}`;
+    }
     return `${protocol}//${hostname}:${BACKEND_PORT}`;
   }
 
-  return `http://localhost:${BACKEND_PORT}`;
+  return `http://127.0.0.1:${BACKEND_PORT}`;
 }
 
 /** REST API root, e.g. http://10.210.61.30:5000/api */

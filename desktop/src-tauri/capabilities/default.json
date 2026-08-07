@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "default",
+  "description": "Default School SmS desktop capabilities",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "core:webview:allow-set-webview-focus",
+    "allow-start-services",
+    "allow-open-app",
+    "allow-get-data-dir"
+  ]
+}

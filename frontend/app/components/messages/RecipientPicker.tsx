@@ -280,7 +280,11 @@ export default function RecipientPicker({
               options.map((opt) => {
                 const selected =
                   multi
-                    ? selectedIds.includes(opt.studentId || opt.employeeId || opt.id)
+                    ? selectedIds.includes(
+                        ("studentId" in opt && opt.studentId) ||
+                          ("employeeId" in opt && opt.employeeId) ||
+                          opt.id
+                      )
                     : value?.id === opt.id;
                 const disabled = !opt.phone;
                 return (

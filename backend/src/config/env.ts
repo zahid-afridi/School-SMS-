@@ -14,6 +14,41 @@ function parseStorageProvider(value: string | undefined): StorageProvider {
   return "local";
 }
 
+function toSqliteFileUrl(absolutePath: string): string {
+  // encodeURI keeps drive letters and slashes; encodes spaces (School SmS → School%20SmS)
+  return `file:${encodeURI(absolutePath.replace(/\\/g, "/"))}`;
+}
+
+/**
+ * Desktop / installer sets SCHOOL_SMS_DATA_DIR to the install folder's `data` dir.
+ * When present, DB + uploads MUST live there (ignore relative .env paths).
+ */
+function offlineSqliteUrl(): string {
+  const dataRoot = process.env.SCHOOL_SMS_DATA_DIR?.trim();
+  if (dataRoot) {
+    return toSqliteFileUrl(resolve(dataRoot, "school.db"));
+  }
+  return process.env.SQLITE_DATABASE_URL ?? "file:./data/school.db";
+}
+
+function offlineUploadDir(): string {
+  const dataRoot = process.env.SCHOOL_SMS_DATA_DIR?.trim();
+  if (dataRoot) {
+    return resolve(dataRoot, "uploads");
+  }
+  return process.env.UPLOAD_DIR ?? "./data/uploads";
+}
+
+function offlinePublicUploadBaseUrl(): string {
+  if (process.env.PUBLIC_UPLOAD_BASE_URL?.trim()) {
+    return process.env.PUBLIC_UPLOAD_BASE_URL.trim();
+  }
+  if (process.env.SCHOOL_SMS_DATA_DIR?.trim()) {
+    return "http://127.0.0.1:5000/uploads";
+  }
+  return "http://localhost:5000/uploads";
+}
+
 // Absolute path to OpenWA's api-key file — resolved once at module load.
 // OpenWA writes this file in its own data/ folder regardless of where it is started from.
 const OPENWA_KEY_FILE_PATH = ((): string => {
@@ -55,13 +90,13 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   mode: parseMode(process.env.MODE),
   databaseUrl: process.env.DATABASE_URL,
-  sqliteDatabaseUrl: process.env.SQLITE_DATABASE_URL ?? "file:./data/school.db",
+  sqliteDatabaseUrl: offlineSqliteUrl(),
   jwtSecret: process.env.JWT_SECRET ?? "",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
 
   // File storage
-  uploadDir: process.env.UPLOAD_DIR ?? "./data/uploads",
-  publicUploadBaseUrl: process.env.PUBLIC_UPLOAD_BASE_URL ?? "http://localhost:5000/uploads",
+  uploadDir: offlineUploadDir(),
+  publicUploadBaseUrl: offlinePublicUploadBaseUrl(),
   maxFileSizeMb: Number(process.env.MAX_FILE_SIZE_MB) || 5,
   storageProvider: parseStorageProvider(process.env.STORAGE_PROVIDER),
 
