@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * Starts School backend + frontend for the Tauri desktop shell.
- * Data dir: SCHOOL_SMS_DATA_DIR (set by Tauri) → install folder /data.
  *
- * Never reuses a stale backend that points at AppData / another folder.
+ * Data: SCHOOL_SMS_DATA_DIR → {installDir}/data (school.db, uploads, logs)
+ * Paths with spaces are encoded for Prisma CLI only.
+ * Always stops stale port listeners, pushes schema, then starts services.
  */
 import { spawn, spawnSync } from "node:child_process";
 import {
@@ -44,6 +45,32 @@ const FRONTEND_PORT = process.env.SCHOOL_SMS_FRONTEND_PORT || "3000";
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 const FRONTEND_URL = `http://127.0.0.1:${FRONTEND_PORT}`;
 
+/** Normalize paths for comparison (decode %20, unify slashes). */
+function normPath(p) {
+  let s = String(p ?? "");
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    // keep raw
+  }
+  return s
+    .replace(/^file:/i, "")
+    .replace(/\\/g, "/")
+    .toLowerCase();
+}
+
+/**
+ * Runtime URL for better-sqlite3 — keep real spaces.
+ * Prisma CLI URL — encode spaces or the path truncates at the first space.
+ */
+function sqliteUrlRuntime(filePath) {
+  return `file:${filePath.replace(/\\/g, "/")}`;
+}
+
+function sqliteUrlPrismaCli(filePath) {
+  return `file:${encodeURI(filePath.replace(/\\/g, "/"))}`;
+}
+
 function ensureDirs() {
   for (const dir of [DATA_DIR, LOG_DIR, UPLOAD_DIR]) {
     mkdirSync(dir, { recursive: true });
@@ -58,12 +85,6 @@ function readJwtSecret() {
     if (match?.[1]?.trim()) return match[1].trim().replace(/^["']|["']$/g, "");
   }
   return "school-sms-desktop-dev-secret-change-me";
-}
-
-/** SQLite file URL — must encode spaces or Prisma CLI truncates the path. */
-function sqliteUrl(filePath) {
-  const normalized = filePath.replace(/\\/g, "/");
-  return `file:${encodeURI(normalized)}`;
 }
 
 function npmCmd() {
@@ -96,7 +117,7 @@ function spawnLogged(name, command, args, cwd, env) {
   return child;
 }
 
-async function waitForUrl(url, label, attempts = 90, intervalMs = 1000) {
+async function waitForUrl(url, label, attempts = 120, intervalMs = 1000) {
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
@@ -119,11 +140,9 @@ async function backendMatchesDataDir() {
     });
     if (!res.ok) return false;
     const json = await res.json();
-    const conn = String(json?.data?.connection ?? "")
-      .replace(/\\/g, "/")
-      .toLowerCase();
-    const expectedDb = DB_FILE.replace(/\\/g, "/").toLowerCase();
-    const expectedDir = DATA_DIR.replace(/\\/g, "/").toLowerCase();
+    const conn = normPath(json?.data?.connection ?? "");
+    const expectedDb = normPath(DB_FILE);
+    const expectedDir = normPath(DATA_DIR);
     return conn.includes(expectedDb) || conn.includes(expectedDir);
   } catch {
     return false;
@@ -160,23 +179,17 @@ function killPort(port) {
   });
 }
 
-async function stopStaleServicesIfNeeded() {
-  const matches = await backendMatchesDataDir();
-  if (matches) {
-    console.log(`[desktop] Backend already using data dir: ${DATA_DIR}`);
-    return false; // keep running
-  }
-  console.log(
-    `[desktop] Restarting services so DB/uploads use: ${DATA_DIR}`
-  );
+/** Always free backend/frontend ports before (re)start. */
+async function stopAllSchoolPorts() {
+  console.log("[desktop] Stopping any process on ports 5000 / 3000…");
   killPort(BACKEND_PORT);
   killPort(FRONTEND_PORT);
-  await delay(800);
-  return true; // need start
+  await delay(1000);
 }
 
 async function ensureSqliteSchema(env) {
   console.log("[desktop] Ensuring SQLite schema…");
+  console.log(`[desktop] Prisma URL → ${env.PRISMA_SQLITE_URL}`);
   await new Promise((resolvePromise, reject) => {
     const child = spawn(
       npxCmd(),
@@ -186,7 +199,7 @@ async function ensureSqliteSchema(env) {
         "push",
         "--schema=prisma/schema.sqlite.prisma",
         "--url",
-        env.SQLITE_DATABASE_URL,
+        env.PRISMA_SQLITE_URL,
       ],
       {
         cwd: BACKEND_DIR,
@@ -212,8 +225,10 @@ async function main() {
     MODE: "offline",
     NODE_ENV: MODE === "prod" ? "production" : "development",
     PORT: BACKEND_PORT,
-    // Clear relative .env defaults; backend also keys off SCHOOL_SMS_DATA_DIR
-    SQLITE_DATABASE_URL: sqliteUrl(DB_FILE),
+    // Runtime (better-sqlite3): real path with spaces
+    SQLITE_DATABASE_URL: sqliteUrlRuntime(DB_FILE),
+    // Prisma CLI only (encoded) — set separately, not read by backend
+    PRISMA_SQLITE_URL: sqliteUrlPrismaCli(DB_FILE),
     UPLOAD_DIR,
     PUBLIC_UPLOAD_BASE_URL: `${BACKEND_URL}/uploads`,
     JWT_SECRET: jwtSecret,
@@ -240,65 +255,55 @@ async function main() {
     )
   );
 
-  const needStart = await stopStaleServicesIfNeeded();
+  // Always restart cleanly so install-folder data is used
+  await stopAllSchoolPorts();
+
   const children = [];
   const pids = { startedAt: new Date().toISOString(), mode: MODE, pids: [] };
 
-  if (needStart || !(await backendMatchesDataDir())) {
-    await ensureSqliteSchema(commonEnv);
-    const backendChild = spawnLogged(
-      "backend",
-      npxCmd(),
-      ["tsx", "src/index.ts"],
-      BACKEND_DIR,
-      commonEnv
+  await ensureSqliteSchema(commonEnv);
+
+  const backendChild = spawnLogged(
+    "backend",
+    npxCmd(),
+    ["tsx", "src/index.ts"],
+    BACKEND_DIR,
+    commonEnv
+  );
+  children.push(backendChild);
+  if (backendChild.pid) pids.pids.push({ name: "backend", pid: backendChild.pid });
+  await waitForUrl(`${BACKEND_URL}/health`, "backend");
+
+  const ok = await backendMatchesDataDir();
+  if (!ok) {
+    throw new Error(
+      `Backend started but is not using expected DB:\n  expected: ${DB_FILE}\n  Check ${join(LOG_DIR, "backend.log")}`
     );
-    children.push(backendChild);
-    if (backendChild.pid) pids.pids.push({ name: "backend", pid: backendChild.pid });
-    await waitForUrl(`${BACKEND_URL}/health`, "backend");
-
-    const ok = await backendMatchesDataDir();
-    if (!ok) {
-      throw new Error(
-        `Backend started but is not using expected DB:\n  expected: ${DB_FILE}\n  Check ${join(LOG_DIR, "backend.log")}`
-      );
-    }
-    console.log(`[desktop] DB → ${DB_FILE}`);
   }
+  console.log(`[desktop] DB → ${DB_FILE}`);
+  console.log(`[desktop] Uploads → ${UPLOAD_DIR}`);
 
-  let frontendUp = false;
-  try {
-    const res = await fetch(FRONTEND_URL, { signal: AbortSignal.timeout(1500) });
-    frontendUp = res.ok || res.status < 500;
-  } catch {
-    frontendUp = false;
+  const frontendChild =
+    MODE === "prod" && existsSync(join(FRONTEND_DIR, ".next"))
+      ? spawnLogged(
+          "frontend",
+          npmCmd(),
+          ["run", "start", "--", "-p", FRONTEND_PORT, "-H", "127.0.0.1"],
+          FRONTEND_DIR,
+          commonEnv
+        )
+      : spawnLogged(
+          "frontend",
+          npmCmd(),
+          ["run", "dev", "--", "-p", FRONTEND_PORT, "-H", "127.0.0.1"],
+          FRONTEND_DIR,
+          commonEnv
+        );
+  children.push(frontendChild);
+  if (frontendChild.pid) {
+    pids.pids.push({ name: "frontend", pid: frontendChild.pid });
   }
-
-  if (!frontendUp) {
-    const frontendChild =
-      MODE === "prod" && existsSync(join(FRONTEND_DIR, ".next"))
-        ? spawnLogged(
-            "frontend",
-            npmCmd(),
-            ["run", "start", "--", "-p", FRONTEND_PORT, "-H", "127.0.0.1"],
-            FRONTEND_DIR,
-            commonEnv
-          )
-        : spawnLogged(
-            "frontend",
-            npmCmd(),
-            ["run", "dev", "--", "-p", FRONTEND_PORT, "-H", "127.0.0.1"],
-            FRONTEND_DIR,
-            commonEnv
-          );
-    children.push(frontendChild);
-    if (frontendChild.pid) {
-      pids.pids.push({ name: "frontend", pid: frontendChild.pid });
-    }
-    await waitForUrl(FRONTEND_URL, "frontend");
-  } else {
-    console.log("[desktop] Frontend already running");
-  }
+  await waitForUrl(FRONTEND_URL, "frontend");
 
   writeFileSync(PID_FILE, JSON.stringify(pids, null, 2));
   console.log(`[desktop] Ready → ${FRONTEND_URL}`);
@@ -306,10 +311,11 @@ async function main() {
 
   if (process.env.SCHOOL_SMS_KEEP_ALIVE === "1") {
     const stop = () => {
+      console.log("[desktop] Shutting down services…");
       for (const child of children) {
         try {
           if (process.platform === "win32" && child.pid) {
-            spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+            spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
               stdio: "ignore",
               windowsHide: true,
             });
@@ -319,6 +325,16 @@ async function main() {
         } catch {
           // ignore
         }
+      }
+      killPort(BACKEND_PORT);
+      killPort(FRONTEND_PORT);
+      try {
+        if (existsSync(PID_FILE)) {
+          // unlink sync
+          writeFileSync(PID_FILE, "{}");
+        }
+      } catch {
+        // ignore
       }
       process.exit(0);
     };

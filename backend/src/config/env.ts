@@ -15,8 +15,9 @@ function parseStorageProvider(value: string | undefined): StorageProvider {
 }
 
 function toSqliteFileUrl(absolutePath: string): string {
-  // encodeURI keeps drive letters and slashes; encodes spaces (School SmS → School%20SmS)
-  return `file:${encodeURI(absolutePath.replace(/\\/g, "/"))}`;
+  // Runtime (better-sqlite3): keep real spaces in the path.
+  // Prisma CLI encoding is handled separately in desktop/scripts/launch-services.mjs.
+  return `file:${absolutePath.replace(/\\/g, "/")}`;
 }
 
 /**

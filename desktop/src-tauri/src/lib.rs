@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
-use tauri::{AppHandle, Manager, State, WebviewWindow};
+use tauri::{AppHandle, Manager, RunEvent, State, WebviewWindow, WindowEvent};
 use url::Url;
 
 const FRONTEND_URL: &str = "http://127.0.0.1:3000";
@@ -37,9 +37,12 @@ fn repo_root() -> PathBuf {
 
   if let Some(val) = read_install_config() {
     if let Some(root) = val.get("appRoot").and_then(|v| v.as_str()) {
-      let p = PathBuf::from(root.trim());
-      if p.join("backend").exists() {
-        return p;
+      let trimmed = root.trim();
+      if !trimmed.is_empty() {
+        let p = PathBuf::from(trimmed);
+        if p.join("backend").exists() {
+          return p;
+        }
       }
     }
   }
@@ -92,10 +95,10 @@ fn data_dir() -> PathBuf {
     }
   }
 
-  local_app_data().join("SchoolSmS")
+  // Dev fallback next to repo (not AppData)
+  repo_root().join("desktop-data")
 }
 
-/// Absolute paths stay as-is; relative paths resolve next to the .exe.
 fn resolve_data_path(raw: &str) -> PathBuf {
   let p = PathBuf::from(raw);
   if p.is_absolute() {
@@ -105,18 +108,6 @@ fn resolve_data_path(raw: &str) -> PathBuf {
     return dir.join(p);
   }
   p
-}
-
-fn local_app_data() -> PathBuf {
-  if let Ok(local) = std::env::var("LOCALAPPDATA") {
-    if !local.is_empty() {
-      return PathBuf::from(local);
-    }
-  }
-  if let Ok(home) = std::env::var("USERPROFILE") {
-    return PathBuf::from(home).join("AppData").join("Local");
-  }
-  std::env::temp_dir()
 }
 
 fn ensure_data_layout() -> Result<PathBuf, String> {
@@ -132,14 +123,17 @@ fn ensure_data_layout() -> Result<PathBuf, String> {
       cfg = serde_json::json!({});
     }
     if let Some(obj) = cfg.as_object_mut() {
-      // Keep relative "data" for portable installs / easy folder backup
       obj.insert(
         "dataDir".into(),
         serde_json::Value::String("data".to_string()),
       );
-      obj.entry("appRoot").or_insert_with(|| {
-        serde_json::Value::String(repo_root().to_string_lossy().to_string())
-      });
+      let root = repo_root();
+      if root.join("backend").exists() {
+        obj.insert(
+          "appRoot".into(),
+          serde_json::Value::String(root.to_string_lossy().to_string()),
+        );
+      }
     }
     let _ = std::fs::write(
       &cfg_path,
@@ -244,9 +238,19 @@ fn stop_via_script(root: &Path) {
     .status();
 }
 
+fn cleanup(app: &AppHandle) {
+  if let Some(state) = app.try_state::<ServiceState>() {
+    if let Ok(mut guard) = state.launcher.lock() {
+      if let Some(mut child) = guard.take() {
+        kill_child_tree(&mut child);
+      }
+    }
+  }
+  stop_via_script(&repo_root());
+}
+
 #[tauri::command]
 fn start_services(state: State<ServiceState>) -> Result<(), String> {
-  // Drop previous launcher handle if it exited
   {
     let mut guard = state.launcher.lock().map_err(|e| e.to_string())?;
     if let Some(child) = guard.as_mut() {
@@ -256,11 +260,8 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
     }
   }
 
-  // Always create install-folder layout first
   let data = ensure_data_layout()?;
 
-  // Always (re)launch via Node so DB/uploads bind to this install data dir.
-  // launch-services.mjs kills stale AppData backends when paths don't match.
   {
     let mut guard = state.launcher.lock().map_err(|e| e.to_string())?;
     if let Some(mut child) = guard.take() {
@@ -273,7 +274,7 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
   let script = root.join("desktop").join("scripts").join("launch-services.mjs");
   if !script.exists() {
     return Err(format!(
-      "School app files not found.\n\nLooked for: {}\n\nPut schoolsms.config.json next to the .exe:\n{{\n  \"appRoot\": \"E:\\\\MY CODE\\\\School (SmS)\",\n  \"dataDir\": \"data\"\n}}",
+      "School app files not found.\n\nLooked for: {}\n\nEdit schoolsms.config.json next to the .exe:\n{{\n  \"dataDir\": \"data\",\n  \"appRoot\": \"E:\\\\MY CODE\\\\School (SmS)\"\n}}",
       script.display()
     ));
   }
@@ -347,17 +348,6 @@ fn get_data_dir() -> String {
   data_dir().to_string_lossy().to_string()
 }
 
-fn cleanup(app: &AppHandle) {
-  if let Some(state) = app.try_state::<ServiceState>() {
-    if let Ok(mut guard) = state.launcher.lock() {
-      if let Some(mut child) = guard.take() {
-        kill_child_tree(&mut child);
-      }
-    }
-  }
-  stop_via_script(&repo_root());
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -369,10 +359,15 @@ pub fn run() {
       open_app,
       get_data_dir
     ])
+    .on_window_event(|window, event| {
+      if let WindowEvent::CloseRequested { .. } = event {
+        cleanup(window.app_handle());
+      }
+    })
     .build(tauri::generate_context!())
     .expect("error while building School SmS")
     .run(|app_handle, event| {
-      if let tauri::RunEvent::Exit = event {
+      if let RunEvent::Exit = event {
         cleanup(app_handle);
       }
     });

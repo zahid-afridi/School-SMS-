@@ -1,34 +1,42 @@
-# School SmS Desktop
+# SchoolSMS Desktop
 
-## Data location (for backup)
+One codebase → **Windows** and **Ubuntu** builds.
 
-After install + first run, files are **inside the install folder**:
+| OS | Build script | Output |
+|----|--------------|--------|
+| Windows | `build.bat` | NSIS installer `.exe` |
+| Ubuntu / Linux | `build.sh` | `.deb` + `.AppImage` |
+
+Build on the same OS you target (Windows installer on Windows, Linux packages on Ubuntu).
+
+---
+
+## Install folder layout
 
 ```
-School SmS\
-  school-sms-desktop.exe
-  uninstall.exe
+SchoolSMS/                      ← no spaces in folder name
+  school-sms-desktop.exe        ← Windows
+  school-sms-desktop            ← Ubuntu
+  uninstall.exe                 ← Windows only
   schoolsms.config.json
-  data\
+  data/
     school.db
-    uploads\
-    logs\
+    uploads/
+    logs/
 ```
 
-Backup = copy the whole `School SmS` folder.
+**Backup** = copy the whole `SchoolSMS` folder.
 
-## Build yourself
+## Lifecycle
 
-```bat
-cd /d "E:\MY CODE\School (SmS)\desktop"
-build.bat
-```
+| Action | What happens |
+|--------|----------------|
+| Open app | Starts backend `:5000` + frontend `:3000`, creates `data/`, pushes DB schema |
+| Close app | Stops launcher + frees ports 5000 / 3000 |
 
-Installer:
+## Config (`schoolsms.config.json` next to the binary)
 
-`src-tauri\target\release\bundle\nsis\School SmS_1.0.0_x64-setup.exe`
-
-After install, edit `schoolsms.config.json` next to the exe if needed:
+**Windows**
 
 ```json
 {
@@ -37,15 +45,107 @@ After install, edit `schoolsms.config.json` next to the exe if needed:
 }
 ```
 
-## Fix: Internal server error on Register
+**Ubuntu**
 
-Cause: install folder name with a **space** (`School SmS`) truncated the SQLite URL. Tables were created in `E:\Test-school\School` instead of `data\school.db`.
+```json
+{
+  "dataDir": "data",
+  "appRoot": "/run/media/zahid/New Volume/MY CODE/School (SmS)"
+}
+```
 
-1. Close the app.
-2. In `E:\Test-school\`:
-   - Delete empty `School SmS\data\school.db` (0 bytes) if present
-   - Move/rename file `School` → `School SmS\data\school.db`  
-     (or delete both for a clean DB)
-3. Open the app again and register.
+- `dataDir`: relative to binary → `{installDir}/data`
+- `appRoot`: full path to the project (`backend/` + `frontend/`)
 
-Code fix is already in `launch-services.mjs` + `backend/src/config/env.ts` (paths with spaces are encoded). No Tauri rebuild required for this — just restart the app so schema push runs on the correct DB.
+---
+
+## Prerequisites
+
+### Windows
+
+1. [Node.js 20+](https://nodejs.org)
+2. [Rust](https://rustup.rs)
+3. [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++**
+
+### Ubuntu
+
+```bash
+sudo apt update
+sudo apt install -y build-essential curl wget file \
+  libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+  patchelf pkg-config
+
+# Node.js 20+
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+```
+
+### Both (once per machine)
+
+```bash
+cd "/path/to/School (SmS)"
+npm --prefix backend install
+npm --prefix frontend install
+npm --prefix desktop install
+```
+
+---
+
+## Build
+
+### Windows
+
+```bat
+cd /d "E:\MY CODE\School (SmS)\desktop"
+build.bat
+```
+
+Or: `npm run build:all` / from repo root `npm run desktop:build`
+
+**Output**
+
+- `src-tauri\target\release\bundle\nsis\SchoolSMS_*_x64-setup.exe`
+- `src-tauri\target\release\school-sms-desktop.exe`
+
+### Ubuntu
+
+```bash
+cd "/path/to/School (SmS)/desktop"
+chmod +x build.sh
+./build.sh
+```
+
+Or: `npm run build:all` / from repo root `npm run desktop:build`
+
+**Output**
+
+- `src-tauri/target/release/bundle/deb/*.deb`
+- `src-tauri/target/release/bundle/appimage/*.AppImage`
+- `src-tauri/target/release/school-sms-desktop`
+
+---
+
+## Run without installer (dev)
+
+From repo root (works on Windows and Ubuntu):
+
+```bash
+# Browser app window (needs Node only)
+npm run desktop
+
+# Tauri window (needs Rust + OS deps)
+npm run desktop:tauri:dev
+```
+
+---
+
+## Notes
+
+- Product name is **SchoolSMS** (no spaces) so SQLite paths never truncate.
+- Prisma CLI gets an encoded DB URL; the running backend uses the real filesystem path.
+- Node.js must be on PATH; `appRoot` must point at the School project.
+- Windows frees ports via `taskkill`; Ubuntu via `lsof`.

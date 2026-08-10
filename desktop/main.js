@@ -24,6 +24,13 @@ async function invoke(cmd, args) {
 
 async function boot() {
   try {
+    setStatus("Preparing data folder…");
+    try {
+      const dataDir = await invoke("get_data_dir");
+      if (dataDir) setStatus(`Data → ${dataDir}`);
+    } catch {
+      // optional
+    }
     setStatus("Starting backend & frontend…");
     await invoke("start_services");
     setStatus("Opening app…");
@@ -31,7 +38,7 @@ async function boot() {
   } catch (err) {
     console.error(err);
     setError(String(err?.message || err));
-    setStatus("Could not start School SmS");
+    setStatus("Could not start SchoolSMS");
   }
 }
 

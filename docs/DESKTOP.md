@@ -1,20 +1,16 @@
-# School SmS — Desktop app
+# SchoolSMS — Desktop app
 
-See **[`desktop/README.md`](../desktop/README.md)** for run + build commands.
+See **[`desktop/README.md`](../desktop/README.md)**.
 
-## Quick run
-
-```bat
-Start School SmS.bat
-```
-
-## Quick Tauri build
+## Build
 
 ```bat
-cd desktop
-build.bat
+cd /d "E:\MY CODE\School (SmS)\desktop"
+npm run build:all
 ```
 
-Installer lands in:
+Installer:
 
-`desktop\src-tauri\target\release\bundle\nsis\`
+`desktop\src-tauri\target\release\bundle\nsis\SchoolSMS_1.0.0_x64-setup.exe`
+
+After install, set `appRoot` in `schoolsms.config.json` next to the exe.
