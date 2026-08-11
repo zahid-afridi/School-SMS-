@@ -1,10 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title School SmS Desktop
+title School SMS Desktop
 
 echo.
-echo  Starting School SmS Desktop...
+echo  Starting School SMS Desktop...
 echo  (First launch may take a minute while services boot)
 echo.
 

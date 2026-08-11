@@ -13,6 +13,7 @@ const REPO_ROOT = resolve(__dirname, "../..");
 
 const BACKEND_PORT = process.env.SCHOOL_SMS_BACKEND_PORT || "5000";
 const FRONTEND_PORT = process.env.SCHOOL_SMS_FRONTEND_PORT || "3000";
+const OPENWA_PORT = process.env.SCHOOL_SMS_OPENWA_PORT || "2785";
 
 function resolveDataDir() {
   const fromEnv = process.env.SCHOOL_SMS_DATA_DIR?.trim();
@@ -95,6 +96,7 @@ async function main() {
 
   killPort(BACKEND_PORT);
   killPort(FRONTEND_PORT);
+  killPort(OPENWA_PORT);
   console.log("[desktop] Stopped");
 }
 

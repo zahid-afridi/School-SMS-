@@ -105,8 +105,8 @@ export default function LoginPage() {
                 school
               </span>
 
-              <h1 className="font-display text-headline-lg text-primary">
-                Haroon
+              <h1 className="font-display bold text-headline-lg text-primary">
+                WolfExa Edu
               </h1>
             </div>
 

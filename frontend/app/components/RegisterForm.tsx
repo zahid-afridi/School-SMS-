@@ -56,7 +56,7 @@ export default function RegisterForm() {
             school
           </span>
 
-          <h1 className="text-2xl md:text-3xl font-bold">Haroon</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">WolfExa Edu</h1>
         </div>
 
         <p className="text-sm text-gray-500 mb-1">
