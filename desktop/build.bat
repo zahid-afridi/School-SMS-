@@ -34,30 +34,34 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [1/6] desktop npm install...
+echo [1/8] desktop npm install...
 call npm install
 if errorlevel 1 exit /b 1
 
-echo [2/6] backend prisma generate...
+echo [2/8] backend prisma generate...
 call npm --prefix ..\backend run prisma:generate
 if errorlevel 1 exit /b 1
 
-echo [3/6] OpenWA production build...
+echo [3/8] OpenWA production build...
 call npm --prefix ..\OpenWA run build
 if errorlevel 1 exit /b 1
 
-echo [4/6] frontend production build...
+echo [4/8] frontend production build...
 set NEXT_PUBLIC_API_URL=http://127.0.0.1:5000/api
 set NEXT_PUBLIC_UPLOAD_BASE_URL=http://127.0.0.1:5000
 set NEXT_PUBLIC_BACKEND_PORT=5000
 call npm --prefix ..\frontend run build
 if errorlevel 1 exit /b 1
 
-echo [5/6] copy splash assets...
+echo [5/8] copy splash assets...
 call node .\scripts\copy-splash.mjs
 if errorlevel 1 exit /b 1
 
-echo [6/6] tauri build (NSIS installer)...
+echo [6/8] prepare self-contained bundle (portable Node + app payload)...
+call node .\scripts\prepare-bundle.mjs
+if errorlevel 1 exit /b 1
+
+echo [7/8] tauri build (NSIS installer)...
 call npm run build
 if errorlevel 1 (
   echo.
@@ -67,10 +71,12 @@ if errorlevel 1 (
 
 echo.
 echo  === Build complete ===
-echo  Installer:
+echo  Installer (no Node required on target PC):
 echo    src-tauri\target\release\bundle\nsis\
 echo  Or exe:
 echo    src-tauri\target\release\school-sms-desktop.exe
+echo.
+echo  First launch unpacks bundled Node + app next to the .exe automatically.
 echo.
 dir /b "src-tauri\target\release\bundle\nsis\*.exe" 2>nul
 exit /b 0

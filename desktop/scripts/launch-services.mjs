@@ -186,13 +186,19 @@ async function stopAllPorts() {
 async function ensureSqliteSchema(env) {
   console.log("[desktop] Ensuring SQLite schema...");
   await new Promise((ok, fail) => {
-    const child = spawn(
-      npxCmd(),
-      ["prisma", "db", "push", "--schema=prisma/schema.sqlite.prisma",
-       "--url", env.PRISMA_SQLITE_URL],
-      { cwd: BACKEND_DIR, env, stdio: "inherit",
-        shell: process.platform === "win32", windowsHide: true }
-    );
+    const prismaJs = join(BACKEND_DIR, "node_modules", "prisma", "build", "index.js");
+    const child = existsSync(prismaJs)
+      ? spawn(
+          process.execPath,
+          [prismaJs, "db", "push", "--schema=prisma/schema.sqlite.prisma", "--url", env.PRISMA_SQLITE_URL],
+          { cwd: BACKEND_DIR, env, stdio: "inherit", shell: false, windowsHide: true }
+        )
+      : spawn(
+          npxCmd(),
+          ["prisma", "db", "push", "--schema=prisma/schema.sqlite.prisma", "--url", env.PRISMA_SQLITE_URL],
+          { cwd: BACKEND_DIR, env, stdio: "inherit",
+            shell: process.platform === "win32", windowsHide: true }
+        );
     child.on("exit", (code) => (code === 0 ? ok() : fail(new Error("prisma db push failed: " + code))));
   });
 }
@@ -204,9 +210,16 @@ async function main() {
 
   const jwtSecret = readJwtSecret();
 
+  // Prefer the Node binary that launched this script (bundled runtime on install PCs).
+  const nodeBin = process.execPath;
+  const nodeDir = dirname(nodeBin);
+  const pathSep = process.platform === "win32" ? ";" : ":";
+  const pathWithNode = nodeDir + pathSep + (process.env.PATH || "");
+
   // Environment shared by backend and frontend
   const commonEnv = {
     ...process.env,
+    PATH: pathWithNode,
     MODE: "offline",
     NODE_ENV: MODE === "prod" ? "production" : "development",
     PORT: BACKEND_PORT,
@@ -260,18 +273,17 @@ async function main() {
       "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   };
 
+  const openwaEnvWithPath = { ...openwaEnv, PATH: pathWithNode };
+
   if (hasBuild) {
     console.log("[desktop] Starting OpenWA from dist/main.js...");
-    // shell: false — process.execPath contains spaces ("C:\Program Files\nodejs\node.exe")
-    // and shell: true on Windows would split on the space, failing with
-    // "'C:\Program' is not recognized"
-    const c = spawnLogged("openwa", process.execPath, [openWaDist], OPENWA_DIR, openwaEnv, { shell: false });
+    // shell: false — node path may contain spaces ("C:\Program Files\...")
+    const c = spawnLogged("openwa", nodeBin, [openWaDist], OPENWA_DIR, openwaEnvWithPath, { shell: false });
     children.push(c);
     if (c.pid) pids.pids.push({ name: "openwa", pid: c.pid });
   } else {
     console.log("[desktop] OpenWA dist not found -- starting in dev mode (slower first boot)...");
-    // npm.cmd is a batch file, needs shell: true — but npm itself doesn't have spaces
-    const c = spawnLogged("openwa", npmCmd(), ["run", "start:dev"], OPENWA_DIR, openwaEnv, { shell: true });
+    const c = spawnLogged("openwa", npmCmd(), ["run", "start:dev"], OPENWA_DIR, openwaEnvWithPath, { shell: true });
     children.push(c);
     if (c.pid) pids.pids.push({ name: "openwa", pid: c.pid });
   }
@@ -296,8 +308,12 @@ async function main() {
   // ── 3. Backend ─────────────────────────────────────────────────────────────
 
   console.log("[desktop] Starting backend...");
-  const backendChild = spawnLogged("backend", npxCmd(), ["tsx", "src/index.ts"],
-    BACKEND_DIR, commonEnv, { shell: true });
+  const tsxCli = join(BACKEND_DIR, "node_modules", "tsx", "dist", "cli.mjs");
+  const backendChild = existsSync(tsxCli)
+    ? spawnLogged("backend", nodeBin, [tsxCli, "src/index.ts"],
+        BACKEND_DIR, commonEnv, { shell: false })
+    : spawnLogged("backend", npxCmd(), ["tsx", "src/index.ts"],
+        BACKEND_DIR, commonEnv, { shell: true });
   children.push(backendChild);
   if (backendChild.pid) pids.pids.push({ name: "backend", pid: backendChild.pid });
   await waitForUrl(BACKEND_URL + "/health", "backend");

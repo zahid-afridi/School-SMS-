@@ -13,4 +13,7 @@ Installer:
 
 `desktop\src-tauri\target\release\bundle\nsis\SchoolSMS_1.0.0_x64-setup.exe`
 
-After install, set `appRoot` in `schoolsms.config.json` next to the exe.
+After install, `schoolsms.config.json` is written automatically (`appRoot: "."`).
+Windows builds also ship portable Node + the app payload (no Node install on the school PC).
+
+**CI:** `.github/workflows/desktop-windows.yml` — run manually from Actions, or push tag `v*`.

@@ -11,14 +11,37 @@ Build on the same OS you target (Windows installer on Windows, Linux packages on
 
 ---
 
+## Install on a new PC (Windows)
+
+1. Run `SchoolSMS_*_x64-setup.exe`
+2. Open **SchoolSMS**
+
+That’s it. The installer:
+
+- Writes `schoolsms.config.json` with `"appRoot": "."` (install folder)
+- Ships a **portable Node.js** + the School app payload
+- First launch unpacks them next to the `.exe` automatically
+
+**You do not need to install Node.js** on the school/office PC.  
+**Chrome or Edge** is still needed for WhatsApp (OpenWA) features.
+
+---
+
 ## Install folder layout
 
 ```
 SchoolSMS/                      ← no spaces in folder name
   school-sms-desktop.exe        ← Windows
-  school-sms-desktop            ← Ubuntu
   uninstall.exe                 ← Windows only
-  schoolsms.config.json
+  schoolsms.config.json         ← auto-written (appRoot = ".")
+  resources/
+    app-payload.zip             ← unpacked on first launch
+    node-runtime.zip
+  runtime/                      ← portable Node (after first launch)
+  backend/                      ← after first launch
+  frontend/
+  OpenWA/
+  desktop/scripts/
   data/
     school.db
     uploads/
@@ -31,12 +54,21 @@ SchoolSMS/                      ← no spaces in folder name
 
 | Action | What happens |
 |--------|----------------|
-| Open app | Starts backend `:5000` + frontend `:3000`, creates `data/`, pushes DB schema |
-| Close app | Stops launcher + frees ports 5000 / 3000 |
+| Open app | Unpacks bundle if needed, starts backend `:5000` + frontend `:3000`, creates `data/`, pushes DB schema |
+| Close app | Stops launcher + frees ports 5000 / 3000 / 2785 |
 
 ## Config (`schoolsms.config.json` next to the binary)
 
-**Windows**
+**Installed build (automatic — do not edit unless you know why):**
+
+```json
+{
+  "dataDir": "data",
+  "appRoot": "."
+}
+```
+
+**Dev / custom path (optional):**
 
 ```json
 {
@@ -45,35 +77,26 @@ SchoolSMS/                      ← no spaces in folder name
 }
 ```
 
-**Ubuntu**
-
-```json
-{
-  "dataDir": "data",
-  "appRoot": "/run/media/zahid/New Volume/MY CODE/School (SmS)"
-}
-```
-
 - `dataDir`: relative to binary → `{installDir}/data`
-- `appRoot`: full path to the project (`backend/` + `frontend/`)
+- `appRoot`: `.` = folder containing the `.exe`, or a full path to the project
 
 ---
 
-## Prerequisites
+## Prerequisites (build machine only)
 
-### Windows
+### Windows (to create the installer)
 
 1. [Node.js 20+](https://nodejs.org)
 2. [Rust](https://rustup.rs)
 3. [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++**
 
-### Ubuntu
+### Ubuntu (to create Linux packages)
 
 ```bash
 sudo apt update
 sudo apt install -y build-essential curl wget file \
   libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
-  patchelf pkg-config
+  patchelf pkg-config zip
 
 # Node.js 20+
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -84,12 +107,13 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 ```
 
-### Both (once per machine)
+### Both (once per build machine)
 
 ```bash
 cd "/path/to/School (SmS)"
 npm --prefix backend install
 npm --prefix frontend install
+npm --prefix OpenWA install
 npm --prefix desktop install
 ```
 
@@ -106,6 +130,15 @@ build.bat
 
 Or: `npm run build:all` / from repo root `npm run desktop:build`
 
+`build.bat` / `prepare:bundle` downloads portable Node and packs `backend` + `frontend` + `OpenWA` into the installer. The installer will be **large** (includes `node_modules`).
+
+**CI (GitHub Actions)** — workflow [Desktop Windows Installer](../.github/workflows/desktop-windows.yml):
+
+1. Actions → **Desktop Windows Installer** → **Run workflow**, or
+2. Push a tag `v1.0.1` (builds and attaches the setup `.exe` to a Release)
+
+Download the artifact **SchoolSMS-Windows-x64** (or the Release asset) and run the setup on the school PC.
+
 **Output**
 
 - `src-tauri\target\release\bundle\nsis\SchoolSMS_*_x64-setup.exe`
@@ -119,13 +152,7 @@ chmod +x build.sh
 ./build.sh
 ```
 
-Or: `npm run build:all` / from repo root `npm run desktop:build`
-
-**Output**
-
-- `src-tauri/target/release/bundle/deb/*.deb`
-- `src-tauri/target/release/bundle/appimage/*.AppImage`
-- `src-tauri/target/release/school-sms-desktop`
+Linux packages do not yet ship the same self-contained Node bundle as Windows; use a system Node + `appRoot` for now, or run from the repo.
 
 ---
 
@@ -147,5 +174,5 @@ npm run desktop:tauri:dev
 
 - Product name is **SchoolSMS** (no spaces) so SQLite paths never truncate.
 - Prisma CLI gets an encoded DB URL; the running backend uses the real filesystem path.
-- Node.js must be on PATH; `appRoot` must point at the School project.
+- Target PCs using the Windows installer do **not** need Node on PATH.
 - Windows frees ports via `taskkill`; Ubuntu via `lsof`.

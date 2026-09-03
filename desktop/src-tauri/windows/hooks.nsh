@@ -1,20 +1,19 @@
 ; SchoolSMS — NSIS installer hooks
-; Creates data/uploads/logs INSIDE the install folder (no spaces in product name).
+; Creates data folders and auto-writes schoolsms.config.json so the user
+; never has to set appRoot manually. The .exe extracts bundled app + Node
+; next to itself on first launch (appRoot = install folder).
 
 !macro NSIS_HOOK_POSTINSTALL
-  ; Layout:
-  ;   $INSTDIR\data\school.db   (created on first app launch)
-  ;   $INSTDIR\data\uploads\
-  ;   $INSTDIR\data\logs\
   CreateDirectory "$INSTDIR\data"
   CreateDirectory "$INSTDIR\data\uploads"
   CreateDirectory "$INSTDIR\data\logs"
 
-  ; dataDir is relative to the .exe. Set appRoot to your School (SmS) project folder.
+  ; appRoot "." = folder that contains this .exe (resolved by the app).
+  ; Bundled backend/frontend/OpenWA/runtime are extracted here automatically.
   FileOpen $0 "$INSTDIR\schoolsms.config.json" w
   FileWrite $0 "{$\r$\n"
   FileWrite $0 '  "dataDir": "data",$\r$\n'
-  FileWrite $0 '  "appRoot": ""$\r$\n'
+  FileWrite $0 '  "appRoot": "."$\r$\n'
   FileWrite $0 "}$\r$\n"
   FileClose $0
 
@@ -27,8 +26,8 @@
   FileWrite $0 "$\r$\n"
   FileWrite $0 "Backup tip: copy the whole SchoolSMS install folder.$\r$\n"
   FileWrite $0 "$\r$\n"
-  FileWrite $0 "Edit schoolsms.config.json and set appRoot to your project path, e.g.:$\r$\n"
-  FileWrite $0 "  E:\\MY CODE\\School (SmS)$\r$\n"
+  FileWrite $0 "Node.js is bundled — you do not need to install Node separately.$\r$\n"
+  FileWrite $0 "Chrome/Edge is still required for WhatsApp (OpenWA) features.$\r$\n"
   FileClose $0
 !macroend
 

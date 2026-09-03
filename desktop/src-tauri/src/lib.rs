@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -7,6 +9,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Manager, RunEvent, State, WebviewWindow, WindowEvent};
 use url::Url;
+use zip::ZipArchive;
 
 const FRONTEND_URL: &str = "http://127.0.0.1:3000";
 const BACKEND_HEALTH: &str = "http://127.0.0.1:5000/health";
@@ -27,10 +30,32 @@ fn read_install_config() -> Option<serde_json::Value> {
   serde_json::from_str(&text).ok()
 }
 
+fn looks_like_app_root(p: &Path) -> bool {
+  p.join("backend").exists() && p.join("frontend").exists()
+}
+
+fn resolve_against_exe(raw: &str) -> PathBuf {
+  let p = PathBuf::from(raw);
+  if p.is_absolute() {
+    return p;
+  }
+  if let Some(dir) = exe_dir() {
+    return dir.join(p);
+  }
+  p
+}
+
+/// Prefer install folder (next to .exe), then config, then env, then dev tree.
 fn repo_root() -> PathBuf {
+  if let Some(dir) = exe_dir() {
+    if looks_like_app_root(&dir) {
+      return dir;
+    }
+  }
+
   if let Ok(home) = std::env::var("SCHOOL_SMS_HOME") {
     let p = PathBuf::from(home.trim());
-    if p.join("backend").exists() && p.join("frontend").exists() {
+    if looks_like_app_root(&p) {
       return p;
     }
   }
@@ -39,8 +64,8 @@ fn repo_root() -> PathBuf {
     if let Some(root) = val.get("appRoot").and_then(|v| v.as_str()) {
       let trimmed = root.trim();
       if !trimmed.is_empty() {
-        let p = PathBuf::from(trimmed);
-        if p.join("backend").exists() {
+        let p = resolve_against_exe(trimmed);
+        if looks_like_app_root(&p) {
           return p;
         }
       }
@@ -57,7 +82,7 @@ fn repo_root() -> PathBuf {
     ];
     for c in candidates {
       if let Ok(canon) = c.canonicalize() {
-        if canon.join("backend").exists() && canon.join("frontend").exists() {
+        if looks_like_app_root(&canon) {
           return canon;
         }
       }
@@ -89,28 +114,126 @@ fn data_dir() -> PathBuf {
   if let Some(dir) = exe_dir() {
     let looks_installed = dir.join("uninstall.exe").exists()
       || dir.join("schoolsms.config.json").exists()
+      || dir.join("resources").join("app-payload.zip").exists()
       || !cfg!(debug_assertions);
     if looks_installed {
       return dir.join("data");
     }
   }
 
-  // Dev fallback next to repo (not AppData)
   repo_root().join("desktop-data")
 }
 
 fn resolve_data_path(raw: &str) -> PathBuf {
-  let p = PathBuf::from(raw);
-  if p.is_absolute() {
-    return p;
+  resolve_against_exe(raw)
+}
+
+fn find_resource_file(name: &str) -> Option<PathBuf> {
+  let dir = exe_dir()?;
+  let candidates = [
+    dir.join("resources").join(name),
+    dir.join(name),
+    dir.join("resources").join("resources").join(name),
+  ];
+  candidates.into_iter().find(|p| p.is_file())
+}
+
+fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
+  std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
+  let file = File::open(zip_path).map_err(|e| format!("open {}: {e}", zip_path.display()))?;
+  let mut archive =
+    ZipArchive::new(file).map_err(|e| format!("zip {}: {e}", zip_path.display()))?;
+
+  for i in 0..archive.len() {
+    let mut entry = archive
+      .by_index(i)
+      .map_err(|e| format!("zip entry {i}: {e}"))?;
+    let Some(rel) = entry.enclosed_name() else {
+      continue;
+    };
+    let outpath = dest.join(rel);
+    if entry.is_dir() {
+      std::fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
+      continue;
+    }
+    if let Some(parent) = outpath.parent() {
+      std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let mut outfile = File::create(&outpath).map_err(|e| e.to_string())?;
+    io::copy(&mut entry, &mut outfile).map_err(|e| e.to_string())?;
   }
+  Ok(())
+}
+
+/// Unpack bundled Node + app next to the .exe when present (installed builds).
+fn ensure_bundled_runtime() -> Result<(), String> {
+  let Some(dir) = exe_dir() else {
+    return Ok(());
+  };
+
+  let node_zip = find_resource_file("node-runtime.zip");
+  let app_zip = find_resource_file("app-payload.zip");
+  if node_zip.is_none() && app_zip.is_none() {
+    return Ok(());
+  }
+
+  let runtime_marker = dir.join("runtime").join("node.exe");
+  if let Some(ref zip) = node_zip {
+    if !runtime_marker.exists() {
+      extract_zip(zip, &dir.join("runtime"))?;
+    }
+  }
+
+  let app_marker = dir.join("desktop").join("scripts").join("launch-services.mjs");
+  if let Some(ref zip) = app_zip {
+    if !app_marker.exists() {
+      extract_zip(zip, &dir)?;
+    }
+  }
+
+  if app_zip.is_some() && !looks_like_app_root(&dir) {
+    return Err(
+      "Bundled School app files are missing. Reinstall SchoolSMS or rebuild with prepare-bundle."
+        .into(),
+    );
+  }
+
+  Ok(())
+}
+
+/// Prefer portable Node shipped with the installer; fall back to PATH `node`.
+fn node_bin() -> PathBuf {
   if let Some(dir) = exe_dir() {
-    return dir.join(p);
+    let bundled = if cfg!(target_os = "windows") {
+      dir.join("runtime").join("node.exe")
+    } else {
+      dir.join("runtime").join("node")
+    };
+    if bundled.exists() {
+      return bundled;
+    }
   }
-  p
+  PathBuf::from("node")
+}
+
+fn path_with_bundled_node() -> Option<String> {
+  let dir = exe_dir()?;
+  let runtime = dir.join("runtime");
+  if !runtime.exists() {
+    return None;
+  }
+  let old = std::env::var("PATH").unwrap_or_default();
+  let sep = if cfg!(target_os = "windows") {
+    ";"
+  } else {
+    ":"
+  };
+  Some(format!("{}{}{}", runtime.display(), sep, old))
 }
 
 fn ensure_data_layout() -> Result<PathBuf, String> {
+  let _ = ensure_bundled_runtime();
+
   let data = data_dir();
   std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
   std::fs::create_dir_all(data.join("uploads")).map_err(|e| e.to_string())?;
@@ -127,12 +250,17 @@ fn ensure_data_layout() -> Result<PathBuf, String> {
         "dataDir".into(),
         serde_json::Value::String("data".to_string()),
       );
-      let root = repo_root();
-      if root.join("backend").exists() {
-        obj.insert(
-          "appRoot".into(),
-          serde_json::Value::String(root.to_string_lossy().to_string()),
-        );
+      // Installed layout: app lives next to the .exe — keep relative "." so moves work.
+      if looks_like_app_root(&dir) {
+        obj.insert("appRoot".into(), serde_json::Value::String(".".to_string()));
+      } else {
+        let root = repo_root();
+        if looks_like_app_root(&root) {
+          obj.insert(
+            "appRoot".into(),
+            serde_json::Value::String(root.to_string_lossy().to_string()),
+          );
+        }
       }
     }
     let _ = std::fs::write(
@@ -147,6 +275,7 @@ fn ensure_data_layout() -> Result<PathBuf, String> {
     "uploadDir": data.join("uploads").to_string_lossy(),
     "backendUrl": "http://127.0.0.1:5000",
     "frontendUrl": "http://127.0.0.1:3000",
+    "nodeBin": node_bin().to_string_lossy(),
   });
   let _ = std::fs::write(
     data.join("desktop.env.json"),
@@ -228,7 +357,10 @@ fn stop_via_script(root: &Path) {
   if !script.exists() {
     return;
   }
-  let mut cmd = Command::new("node");
+  let mut cmd = Command::new(node_bin());
+  if let Some(path) = path_with_bundled_node() {
+    cmd.env("PATH", path);
+  }
   let _ = cmd
     .arg(script)
     .env("SCHOOL_SMS_DATA_DIR", data_dir())
@@ -261,6 +393,7 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
   }
 
   let data = ensure_data_layout()?;
+  ensure_bundled_runtime()?;
 
   {
     let mut guard = state.launcher.lock().map_err(|e| e.to_string())?;
@@ -274,7 +407,7 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
   let script = root.join("desktop").join("scripts").join("launch-services.mjs");
   if !script.exists() {
     return Err(format!(
-      "School app files not found.\n\nLooked for: {}\n\nEdit schoolsms.config.json next to the .exe:\n{{\n  \"dataDir\": \"data\",\n  \"appRoot\": \"E:\\\\MY CODE\\\\School (SmS)\"\n}}",
+      "School app files not found.\n\nLooked for: {}\n\nIf this is a fresh install, wait for first-run unpack or reinstall.\nDev builds: set appRoot in schoolsms.config.json next to the .exe.",
       script.display()
     ));
   }
@@ -294,7 +427,8 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
     "prod"
   };
 
-  let mut cmd = Command::new("node");
+  let node = node_bin();
+  let mut cmd = Command::new(&node);
   cmd
     .arg(&script)
     .arg(format!("--mode={mode}"))
@@ -305,8 +439,15 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
     .stdout(Stdio::from(log_file))
     .stderr(Stdio::from(log_err));
 
+  if let Some(path) = path_with_bundled_node() {
+    cmd.env("PATH", path);
+  }
+
   let child = cmd.spawn().map_err(|e| {
-    format!("Failed to start Node launcher ({e}). Is Node.js installed and on PATH?")
+    format!(
+      "Failed to start Node launcher ({e}).\nTried: {}\nBundled runtime missing? Rebuild with prepare-bundle.",
+      node.display()
+    )
   })?;
 
   {
@@ -314,9 +455,9 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
     *guard = Some(child);
   }
 
-  wait_http_ok(BACKEND_HEALTH, 120)
+  wait_http_ok(BACKEND_HEALTH, 180)
     .map_err(|e| format!("{e}. See log: {}", log_path.display()))?;
-  wait_http_ok(FRONTEND_URL, 180)
+  wait_http_ok(FRONTEND_URL, 240)
     .map_err(|e| format!("{e}. See log: {}", log_path.display()))?;
 
   Ok(())

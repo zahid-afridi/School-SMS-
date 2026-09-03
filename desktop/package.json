@@ -17,8 +17,9 @@
     "prepare:splash": "node ./scripts/copy-splash.mjs",
     "prepare:backend": "npm --prefix ../backend run prisma:generate",
     "prepare:frontend": "node ./scripts/build-frontend.mjs",
+    "prepare:bundle": "node ./scripts/prepare-bundle.mjs",
     "prepare": "npm run prepare:backend && npm run prepare:frontend && npm run prepare:splash",
-    "build:all": "npm run prepare && npm run build"
+    "build:all": "npm run prepare && npm run prepare:bundle && npm run build"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.0"

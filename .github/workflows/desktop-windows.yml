@@ -1,0 +1,132 @@
+# Build a self-contained Windows SchoolSMS installer (NSIS).
+# Includes portable Node + app payload — target PCs do not need Node.js.
+#
+# Triggers:
+#   - Manual: Actions → "Desktop Windows Installer" → Run workflow
+#   - Tag: push v* (e.g. v1.0.1) → build + GitHub Release with installer attached
+
+name: Desktop Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: desktop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build SchoolSMS NSIS installer
+    runs-on: windows-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable long paths
+        shell: pwsh
+        run: |
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+            -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force | Out-Null
+          git config --system core.longpaths true
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            OpenWA/package-lock.json
+            desktop/package-lock.json
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "desktop/src-tauri -> target"
+          shared-key: schoolsms-desktop-windows
+
+      - name: Install npm dependencies
+        shell: pwsh
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix frontend
+          npm ci --prefix OpenWA
+          npm ci --prefix desktop
+
+      - name: Prisma generate
+        working-directory: backend
+        run: npm run prisma:generate
+
+      - name: Build OpenWA
+        working-directory: OpenWA
+        run: npm run build
+
+      - name: Build frontend (production)
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:5000/api
+          NEXT_PUBLIC_UPLOAD_BASE_URL: http://127.0.0.1:5000
+          NEXT_PUBLIC_BACKEND_PORT: "5000"
+        run: npm run build
+
+      - name: Copy splash assets
+        working-directory: desktop
+        run: npm run prepare:splash
+
+      - name: Prepare self-contained bundle (Node + app)
+        working-directory: desktop
+        run: npm run prepare:bundle
+
+      - name: Free disk space before Tauri build
+        shell: pwsh
+        run: |
+          if (Test-Path "desktop\.bundle-stage") {
+            Remove-Item -Recurse -Force "desktop\.bundle-stage"
+          }
+          Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
+
+      - name: Tauri build (NSIS)
+        working-directory: desktop
+        run: npm run build
+
+      - name: Collect installer artifacts
+        shell: pwsh
+        run: |
+          $nsis = Get-ChildItem -Path "desktop\src-tauri\target\release\bundle\nsis" -Filter "*.exe" -ErrorAction Stop
+          $out = "dist-installer"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          foreach ($f in $nsis) {
+            Copy-Item $f.FullName -Destination (Join-Path $out $f.Name) -Force
+            Write-Host "Installer: $($f.Name) ($([math]::Round($f.Length/1MB,1)) MB)"
+          }
+          Get-ChildItem $out | Format-Table Name, Length
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SchoolSMS-Windows-x64
+          path: dist-installer/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach installer to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-installer/*.exe
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
