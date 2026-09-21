@@ -174,5 +174,23 @@ npm run desktop:tauri:dev
 
 - Product name is **SchoolSMS** (no spaces) so SQLite paths never truncate.
 - Prisma CLI gets an encoded DB URL; the running backend uses the real filesystem path.
-- Target PCs using the Windows installer do **not** need Node on PATH.
+- Target PCs using the Windows installer do **not** need Node on PATH (portable Node is inside the app).
 - Windows frees ports via `taskkill`; Ubuntu via `lsof`.
+- This is a **Windows `.exe` installer**, not an Android APK.
+
+## Troubleshooting (Windows install PC)
+
+### `api-ms-win-crt-math-l1-1-0.dll` is missing
+The PC is missing the **Visual C++ / Universal C Runtime**.
+
+**Quick fix on that PC:** install  
+https://aka.ms/vs/17/release/vc_redist.x64.exe  
+then reopen SchoolSMS.
+
+**Build fix (already in this repo):** installer bundles VC runtime + WebView2 bootstrapper. Rebuild **v1.0.1+** with `build.bat` or GitHub Actions and reinstall.
+
+Requires **Windows 10 or newer** for reliable installs.
+
+### Why does the app still use Node after build?
+The `.exe` is a shell. Backend (Express) + frontend (Next.js) still run on **Node**, but the **installer ships portable Node** inside the app folder (`runtime\node.exe`).  
+You should **not** need to install Node separately on the school PC when using the full self-contained installer.

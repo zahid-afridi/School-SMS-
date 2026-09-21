@@ -27,6 +27,7 @@
   FileWrite $0 "Backup tip: copy the whole SchoolSMS install folder.$\r$\n"
   FileWrite $0 "$\r$\n"
   FileWrite $0 "Node.js is bundled — you do not need to install Node separately.$\r$\n"
+  FileWrite $0 "Requires Windows 10+ (or Windows with Universal C Runtime / VC++ Redistributable).$\r$\n"
   FileWrite $0 "Chrome/Edge is still required for WhatsApp (OpenWA) features.$\r$\n"
   FileClose $0
 !macroend
