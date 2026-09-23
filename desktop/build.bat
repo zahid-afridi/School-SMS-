@@ -62,6 +62,7 @@ call node .\scripts\prepare-bundle.mjs
 if errorlevel 1 exit /b 1
 
 echo [7/8] tauri build (NSIS installer)...
+set STATIC_VCRUNTIME=true
 call npm run build
 if errorlevel 1 (
   echo.

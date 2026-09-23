@@ -1,16 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SchoolSMS",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "identifier": "com.schoolsms.desktop",
   "build": {
     "beforeDevCommand": "node ./scripts/serve-splash.mjs",
     "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "node ./scripts/copy-splash.mjs",
-    "frontendDist": "../dist",
-    "windows": {
-      "staticVCRuntime": true
-    }
+    "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": true,
@@ -43,10 +40,10 @@
     "resources": [
       "resources/app-payload.zip",
       "resources/node-runtime.zip",
-      "resources/bundle-manifest.json"
+      "resources/bundle-manifest.json",
+      "resources/vc_redist.x64.exe"
     ],
     "windows": {
-      "bundleVCRuntime": true,
       "webviewInstallMode": {
         "type": "embedBootstrapper",
         "silent": true

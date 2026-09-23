@@ -99,6 +99,9 @@ jobs:
 
       - name: Tauri build (NSIS)
         working-directory: desktop
+        env:
+          # Prefer static CRT link when supported by this Tauri/Rust toolchain
+          STATIC_VCRUNTIME: "true"
         run: npm run build
 
       - name: Collect installer artifacts

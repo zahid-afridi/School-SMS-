@@ -183,11 +183,9 @@ npm run desktop:tauri:dev
 ### `api-ms-win-crt-math-l1-1-0.dll` is missing
 The PC is missing the **Visual C++ / Universal C Runtime**.
 
-**Quick fix on that PC:** install  
-https://aka.ms/vs/17/release/vc_redist.x64.exe  
-then reopen SchoolSMS.
+**v1.0.2+ installer** downloads and silently installs `vc_redist.x64.exe` during setup.
 
-**Build fix (already in this repo):** installer bundles VC runtime + WebView2 bootstrapper. Rebuild **v1.0.1+** with `build.bat` or GitHub Actions and reinstall.
+**Manual fix:** https://aka.ms/vs/17/release/vc_redist.x64.exe  
 
 Requires **Windows 10 or newer** for reliable installs.
 

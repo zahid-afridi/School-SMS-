@@ -1,6 +1,6 @@
 {
   "name": "school-sms-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "School (SmS) desktop shell (Tauri + local services)",
   "type": "module",

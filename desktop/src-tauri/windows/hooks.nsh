@@ -1,15 +1,25 @@
 ; SchoolSMS — NSIS installer hooks
-; Creates data folders and auto-writes schoolsms.config.json so the user
-; never has to set appRoot manually. The .exe extracts bundled app + Node
-; next to itself on first launch (appRoot = install folder).
+; Creates data folders, auto-writes config, and installs VC++ runtime
+; so api-ms-win-crt-*.dll errors are avoided on target PCs.
 
 !macro NSIS_HOOK_POSTINSTALL
   CreateDirectory "$INSTDIR\data"
   CreateDirectory "$INSTDIR\data\uploads"
   CreateDirectory "$INSTDIR\data\logs"
 
+  ; Install Microsoft VC++ Redistributable (x64) quietly when present.
+  ; Fixes: "api-ms-win-crt-math-l1-1-0.dll is missing"
+  StrCpy $2 "$INSTDIR\resources\vc_redist.x64.exe"
+  IfFileExists "$2" do_vcredist 0
+  StrCpy $2 "$INSTDIR\vc_redist.x64.exe"
+  IfFileExists "$2" do_vcredist skip_vcredist
+  do_vcredist:
+    DetailPrint "Installing Visual C++ Redistributable..."
+    ExecWait '"$2" /install /quiet /norestart' $1
+    DetailPrint "VC++ Redistributable exit code: $1"
+  skip_vcredist:
+
   ; appRoot "." = folder that contains this .exe (resolved by the app).
-  ; Bundled backend/frontend/OpenWA/runtime are extracted here automatically.
   FileOpen $0 "$INSTDIR\schoolsms.config.json" w
   FileWrite $0 "{$\r$\n"
   FileWrite $0 '  "dataDir": "data",$\r$\n'
@@ -27,7 +37,7 @@
   FileWrite $0 "Backup tip: copy the whole SchoolSMS install folder.$\r$\n"
   FileWrite $0 "$\r$\n"
   FileWrite $0 "Node.js is bundled — you do not need to install Node separately.$\r$\n"
-  FileWrite $0 "Requires Windows 10+ (or Windows with Universal C Runtime / VC++ Redistributable).$\r$\n"
+  FileWrite $0 "Requires Windows 10+ for best results.$\r$\n"
   FileWrite $0 "Chrome/Edge is still required for WhatsApp (OpenWA) features.$\r$\n"
   FileClose $0
 !macroend

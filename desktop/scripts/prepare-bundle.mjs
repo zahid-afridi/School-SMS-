@@ -233,6 +233,21 @@ function prepareAppPayload() {
   return outZip;
 }
 
+async function prepareVcRedist() {
+  const url = "https://aka.ms/vs/17/release/vc_redist.x64.exe";
+  const dest = join(RESOURCES_DIR, "vc_redist.x64.exe");
+  if (existsSync(dest) && statSync(dest).size > 1_000_000) {
+    log(`Using existing ${dest}`);
+    return dest;
+  }
+  await download(url, dest);
+  if (!existsSync(dest) || statSync(dest).size < 1_000_000) {
+    throw new Error("Failed to download vc_redist.x64.exe (file too small or missing)");
+  }
+  log(`Wrote ${dest} (${statSync(dest).size} bytes)`);
+  return dest;
+}
+
 async function main() {
   log("Preparing self-contained Windows install payload...");
   requireBuiltArtifacts();
@@ -241,18 +256,22 @@ async function main() {
 
   const nodeZip = await prepareNodeRuntime();
   const appZip = prepareAppPayload();
+  const vcRedist = await prepareVcRedist();
 
   const manifest = {
     nodeVersion: NODE_VERSION,
     nodeRuntimeZip: "node-runtime.zip",
     appPayloadZip: "app-payload.zip",
+    vcRedist: "vc_redist.x64.exe",
     nodeSha256: sha256File(nodeZip),
     appSha256: sha256File(appZip),
+    vcRedistSha256: sha256File(vcRedist),
     createdAt: new Date().toISOString(),
   };
   writeFileSync(join(RESOURCES_DIR, "bundle-manifest.json"), JSON.stringify(manifest, null, 2));
   log("Done. Resources ready for Tauri NSIS bundle.");
   log("Install PC will not need a system Node.js install.");
+  log("Installer will also install VC++ Redistributable for CRT DLLs.");
 }
 
 main().catch((err) => {
