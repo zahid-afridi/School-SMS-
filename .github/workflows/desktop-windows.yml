@@ -1,9 +1,9 @@
 # Build a self-contained Windows SchoolSMS installer (NSIS).
-# Includes portable Node + app payload — target PCs do not need Node.js.
+# Includes portable Node + production app/ payload — target PCs do not need Node.js.
 #
 # Triggers:
 #   1) Tag push  → builds + creates/updates a GitHub Release with the .exe
-#        git tag v1.0.3 && git push origin v1.0.3
+#        git tag v1.1.0 && git push origin v1.1.0
 #   2) Manual    → builds + uploads artifact; optionally creates a Release
 #        Actions → "Desktop Windows Installer" → Run workflow
 
@@ -35,6 +35,10 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  # Must match OpenWA engines (>=22.13) and portable runtime in prepare-bundle.mjs
+  SCHOOL_SMS_BUNDLE_NODE: "22.14.0"
+
 jobs:
   build-windows:
     name: Build SchoolSMS NSIS installer
@@ -54,12 +58,21 @@ jobs:
             -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force | Out-Null
           git config --system core.longpaths true
 
-      - name: Setup Node.js 20
+      - name: Setup Python (node-gyp / native modules)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          # Must match portable runtime in prepare-bundle.mjs (SCHOOL_SMS_BUNDLE_NODE)
-          # so native modules (better-sqlite3) load on the install PC.
-          node-version: "20.18.1"
+          # Match SCHOOL_SMS_BUNDLE_NODE / OpenWA engines so better-sqlite3 ABI matches runtime.
+          node-version: "22.14.0"
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json
@@ -78,10 +91,16 @@ jobs:
 
       - name: Install npm dependencies
         shell: pwsh
+        env:
+          # Help node-gyp find the VS toolchain on windows-latest
+          npm_config_msvs_version: "2022"
         run: |
+          Write-Host "Node $(node -v) / npm $(npm -v)"
           npm ci --prefix backend
           npm ci --prefix frontend
           npm ci --prefix OpenWA
+          # Note: desktop must NOT use an npm lifecycle script named "prepare"
+          # (that auto-runs on ci and broke Prisma before backend scripts were ready).
           npm ci --prefix desktop
 
       - name: Prisma generate
@@ -111,7 +130,7 @@ jobs:
       - name: Prepare production-only bundle (app/ builds)
         working-directory: desktop
         env:
-          SCHOOL_SMS_BUNDLE_NODE: "20.18.1"
+          SCHOOL_SMS_BUNDLE_NODE: ${{ env.SCHOOL_SMS_BUNDLE_NODE }}
         run: npm run prepare:bundle
 
       - name: Free disk space before Tauri build
@@ -160,7 +179,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # ── Release on tag push (v1.0.3, etc.) ─────────────────────────────
       - name: Publish GitHub Release (tag push)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -184,7 +202,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── Release on manual run (optional) ───────────────────────────────
       - name: Publish GitHub Release (manual)
         if: github.event_name == 'workflow_dispatch' && (inputs.create_release == true || inputs.create_release == 'true')
         uses: softprops/action-gh-release@v2

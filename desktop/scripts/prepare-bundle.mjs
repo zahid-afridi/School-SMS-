@@ -36,7 +36,7 @@ const REPO_ROOT = resolve(DESKTOP_DIR, "..");
 const RESOURCES_DIR = join(DESKTOP_DIR, "src-tauri", "resources");
 const STAGE_DIR = join(DESKTOP_DIR, ".bundle-stage");
 
-const NODE_VERSION = process.env.SCHOOL_SMS_BUNDLE_NODE || "20.18.1";
+const NODE_VERSION = process.env.SCHOOL_SMS_BUNDLE_NODE || "22.14.0";
 const NODE_ZIP_NAME = `node-v${NODE_VERSION}-win-x64.zip`;
 const NODE_URL = `https://nodejs.org/dist/v${NODE_VERSION}/${NODE_ZIP_NAME}`;
 
