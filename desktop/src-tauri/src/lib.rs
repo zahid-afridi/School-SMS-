@@ -138,6 +138,67 @@ fn find_resource_file(name: &str) -> Option<PathBuf> {
   candidates.into_iter().find(|p| p.is_file())
 }
 
+fn read_json_file(path: &Path) -> Option<serde_json::Value> {
+  let text = std::fs::read_to_string(path).ok()?;
+  serde_json::from_str(&text).ok()
+}
+
+fn bundle_manifest() -> Option<serde_json::Value> {
+  read_json_file(&find_resource_file("bundle-manifest.json")?)
+}
+
+fn installed_marker_path(dir: &Path) -> PathBuf {
+  dir.join(".schoolsms-installed.json")
+}
+
+fn read_installed_marker(dir: &Path) -> Option<serde_json::Value> {
+  read_json_file(&installed_marker_path(dir))
+}
+
+fn write_installed_marker(dir: &Path, manifest: &serde_json::Value) -> Result<(), String> {
+  let payload = serde_json::json!({
+    "version": manifest.get("version").cloned().unwrap_or(serde_json::Value::Null),
+    "nodeVersion": manifest.get("nodeVersion").cloned().unwrap_or(serde_json::Value::Null),
+    "appSha256": manifest.get("appSha256").cloned().unwrap_or(serde_json::Value::Null),
+    "nodeSha256": manifest.get("nodeSha256").cloned().unwrap_or(serde_json::Value::Null),
+    "installedAt": chrono_like_now(),
+    "layout": {
+      "data": "data",
+      "runtime": "runtime",
+      "config": "schoolsms.config.json",
+      "backupHint": "Copy the whole SchoolSMS folder. Critical files live in data/."
+    }
+  });
+  std::fs::write(
+    installed_marker_path(dir),
+    serde_json::to_string_pretty(&payload).unwrap_or_else(|_| "{}".into()),
+  )
+  .map_err(|e| e.to_string())
+}
+
+fn chrono_like_now() -> String {
+  // Stable ISO-ish stamp without extra chrono crate dependency
+  use std::time::{SystemTime, UNIX_EPOCH};
+  let secs = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .map(|d| d.as_secs())
+    .unwrap_or(0);
+  format!("{secs}")
+}
+
+fn sha_changed(manifest: &serde_json::Value, installed: &Option<serde_json::Value>, key: &str) -> bool {
+  let Some(new_sha) = manifest.get(key).and_then(|v| v.as_str()) else {
+    return true;
+  };
+  let Some(old) = installed else {
+    return true;
+  };
+  match old.get(key).and_then(|v| v.as_str()) {
+    Some(old_sha) => old_sha != new_sha,
+    None => true,
+  }
+}
+
 fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
   std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
   let file = File::open(zip_path).map_err(|e| format!("open {}: {e}", zip_path.display()))?;
@@ -151,6 +212,25 @@ fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
     let Some(rel) = entry.enclosed_name() else {
       continue;
     };
+
+    // Never overwrite local school data or install markers while unpacking
+    let rel_str = rel.to_string_lossy().replace('\\', "/");
+    if rel_str == "data"
+      || rel_str.starts_with("data/")
+      || rel_str == "schoolsms.config.json"
+      || rel_str == ".schoolsms-installed.json"
+      || rel_str == "BACKUP.txt"
+    {
+      continue;
+    }
+    // Preserve WhatsApp sessions across upgrades
+    if rel_str.starts_with("OpenWA/data/") && rel_str != "OpenWA/data/sessions/.gitkeep" {
+      let existing = dest.join(&rel);
+      if existing.exists() {
+        continue;
+      }
+    }
+
     let outpath = dest.join(rel);
     if entry.is_dir() {
       std::fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
@@ -165,7 +245,38 @@ fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
   Ok(())
 }
 
+fn write_backup_guide(dir: &Path) {
+  let text = "\
+SchoolSMS — Backup Guide
+========================
+
+Easy backup: copy this WHOLE SchoolSMS folder to a USB drive or another PC.
+
+Critical school data (must keep):
+  data\\school.db     database
+  data\\uploads\\      photos and files
+  data\\logs\\         app logs
+  data\\.jwt-secret   local login signing key (keep with the DB)
+
+App files (reinstallable):
+  backend\\  frontend\\  OpenWA\\  desktop\\  runtime\\  resources\\
+
+Uninstall keeps the data\\ folder so records are not deleted.
+";
+  let _ = std::fs::write(dir.join("BACKUP.txt"), text);
+}
+
+fn ensure_install_folders(dir: &Path) -> Result<(), String> {
+  std::fs::create_dir_all(dir.join("data").join("uploads")).map_err(|e| e.to_string())?;
+  std::fs::create_dir_all(dir.join("data").join("logs")).map_err(|e| e.to_string())?;
+  std::fs::create_dir_all(dir.join("OpenWA").join("data").join("sessions"))
+    .map_err(|e| e.to_string())?;
+  write_backup_guide(dir);
+  Ok(())
+}
+
 /// Unpack bundled Node + app next to the .exe when present (installed builds).
+/// Re-extracts when installer payload hash changes (smooth upgrades) without touching data/.
 fn ensure_bundled_runtime() -> Result<(), String> {
   let Some(dir) = exe_dir() else {
     return Ok(());
@@ -177,16 +288,27 @@ fn ensure_bundled_runtime() -> Result<(), String> {
     return Ok(());
   }
 
+  ensure_install_folders(&dir)?;
+
+  let manifest = bundle_manifest().unwrap_or_else(|| serde_json::json!({}));
+  let installed = read_installed_marker(&dir);
+
   let runtime_marker = dir.join("runtime").join("node.exe");
+  let need_node = !runtime_marker.exists() || sha_changed(&manifest, &installed, "nodeSha256");
   if let Some(ref zip) = node_zip {
-    if !runtime_marker.exists() {
+    if need_node {
+      let _ = std::fs::remove_dir_all(dir.join("runtime"));
       extract_zip(zip, &dir.join("runtime"))?;
     }
   }
 
-  let app_marker = dir.join("desktop").join("scripts").join("launch-services.mjs");
+  let app_marker = dir
+    .join("desktop")
+    .join("scripts")
+    .join("launch-services.mjs");
+  let need_app = !app_marker.exists() || sha_changed(&manifest, &installed, "appSha256");
   if let Some(ref zip) = app_zip {
-    if !app_marker.exists() {
+    if need_app {
       extract_zip(zip, &dir)?;
     }
   }
@@ -198,6 +320,7 @@ fn ensure_bundled_runtime() -> Result<(), String> {
     );
   }
 
+  let _ = write_installed_marker(&dir, &manifest);
   Ok(())
 }
 
@@ -232,7 +355,8 @@ fn path_with_bundled_node() -> Option<String> {
 }
 
 fn ensure_data_layout() -> Result<PathBuf, String> {
-  let _ = ensure_bundled_runtime();
+  // Unpack / upgrade app payload first so repo_root() resolves to the install folder.
+  ensure_bundled_runtime()?;
 
   let data = data_dir();
   std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
@@ -240,20 +364,25 @@ fn ensure_data_layout() -> Result<PathBuf, String> {
   std::fs::create_dir_all(data.join("logs")).map_err(|e| e.to_string())?;
 
   if let Some(dir) = exe_dir() {
+    ensure_install_folders(&dir)?;
+
     let cfg_path = dir.join("schoolsms.config.json");
+    // Preserve an existing config on upgrade; only fill missing keys.
     let mut cfg = read_install_config().unwrap_or_else(|| serde_json::json!({}));
     if !cfg.is_object() {
       cfg = serde_json::json!({});
     }
     if let Some(obj) = cfg.as_object_mut() {
-      obj.insert(
-        "dataDir".into(),
-        serde_json::Value::String("data".to_string()),
-      );
-      // Installed layout: app lives next to the .exe — keep relative "." so moves work.
+      if !obj.contains_key("dataDir") {
+        obj.insert(
+          "dataDir".into(),
+          serde_json::Value::String("data".to_string()),
+        );
+      }
+      // Installed layout: app lives next to the .exe — keep relative "." so moves/backups work.
       if looks_like_app_root(&dir) {
         obj.insert("appRoot".into(), serde_json::Value::String(".".to_string()));
-      } else {
+      } else if !obj.contains_key("appRoot") {
         let root = repo_root();
         if looks_like_app_root(&root) {
           obj.insert(

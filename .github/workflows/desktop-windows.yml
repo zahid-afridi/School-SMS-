@@ -2,19 +2,34 @@
 # Includes portable Node + app payload — target PCs do not need Node.js.
 #
 # Triggers:
-#   - Manual: Actions → "Desktop Windows Installer" → Run workflow
-#   - Tag: push v* (e.g. v1.0.1) → build + GitHub Release with installer attached
+#   1) Tag push  → builds + creates/updates a GitHub Release with the .exe
+#        git tag v1.0.3 && git push origin v1.0.3
+#   2) Manual    → builds + uploads artifact; optionally creates a Release
+#        Actions → "Desktop Windows Installer" → Run workflow
 
 name: Desktop Windows Installer
 
 on:
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Also create/update a GitHub Release and attach the installer"
+        type: boolean
+        default: true
+      release_tag:
+        description: "Release tag (e.g. v1.0.3). Required when Create Release is true."
+        type: string
+        default: "v1.0.3"
+      prerelease:
+        description: "Mark the Release as pre-release"
+        type: boolean
+        default: false
   push:
     tags:
       - "v*"
 
 concurrency:
-  group: desktop-windows-${{ github.ref }}
+  group: desktop-windows-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
@@ -29,6 +44,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Enable long paths
         shell: pwsh
@@ -37,10 +54,12 @@ jobs:
             -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force | Out-Null
           git config --system core.longpaths true
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # Must match portable runtime in prepare-bundle.mjs (SCHOOL_SMS_BUNDLE_NODE)
+          # so native modules (better-sqlite3) load on the install PC.
+          node-version: "20.18.1"
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json
@@ -87,6 +106,8 @@ jobs:
 
       - name: Prepare self-contained bundle (Node + app)
         working-directory: desktop
+        env:
+          SCHOOL_SMS_BUNDLE_NODE: "20.18.1"
         run: npm run prepare:bundle
 
       - name: Free disk space before Tauri build
@@ -100,21 +121,32 @@ jobs:
       - name: Tauri build (NSIS)
         working-directory: desktop
         env:
-          # Prefer static CRT link when supported by this Tauri/Rust toolchain
           STATIC_VCRUNTIME: "true"
         run: npm run build
 
       - name: Collect installer artifacts
+        id: collect
         shell: pwsh
         run: |
-          $nsis = Get-ChildItem -Path "desktop\src-tauri\target\release\bundle\nsis" -Filter "*.exe" -ErrorAction Stop
+          $nsisDir = "desktop\src-tauri\target\release\bundle\nsis"
+          if (!(Test-Path $nsisDir)) {
+            throw "NSIS output folder missing: $nsisDir"
+          }
+          $nsis = Get-ChildItem -Path $nsisDir -Filter "*.exe" -ErrorAction Stop
+          if ($nsis.Count -eq 0) {
+            throw "No NSIS .exe found under $nsisDir"
+          }
           $out = "dist-installer"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $names = @()
           foreach ($f in $nsis) {
             Copy-Item $f.FullName -Destination (Join-Path $out $f.Name) -Force
-            Write-Host "Installer: $($f.Name) ($([math]::Round($f.Length/1MB,1)) MB)"
+            $mb = [math]::Round($f.Length / 1MB, 1)
+            Write-Host "Installer: $($f.Name) ($mb MB)"
+            $names += $f.Name
           }
           Get-ChildItem $out | Format-Table Name, Length
+          "installer_name=$($names[0])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
@@ -124,12 +156,52 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Attach installer to GitHub Release
+      # ── Release on tag push (v1.0.3, etc.) ─────────────────────────────
+      - name: Publish GitHub Release (tag push)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: dist-installer/*.exe
+          name: SchoolSMS ${{ github.ref_name }}
+          draft: false
+          make_latest: true
           generate_release_notes: true
           fail_on_unmatched_files: true
+          body: |
+            ## SchoolSMS Windows installer
+
+            Download **`${{ steps.collect.outputs.installer_name }}`**, run it on Windows 10+, then open **SchoolSMS**.
+
+            - Node.js is bundled (no separate Node install)
+            - School data lives in the install folder `data\` — backup = copy the whole SchoolSMS folder
+            - First launch unpacks the app runtime once (or again after an upgrade)
+
+            See `BACKUP.txt` inside the install folder.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Release on manual run (optional) ───────────────────────────────
+      - name: Publish GitHub Release (manual)
+        if: github.event_name == 'workflow_dispatch' && (inputs.create_release == true || inputs.create_release == 'true')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: SchoolSMS ${{ inputs.release_tag }}
+          draft: false
+          prerelease: ${{ inputs.prerelease == true || inputs.prerelease == 'true' }}
+          make_latest: ${{ !(inputs.prerelease == true || inputs.prerelease == 'true') }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist-installer/*.exe
+          body: |
+            ## SchoolSMS Windows installer
+
+            Download **`${{ steps.collect.outputs.installer_name }}`**, run it on Windows 10+, then open **SchoolSMS**.
+
+            - Node.js is bundled (no separate Node install)
+            - School data lives in the install folder `data\` — backup = copy the whole SchoolSMS folder
+            - First launch unpacks the app runtime once (or again after an upgrade)
+
+            Built from commit `${{ github.sha }}` via workflow_dispatch.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

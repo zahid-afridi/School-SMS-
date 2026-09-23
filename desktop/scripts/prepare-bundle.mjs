@@ -1,17 +1,31 @@
 #!/usr/bin/env node
 /**
- * Builds a self-contained install payload for SchoolSMS:
+ * Builds a self-contained Windows install payload for SchoolSMS:
  *   - Portable Node.js runtime zip
  *   - App zip (backend + frontend + OpenWA + desktop scripts)
  *
  * Output (consumed by Tauri bundle.resources):
  *   src-tauri/resources/node-runtime.zip
  *   src-tauri/resources/app-payload.zip
+ *   src-tauri/resources/bundle-manifest.json
+ *   src-tauri/resources/vc_redist.x64.exe
  *
  * After install, the desktop shell extracts these next to the .exe so the
  * target PC does not need Node.js or a manual appRoot path.
+ *
+ * Never ships .env / local DB / WhatsApp session data.
  */
-import { createWriteStream, existsSync, mkdirSync, rmSync, cpSync, readdirSync, statSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  cpSync,
+  readdirSync,
+  statSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -29,29 +43,68 @@ const NODE_VERSION = process.env.SCHOOL_SMS_BUNDLE_NODE || "20.18.1";
 const NODE_ZIP_NAME = `node-v${NODE_VERSION}-win-x64.zip`;
 const NODE_URL = `https://nodejs.org/dist/v${NODE_VERSION}/${NODE_ZIP_NAME}`;
 
-const SKIP = new Set([
-  "node_modules/.cache",
-  ".git",
-  ".next/cache",
-  "src-tauri/target",
-  "desktop-data",
-  ".bundle-stage",
-]);
+const APP_VERSION = JSON.parse(
+  readFileSync(join(DESKTOP_DIR, "package.json"), "utf8")
+).version;
 
 function log(msg) {
   console.log(`[prepare-bundle] ${msg}`);
 }
 
+/** Paths that must never enter the school installer. */
 function shouldSkip(rel) {
   const n = rel.replace(/\\/g, "/");
-  if (n.includes("/.git/") || n.startsWith(".git/")) return true;
-  if (n.includes("/src-tauri/target/") || n.includes("src-tauri/target/")) return true;
-  if (n.includes("/.next/cache/")) return true;
-  if (n.includes("/desktop-data/")) return true;
-  if (n.includes("/.bundle-stage/")) return true;
-  for (const s of SKIP) {
-    if (n === s || n.startsWith(s + "/")) return true;
+  const lower = n.toLowerCase();
+  const base = n.split("/").pop() || n;
+
+  // Secrets — never ship build-machine credentials
+  if (base === ".env" || base.startsWith(".env.")) return true;
+  if (base === "credentials.json" || base === "service-account.json") return true;
+
+  // User / runtime data — must stay only on the install PC
+  if (
+    n === "OpenWA/data" ||
+    n.startsWith("OpenWA/data/") ||
+    n.includes("/OpenWA/data/")
+  ) {
+    return true;
   }
+  if (
+    n === "desktop-data" ||
+    n.startsWith("desktop-data/") ||
+    n.includes("/desktop-data/")
+  ) {
+    return true;
+  }
+  if (
+    lower.endsWith(".db") ||
+    lower.endsWith(".db-journal") ||
+    lower.endsWith(".db-wal") ||
+    lower.endsWith(".db-shm")
+  ) {
+    return true;
+  }
+
+  // VCS / build caches / logs
+  if (n === ".git" || n.startsWith(".git/") || n.includes("/.git/")) return true;
+  if (n.includes("/src-tauri/target/") || n.startsWith("src-tauri/target/")) {
+    return true;
+  }
+  if (n.includes("/.next/cache/") || n.includes("node_modules/.cache/")) {
+    return true;
+  }
+  if (
+    n === ".bundle-stage" ||
+    n.startsWith(".bundle-stage/") ||
+    n.includes("/.bundle-stage/")
+  ) {
+    return true;
+  }
+  if (lower.endsWith(".log") || base === "npm-debug.log") return true;
+  if (base === ".DS_Store" || base === "Thumbs.db") return true;
+  if (n.includes("/coverage/") || n.includes("/.nyc_output/")) return true;
+  if (n.includes("/.turbo/")) return true;
+
   return false;
 }
 
@@ -174,6 +227,7 @@ async function prepareNodeRuntime() {
       `Expand-Archive -Path "${cachedZip}" -DestinationPath "${nodeStage}" -Force`,
     ]);
   } else {
+    // Cross-build on Linux/macOS CI helpers: unzip Windows portable Node zip
     run("unzip", ["-q", "-o", cachedZip, "-d", nodeStage]);
   }
 
@@ -205,6 +259,12 @@ function prepareAppPayload() {
 
   log("Staging OpenWA...");
   copyFiltered(join(REPO_ROOT, "OpenWA"), join(appStage, "OpenWA"));
+  // Ensure empty session dir exists at runtime (not shipped with sessions)
+  mkdirSync(join(appStage, "OpenWA", "data", "sessions"), { recursive: true });
+  writeFileSync(
+    join(appStage, "OpenWA", "data", "sessions", ".gitkeep"),
+    ""
+  );
 
   log("Staging desktop scripts...");
   const scriptsDest = join(appStage, "desktop", "scripts");
@@ -218,9 +278,15 @@ function prepareAppPayload() {
     join(appStage, ".schoolsms-bundle.json"),
     JSON.stringify(
       {
+        version: APP_VERSION,
         bundledAt: new Date().toISOString(),
         nodeVersion: NODE_VERSION,
         repo: "School (SmS)",
+        layout: {
+          data: "data/",
+          runtime: "runtime/",
+          backup: "Copy the whole SchoolSMS folder (especially data/).",
+        },
       },
       null,
       2
@@ -249,7 +315,8 @@ async function prepareVcRedist() {
 }
 
 async function main() {
-  log("Preparing self-contained Windows install payload...");
+  log(`Preparing SchoolSMS v${APP_VERSION} Windows install payload...`);
+  log(`Portable Node target: ${NODE_VERSION} (match CI / build machine Node major)`);
   requireBuiltArtifacts();
   mkdirSync(RESOURCES_DIR, { recursive: true });
   ensureEmptyDir(STAGE_DIR);
@@ -259,6 +326,7 @@ async function main() {
   const vcRedist = await prepareVcRedist();
 
   const manifest = {
+    version: APP_VERSION,
     nodeVersion: NODE_VERSION,
     nodeRuntimeZip: "node-runtime.zip",
     appPayloadZip: "app-payload.zip",
@@ -267,11 +335,22 @@ async function main() {
     appSha256: sha256File(appZip),
     vcRedistSha256: sha256File(vcRedist),
     createdAt: new Date().toISOString(),
+    installLayout: {
+      exe: "school-sms-desktop.exe",
+      config: "schoolsms.config.json",
+      data: "data/  (school.db, uploads, logs — BACKUP THIS)",
+      runtime: "runtime/  (portable Node, auto-unpacked)",
+      app: "backend/, frontend/, OpenWA/, desktop/scripts/",
+      resources: "resources/  (payload zips)",
+    },
   };
-  writeFileSync(join(RESOURCES_DIR, "bundle-manifest.json"), JSON.stringify(manifest, null, 2));
+  writeFileSync(
+    join(RESOURCES_DIR, "bundle-manifest.json"),
+    JSON.stringify(manifest, null, 2)
+  );
   log("Done. Resources ready for Tauri NSIS bundle.");
+  log("Secrets (.env) and local DBs are excluded from the payload.");
   log("Install PC will not need a system Node.js install.");
-  log("Installer will also install VC++ Redistributable for CRT DLLs.");
 }
 
 main().catch((err) => {

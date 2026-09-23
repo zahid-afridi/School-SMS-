@@ -14,12 +14,13 @@ function setError(text) {
 }
 
 async function invoke(cmd, args) {
-  // Prefer Tauri 2 global when available; fall back to dynamic import.
+  // Offline installers must not depend on a CDN.
   if (window.__TAURI__?.core?.invoke) {
     return window.__TAURI__.core.invoke(cmd, args);
   }
-  const { invoke } = await import("https://cdn.jsdelivr.net/npm/@tauri-apps/api@2.9.0/core.js/+esm");
-  return invoke(cmd, args);
+  throw new Error(
+    "Tauri API unavailable. Reinstall SchoolSMS or rebuild the desktop app."
+  );
 }
 
 async function boot() {

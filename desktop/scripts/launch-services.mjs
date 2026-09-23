@@ -10,6 +10,7 @@
  * Data directory: SCHOOL_SMS_DATA_DIR env var, or <repo-root>/desktop-data
  */
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   createWriteStream,
   existsSync,
@@ -75,14 +76,58 @@ function normPath(p) {
   return s.replace(/^file:/i, "").replace(/\\/g, "/").toLowerCase();
 }
 
+/**
+ * Prefer a stable secret stored under data/ so upgrades keep logins working.
+ * Never rely on shipping backend/.env inside the installer.
+ */
 function readJwtSecret() {
   if (process.env.JWT_SECRET?.trim()) return process.env.JWT_SECRET.trim();
+
+  const secretFile = join(DATA_DIR, ".jwt-secret");
+  if (existsSync(secretFile)) {
+    const fromFile = readFileSync(secretFile, "utf8").trim();
+    if (fromFile) return fromFile;
+  }
+
+  // Dev-only fallback: local backend/.env (not present in polished installers)
   const envPath = join(BACKEND_DIR, ".env");
   if (existsSync(envPath)) {
     const m = readFileSync(envPath, "utf8").match(/^JWT_SECRET=(.+)$/m);
-    if (m?.[1]?.trim()) return m[1].trim().replace(/^["']|["']$/g, "");
+    if (m?.[1]?.trim()) {
+      const fromEnv = m[1].trim().replace(/^["']|["']$/g, "");
+      try {
+        writeFileSync(secretFile, fromEnv, { encoding: "utf8" });
+      } catch {
+        /* ignore */
+      }
+      return fromEnv;
+    }
   }
-  return "school-sms-desktop-dev-secret-change-me";
+
+  const generated = randomBytes(32).toString("hex");
+  try {
+    writeFileSync(secretFile, generated, { encoding: "utf8" });
+  } catch {
+    /* ignore */
+  }
+  return generated;
+}
+
+/** Prefer Chrome, then Edge — school PCs often only have one browser. */
+function findChromiumPath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH?.trim()) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH.trim();
+  }
+  const candidates = [
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  return candidates[0];
 }
 
 /** Read the live OpenWA API key written by OpenWA on startup. */
@@ -268,9 +313,7 @@ async function main() {
     AUTO_START_SESSIONS: "false",
     PUPPETEER_HEADLESS: "true",
     PUPPETEER_ARGS: "--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu",
-    PUPPETEER_EXECUTABLE_PATH:
-      process.env.PUPPETEER_EXECUTABLE_PATH ||
-      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    PUPPETEER_EXECUTABLE_PATH: findChromiumPath(),
   };
 
   const openwaEnvWithPath = { ...openwaEnv, PATH: pathWithNode };

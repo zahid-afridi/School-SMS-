@@ -1,11 +1,16 @@
 ; SchoolSMS — NSIS installer hooks
-; Creates data folders, auto-writes config, and installs VC++ runtime
-; so api-ms-win-crt-*.dll errors are avoided on target PCs.
+; Creates a backup-friendly folder layout, writes config once,
+; and installs VC++ runtime so api-ms-win-crt-*.dll errors are avoided.
 
 !macro NSIS_HOOK_POSTINSTALL
+  ; ── Folder structure (easy backup = copy $INSTDIR) ──
   CreateDirectory "$INSTDIR\data"
   CreateDirectory "$INSTDIR\data\uploads"
   CreateDirectory "$INSTDIR\data\logs"
+  CreateDirectory "$INSTDIR\runtime"
+  CreateDirectory "$INSTDIR\OpenWA"
+  CreateDirectory "$INSTDIR\OpenWA\data"
+  CreateDirectory "$INSTDIR\OpenWA\data\sessions"
 
   ; Install Microsoft VC++ Redistributable (x64) quietly when present.
   ; Fixes: "api-ms-win-crt-math-l1-1-0.dll is missing"
@@ -19,26 +24,38 @@
     DetailPrint "VC++ Redistributable exit code: $1"
   skip_vcredist:
 
-  ; appRoot "." = folder that contains this .exe (resolved by the app).
+  ; Write config only on first install — preserve custom paths on upgrade.
+  IfFileExists "$INSTDIR\schoolsms.config.json" skip_cfg 0
   FileOpen $0 "$INSTDIR\schoolsms.config.json" w
   FileWrite $0 "{$\r$\n"
   FileWrite $0 '  "dataDir": "data",$\r$\n'
   FileWrite $0 '  "appRoot": "."$\r$\n'
   FileWrite $0 "}$\r$\n"
   FileClose $0
+  skip_cfg:
+
+  ; Root backup guide (also written again on first app launch)
+  FileOpen $0 "$INSTDIR\BACKUP.txt" w
+  FileWrite $0 "SchoolSMS — Backup Guide$\r$\n"
+  FileWrite $0 "========================$\r$\n"
+  FileWrite $0 "$\r$\n"
+  FileWrite $0 "Easy backup: copy this WHOLE SchoolSMS folder.$\r$\n"
+  FileWrite $0 "$\r$\n"
+  FileWrite $0 "Critical school data:$\r$\n"
+  FileWrite $0 "  data\school.db$\r$\n"
+  FileWrite $0 "  data\uploads\$\r$\n"
+  FileWrite $0 "  data\logs\$\r$\n"
+  FileWrite $0 "  data\.jwt-secret$\r$\n"
+  FileWrite $0 "$\r$\n"
+  FileWrite $0 "After install: open SchoolSMS — first launch unpacks Node + app,$\r$\n"
+  FileWrite $0 "then starts local services (backend :5000, frontend :3000).$\r$\n"
+  FileWrite $0 "Node.js is bundled — you do not need to install Node separately.$\r$\n"
+  FileWrite $0 "Requires Windows 10+. Chrome or Edge needed for WhatsApp features.$\r$\n"
+  FileClose $0
 
   FileOpen $0 "$INSTDIR\data\README-BACKUP.txt" w
-  FileWrite $0 "SchoolSMS data folder$\r$\n"
-  FileWrite $0 "-----------------------$\r$\n"
-  FileWrite $0 "school.db  = database$\r$\n"
-  FileWrite $0 "uploads\   = photos and files$\r$\n"
-  FileWrite $0 "logs\      = app logs$\r$\n"
-  FileWrite $0 "$\r$\n"
-  FileWrite $0 "Backup tip: copy the whole SchoolSMS install folder.$\r$\n"
-  FileWrite $0 "$\r$\n"
-  FileWrite $0 "Node.js is bundled — you do not need to install Node separately.$\r$\n"
-  FileWrite $0 "Requires Windows 10+ for best results.$\r$\n"
-  FileWrite $0 "Chrome/Edge is still required for WhatsApp (OpenWA) features.$\r$\n"
+  FileWrite $0 "This data folder holds school records.$\r$\n"
+  FileWrite $0 "Always include it when copying/backing up SchoolSMS.$\r$\n"
   FileClose $0
 !macroend
 
