@@ -136,8 +136,21 @@ jobs:
       - name: Free disk space before Tauri build
         shell: pwsh
         run: |
+          # Staging tree is already zipped into resources/ — drop heavy copies
           if (Test-Path "desktop\.bundle-stage") {
             Remove-Item -Recurse -Force "desktop\.bundle-stage"
+          }
+          # Source node_modules are already baked into app-payload.zip
+          foreach ($p in @(
+            "OpenWA\node_modules",
+            "frontend\node_modules",
+            "backend\node_modules",
+            "frontend\.next\cache"
+          )) {
+            if (Test-Path $p) {
+              Write-Host "Removing $p to free disk..."
+              Remove-Item -Recurse -Force $p
+            }
           }
           Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
 

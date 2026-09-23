@@ -254,7 +254,8 @@ function stageBackend(appStage) {
   }
 
   // Production deps + prisma CLI (needed for first-run db push on school PCs)
-  installProdDeps(dest, ["prisma@7.8.0"]);
+  // ignore-scripts avoids any unexpected prepare hooks; we generate Prisma explicitly next.
+  installProdDeps(dest, ["prisma@7.8.0"], { ignoreScripts: true });
   run(npmCmd, ["exec", "--", "prisma", "generate", "--schema=prisma/schema.sqlite.prisma"], {
     cwd: dest,
   });
@@ -309,28 +310,50 @@ function stageOpenWa(appStage) {
   ensureEmptyDir(dest);
   const src = join(REPO_ROOT, "OpenWA");
 
-  log("Staging OpenWA production build (dist only, no src/)...");
+  if (!existsSync(join(src, "dist", "main.js"))) {
+    throw new Error("OpenWA dist/main.js missing — run OpenWA build first");
+  }
+  if (!existsSync(join(src, "node_modules"))) {
+    throw new Error(
+      "OpenWA node_modules missing — run npm ci in OpenWA first (CI installs it before prepare:bundle)"
+    );
+  }
+
+  log("Staging OpenWA production build (dist + already-installed node_modules)...");
+  log("Skipping npm ci/postinstall here — that script fails in the slim stage and is already done.");
+
   cpSync(join(src, "dist"), join(dest, "dist"), { recursive: true });
-  cpSync(join(src, "package.json"), join(dest, "package.json"));
+
+  // Strip lifecycle hooks so nothing re-runs postinstall on school PCs
+  const pkg = JSON.parse(readFileSync(join(src, "package.json"), "utf8"));
+  if (pkg.scripts && typeof pkg.scripts === "object") {
+    delete pkg.scripts.postinstall;
+    delete pkg.scripts.prepare;
+    delete pkg.scripts.prepublishOnly;
+  }
+  writeFileSync(join(dest, "package.json"), JSON.stringify(pkg, null, 2));
+
   if (existsSync(join(src, "package-lock.json"))) {
     cpSync(join(src, "package-lock.json"), join(dest, "package-lock.json"));
   }
 
-  // postinstall needs scripts/*.js (patches whatsapp-web.js). No dashboard → skip dashboard:ci.
-  if (existsSync(join(src, "scripts"))) {
-    cpSync(join(src, "scripts"), join(dest, "scripts"), { recursive: true });
-  }
+  log("Copying OpenWA/node_modules (includes postinstall patches from earlier CI step)...");
+  cpSync(join(src, "node_modules"), join(dest, "node_modules"), { recursive: true });
 
-  // Keep empty sessions dir marker only
   mkdirSync(join(dest, "data", "sessions"), { recursive: true });
   writeFileSync(join(dest, "data", "sessions", ".gitkeep"), "");
 
-  installProdDeps(dest);
-
-  // Remove source / dashboard / tests — keep scripts (runtime patches already applied)
-  for (const junk of ["src", "dashboard", "test", "docs", ".git"]) {
+  // Never ship source / dashboard / patch scripts
+  for (const junk of ["src", "dashboard", "test", "docs", ".git", "scripts"]) {
     const p = join(dest, junk);
     if (existsSync(p)) rmSync(p, { recursive: true, force: true });
+  }
+
+  if (!existsSync(join(dest, "dist", "main.js"))) {
+    throw new Error("OpenWA stage missing dist/main.js");
+  }
+  if (!existsSync(join(dest, "node_modules"))) {
+    throw new Error("OpenWA stage missing node_modules");
   }
 }
 
