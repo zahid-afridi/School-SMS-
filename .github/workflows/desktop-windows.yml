@@ -17,9 +17,9 @@ on:
         type: boolean
         default: true
       release_tag:
-        description: "Release tag (e.g. v1.0.3). Required when Create Release is true."
+        description: "Release tag (e.g. v1.1.0). Required when Create Release is true."
         type: string
-        default: "v1.0.3"
+        default: "v1.1.0"
       prerelease:
         description: "Mark the Release as pre-release"
         type: boolean
@@ -88,11 +88,15 @@ jobs:
         working-directory: backend
         run: npm run prisma:generate
 
+      - name: Build backend (production dist)
+        working-directory: backend
+        run: npm run build
+
       - name: Build OpenWA
         working-directory: OpenWA
         run: npm run build
 
-      - name: Build frontend (production)
+      - name: Build frontend (Next standalone)
         working-directory: frontend
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:5000/api
@@ -104,7 +108,7 @@ jobs:
         working-directory: desktop
         run: npm run prepare:splash
 
-      - name: Prepare self-contained bundle (Node + app)
+      - name: Prepare production-only bundle (app/ builds)
         working-directory: desktop
         env:
           SCHOOL_SMS_BUNDLE_NODE: "20.18.1"

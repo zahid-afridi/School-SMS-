@@ -11,6 +11,8 @@ const extraDevOrigins =
     .filter(Boolean) ?? [];
 
 const nextConfig: NextConfig = {
+  // Desktop installer ships only the standalone server (not the full source tree).
+  output: "standalone",
   allowedDevOrigins: [
     "10.210.61.30",
     "localhost",

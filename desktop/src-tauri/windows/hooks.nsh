@@ -8,9 +8,10 @@
   CreateDirectory "$INSTDIR\data\uploads"
   CreateDirectory "$INSTDIR\data\logs"
   CreateDirectory "$INSTDIR\runtime"
-  CreateDirectory "$INSTDIR\OpenWA"
-  CreateDirectory "$INSTDIR\OpenWA\data"
-  CreateDirectory "$INSTDIR\OpenWA\data\sessions"
+  CreateDirectory "$INSTDIR\app"
+  CreateDirectory "$INSTDIR\app\openwa"
+  CreateDirectory "$INSTDIR\app\openwa\data"
+  CreateDirectory "$INSTDIR\app\openwa\data\sessions"
 
   ; Install Microsoft VC++ Redistributable (x64) quietly when present.
   ; Fixes: "api-ms-win-crt-math-l1-1-0.dll is missing"
@@ -47,8 +48,9 @@
   FileWrite $0 "  data\logs\$\r$\n"
   FileWrite $0 "  data\.jwt-secret$\r$\n"
   FileWrite $0 "$\r$\n"
-  FileWrite $0 "After install: open SchoolSMS — first launch unpacks Node + app,$\r$\n"
+  FileWrite $0 "After install: open SchoolSMS — first launch unpacks app builds + Node,$\r$\n"
   FileWrite $0 "then starts local services (backend :5000, frontend :3000).$\r$\n"
+  FileWrite $0 "Installed app code lives in app\ (compiled builds — not your Git source).$\r$\n"
   FileWrite $0 "Node.js is bundled — you do not need to install Node separately.$\r$\n"
   FileWrite $0 "Requires Windows 10+. Chrome or Edge needed for WhatsApp features.$\r$\n"
   FileClose $0

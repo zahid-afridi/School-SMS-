@@ -31,7 +31,27 @@ fn read_install_config() -> Option<serde_json::Value> {
 }
 
 fn looks_like_app_root(p: &Path) -> bool {
-  p.join("backend").exists() && p.join("frontend").exists()
+  // Production installer layout: app/{backend,frontend}
+  let packaged = p.join("app").join("backend").exists() && p.join("app").join("frontend").exists();
+  // Legacy / dev layout: backend + frontend at install root
+  let legacy = p.join("backend").exists() && p.join("frontend").exists();
+  packaged || legacy
+}
+
+fn launch_script(root: &Path) -> PathBuf {
+  let packaged = root.join("app").join("launch-services.mjs");
+  if packaged.exists() {
+    return packaged;
+  }
+  root.join("desktop").join("scripts").join("launch-services.mjs")
+}
+
+fn stop_script(root: &Path) -> PathBuf {
+  let packaged = root.join("app").join("stop-services.mjs");
+  if packaged.exists() {
+    return packaged;
+  }
+  root.join("desktop").join("scripts").join("stop-services.mjs")
 }
 
 fn resolve_against_exe(raw: &str) -> PathBuf {
@@ -223,8 +243,11 @@ fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
     {
       continue;
     }
-    // Preserve WhatsApp sessions across upgrades
-    if rel_str.starts_with("OpenWA/data/") && rel_str != "OpenWA/data/sessions/.gitkeep" {
+    // Preserve WhatsApp sessions across upgrades (legacy + packaged paths)
+    if (rel_str.starts_with("OpenWA/data/") && rel_str != "OpenWA/data/sessions/.gitkeep")
+      || (rel_str.starts_with("app/openwa/data/")
+        && rel_str != "app/openwa/data/sessions/.gitkeep")
+    {
       let existing = dest.join(&rel);
       if existing.exists() {
         continue;
@@ -259,7 +282,9 @@ Critical school data (must keep):
   data\\.jwt-secret   local login signing key (keep with the DB)
 
 App files (reinstallable):
-  backend\\  frontend\\  OpenWA\\  desktop\\  runtime\\  resources\\
+  app\\          compiled backend / frontend / WhatsApp builds
+  runtime\\      portable Node
+  resources\\    installer payload
 
 Uninstall keeps the data\\ folder so records are not deleted.
 ";
@@ -269,7 +294,7 @@ Uninstall keeps the data\\ folder so records are not deleted.
 fn ensure_install_folders(dir: &Path) -> Result<(), String> {
   std::fs::create_dir_all(dir.join("data").join("uploads")).map_err(|e| e.to_string())?;
   std::fs::create_dir_all(dir.join("data").join("logs")).map_err(|e| e.to_string())?;
-  std::fs::create_dir_all(dir.join("OpenWA").join("data").join("sessions"))
+  std::fs::create_dir_all(dir.join("app").join("openwa").join("data").join("sessions"))
     .map_err(|e| e.to_string())?;
   write_backup_guide(dir);
   Ok(())
@@ -302,10 +327,7 @@ fn ensure_bundled_runtime() -> Result<(), String> {
     }
   }
 
-  let app_marker = dir
-    .join("desktop")
-    .join("scripts")
-    .join("launch-services.mjs");
+  let app_marker = dir.join("app").join("launch-services.mjs");
   let need_app = !app_marker.exists() || sha_changed(&manifest, &installed, "appSha256");
   if let Some(ref zip) = app_zip {
     if need_app {
@@ -482,7 +504,7 @@ fn kill_child_tree(child: &mut Child) {
 }
 
 fn stop_via_script(root: &Path) {
-  let script = root.join("desktop").join("scripts").join("stop-services.mjs");
+  let script = stop_script(root);
   if !script.exists() {
     return;
   }
@@ -533,7 +555,7 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
   stop_via_script(&repo_root());
 
   let root = repo_root();
-  let script = root.join("desktop").join("scripts").join("launch-services.mjs");
+  let script = launch_script(&root);
   if !script.exists() {
     return Err(format!(
       "School app files not found.\n\nLooked for: {}\n\nIf this is a fresh install, wait for first-run unpack or reinstall.\nDev builds: set appRoot in schoolsms.config.json next to the .exe.",

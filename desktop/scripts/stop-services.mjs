@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Stops desktop-managed backend/frontend processes.
- * Always frees ports 5000 / 3000 so closing the app fully shuts services down.
+ * Always frees ports 5000 / 3000 / 2785 so closing the app fully shuts services down.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
@@ -9,7 +9,20 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(__dirname, "../..");
+
+function resolveInstallRoot() {
+  // Production: <install>/app/stop-services.mjs
+  if (existsSync(join(__dirname, "backend")) && existsSync(join(__dirname, "frontend"))) {
+    return resolve(__dirname, "..");
+  }
+  // Dev: <repo>/desktop/scripts/stop-services.mjs
+  return resolve(__dirname, "../..");
+}
+
+const INSTALL_ROOT = resolveInstallRoot();
+const PACKAGED =
+  existsSync(join(INSTALL_ROOT, "app", "backend")) &&
+  existsSync(join(INSTALL_ROOT, "app", "frontend"));
 
 const BACKEND_PORT = process.env.SCHOOL_SMS_BACKEND_PORT || "5000";
 const FRONTEND_PORT = process.env.SCHOOL_SMS_FRONTEND_PORT || "3000";
@@ -20,7 +33,8 @@ function resolveDataDir() {
   if (fromEnv) {
     return isAbsolute(fromEnv) ? fromEnv : resolve(process.cwd(), fromEnv);
   }
-  return join(REPO_ROOT, "desktop-data");
+  if (PACKAGED) return join(INSTALL_ROOT, "data");
+  return join(INSTALL_ROOT, "desktop-data");
 }
 
 const DATA_DIR = resolveDataDir();

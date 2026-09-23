@@ -1,19 +1,16 @@
 #!/usr/bin/env node
 /**
- * Builds a self-contained Windows install payload for SchoolSMS:
- *   - Portable Node.js runtime zip
- *   - App zip (backend + frontend + OpenWA + desktop scripts)
+ * Builds a self-contained Windows install payload with PRODUCTION BUILDS ONLY.
  *
- * Output (consumed by Tauri bundle.resources):
- *   src-tauri/resources/node-runtime.zip
- *   src-tauri/resources/app-payload.zip
- *   src-tauri/resources/bundle-manifest.json
- *   src-tauri/resources/vc_redist.x64.exe
+ * Layout inside app-payload.zip (extracted next to the .exe):
+ *   app/
+ *     backend/     compiled dist/ + production node_modules + prisma schemas
+ *     frontend/    Next.js standalone server (no source)
+ *     openwa/      dist/ + production node_modules (no TypeScript source)
+ *     launch-services.mjs
+ *     stop-services.mjs
  *
- * After install, the desktop shell extracts these next to the .exe so the
- * target PC does not need Node.js or a manual appRoot path.
- *
- * Never ships .env / local DB / WhatsApp session data.
+ * Does NOT ship: src/, .ts sources, full monorepo, .env, local DBs, sessions.
  */
 import {
   createWriteStream,
@@ -47,65 +44,10 @@ const APP_VERSION = JSON.parse(
   readFileSync(join(DESKTOP_DIR, "package.json"), "utf8")
 ).version;
 
+const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+
 function log(msg) {
   console.log(`[prepare-bundle] ${msg}`);
-}
-
-/** Paths that must never enter the school installer. */
-function shouldSkip(rel) {
-  const n = rel.replace(/\\/g, "/");
-  const lower = n.toLowerCase();
-  const base = n.split("/").pop() || n;
-
-  // Secrets — never ship build-machine credentials
-  if (base === ".env" || base.startsWith(".env.")) return true;
-  if (base === "credentials.json" || base === "service-account.json") return true;
-
-  // User / runtime data — must stay only on the install PC
-  if (
-    n === "OpenWA/data" ||
-    n.startsWith("OpenWA/data/") ||
-    n.includes("/OpenWA/data/")
-  ) {
-    return true;
-  }
-  if (
-    n === "desktop-data" ||
-    n.startsWith("desktop-data/") ||
-    n.includes("/desktop-data/")
-  ) {
-    return true;
-  }
-  if (
-    lower.endsWith(".db") ||
-    lower.endsWith(".db-journal") ||
-    lower.endsWith(".db-wal") ||
-    lower.endsWith(".db-shm")
-  ) {
-    return true;
-  }
-
-  // VCS / build caches / logs
-  if (n === ".git" || n.startsWith(".git/") || n.includes("/.git/")) return true;
-  if (n.includes("/src-tauri/target/") || n.startsWith("src-tauri/target/")) {
-    return true;
-  }
-  if (n.includes("/.next/cache/") || n.includes("node_modules/.cache/")) {
-    return true;
-  }
-  if (
-    n === ".bundle-stage" ||
-    n.startsWith(".bundle-stage/") ||
-    n.includes("/.bundle-stage/")
-  ) {
-    return true;
-  }
-  if (lower.endsWith(".log") || base === "npm-debug.log") return true;
-  if (base === ".DS_Store" || base === "Thumbs.db") return true;
-  if (n.includes("/coverage/") || n.includes("/.nyc_output/")) return true;
-  if (n.includes("/.turbo/")) return true;
-
-  return false;
 }
 
 function ensureEmptyDir(dir) {
@@ -113,16 +55,18 @@ function ensureEmptyDir(dir) {
   mkdirSync(dir, { recursive: true });
 }
 
-function copyFiltered(src, dest, relBase = "") {
+function copyFiltered(src, dest, shouldSkip) {
   mkdirSync(dest, { recursive: true });
   for (const name of readdirSync(src)) {
     const from = join(src, name);
-    const rel = relBase ? `${relBase}/${name}` : name;
-    if (shouldSkip(rel)) continue;
+    const rel = name;
+    if (shouldSkip?.(rel, from)) continue;
     const st = statSync(from);
     const to = join(dest, name);
     if (st.isDirectory()) {
-      copyFiltered(from, to, rel);
+      copyFiltered(from, to, (childRel, childFrom) =>
+        shouldSkip?.(`${rel}/${childRel}`, childFrom)
+      );
     } else {
       mkdirSync(dirname(to), { recursive: true });
       cpSync(from, to);
@@ -152,7 +96,6 @@ function run(cmd, args, opts = {}) {
 
 function zipFolderWindows(folder, zipPath) {
   if (existsSync(zipPath)) rmSync(zipPath, { force: true });
-  // tar.exe (Windows 10+) handles large node_modules better than Compress-Archive
   const tar = spawnSync(
     "tar",
     ["-a", "-c", "-f", zipPath, "-C", folder, "."],
@@ -192,19 +135,34 @@ function sha256File(path) {
 
 function requireBuiltArtifacts() {
   const checks = [
-    join(REPO_ROOT, "frontend", ".next"),
+    join(REPO_ROOT, "backend", "dist", "index.js"),
+    join(REPO_ROOT, "frontend", ".next", "standalone"),
     join(REPO_ROOT, "OpenWA", "dist", "main.js"),
-    join(REPO_ROOT, "backend", "node_modules"),
-    join(REPO_ROOT, "frontend", "node_modules"),
-    join(REPO_ROOT, "OpenWA", "node_modules"),
   ];
   for (const p of checks) {
     if (!existsSync(p)) {
       throw new Error(
-        `Missing build artifact: ${p}\nRun build.bat (or prepare frontend/OpenWA/backend) before prepare-bundle.`
+        `Missing production build: ${p}\n` +
+          `Run build.bat (backend build + frontend standalone + OpenWA build) first.`
       );
     }
   }
+}
+
+function findStandaloneRoot() {
+  const base = join(REPO_ROOT, "frontend", ".next", "standalone");
+  if (existsSync(join(base, "server.js"))) return base;
+  // Monorepo-style nest: standalone/frontend/server.js
+  const nested = join(base, "frontend");
+  if (existsSync(join(nested, "server.js"))) return nested;
+  // Walk one level for server.js
+  for (const name of readdirSync(base)) {
+    const cand = join(base, name);
+    if (existsSync(join(cand, "server.js"))) return cand;
+  }
+  throw new Error(
+    `Next standalone server.js not found under ${base}. Ensure next.config has output: "standalone".`
+  );
 }
 
 async function prepareNodeRuntime() {
@@ -227,7 +185,6 @@ async function prepareNodeRuntime() {
       `Expand-Archive -Path "${cachedZip}" -DestinationPath "${nodeStage}" -Force`,
     ]);
   } else {
-    // Cross-build on Linux/macOS CI helpers: unzip Windows portable Node zip
     run("unzip", ["-q", "-o", cachedZip, "-d", nodeStage]);
   }
 
@@ -238,7 +195,6 @@ async function prepareNodeRuntime() {
 
   const runtimeOut = join(STAGE_DIR, "runtime-flat");
   ensureEmptyDir(runtimeOut);
-  // Flatten so extract target is exe_dir/runtime/node.exe
   copyFiltered(extracted, runtimeOut);
 
   const outZip = join(RESOURCES_DIR, "node-runtime.zip");
@@ -247,45 +203,133 @@ async function prepareNodeRuntime() {
   return outZip;
 }
 
-function prepareAppPayload() {
-  const appStage = join(STAGE_DIR, "app");
-  ensureEmptyDir(appStage);
+function installProdDeps(cwd, extraPkgs = []) {
+  const hasLock = existsSync(join(cwd, "package-lock.json"));
+  if (hasLock) {
+    log(`npm ci --omit=dev in ${cwd}`);
+    run(npmCmd, ["ci", "--omit=dev", "--no-audit", "--no-fund"], { cwd });
+  } else {
+    log(`npm install --omit=dev in ${cwd}`);
+    run(npmCmd, ["install", "--omit=dev", "--no-audit", "--no-fund"], { cwd });
+  }
+  if (extraPkgs.length) {
+    log(`Adding runtime tools: ${extraPkgs.join(", ")}`);
+    run(npmCmd, ["install", ...extraPkgs, "--no-audit", "--no-fund", "--no-save"], {
+      cwd,
+    });
+  }
+}
 
-  log("Staging backend...");
-  copyFiltered(join(REPO_ROOT, "backend"), join(appStage, "backend"));
+function stageBackend(appStage) {
+  const dest = join(appStage, "backend");
+  ensureEmptyDir(dest);
+  const src = join(REPO_ROOT, "backend");
 
-  log("Staging frontend...");
-  copyFiltered(join(REPO_ROOT, "frontend"), join(appStage, "frontend"));
-
-  log("Staging OpenWA...");
-  copyFiltered(join(REPO_ROOT, "OpenWA"), join(appStage, "OpenWA"));
-  // Ensure empty session dir exists at runtime (not shipped with sessions)
-  mkdirSync(join(appStage, "OpenWA", "data", "sessions"), { recursive: true });
-  writeFileSync(
-    join(appStage, "OpenWA", "data", "sessions", ".gitkeep"),
-    ""
-  );
-
-  log("Staging desktop scripts...");
-  const scriptsDest = join(appStage, "desktop", "scripts");
-  mkdirSync(scriptsDest, { recursive: true });
-  for (const name of ["launch-services.mjs", "stop-services.mjs"]) {
-    cpSync(join(DESKTOP_DIR, "scripts", name), join(scriptsDest, name));
+  log("Staging backend production build (dist only, no src/)...");
+  cpSync(join(src, "dist"), join(dest, "dist"), { recursive: true });
+  cpSync(join(src, "prisma"), join(dest, "prisma"), { recursive: true });
+  cpSync(join(src, "package.json"), join(dest, "package.json"));
+  if (existsSync(join(src, "package-lock.json"))) {
+    cpSync(join(src, "package-lock.json"), join(dest, "package-lock.json"));
+  }
+  if (existsSync(join(src, "prisma.config.ts"))) {
+    cpSync(join(src, "prisma.config.ts"), join(dest, "prisma.config.ts"));
   }
 
-  // Marker so the shell knows this tree is an installed payload
+  // Production deps + prisma CLI (needed for first-run db push on school PCs)
+  installProdDeps(dest, ["prisma@7.8.0"]);
+  run(npmCmd, ["exec", "--", "prisma", "generate", "--schema=prisma/schema.sqlite.prisma"], {
+    cwd: dest,
+  });
+
+  // Strip junk
+  for (const junk of ["README.md", "src", "tsconfig.json"]) {
+    const p = join(dest, junk);
+    if (existsSync(p)) rmSync(p, { recursive: true, force: true });
+  }
+}
+
+function stageFrontend(appStage) {
+  const dest = join(appStage, "frontend");
+  ensureEmptyDir(dest);
+  const standalone = findStandaloneRoot();
+  const frontendRoot = join(REPO_ROOT, "frontend");
+
+  log(`Staging frontend standalone from ${standalone}...`);
+  cpSync(standalone, dest, { recursive: true });
+
+  // static assets required by Next standalone
+  const staticSrc = join(frontendRoot, ".next", "static");
+  const staticDest = join(dest, ".next", "static");
+  if (existsSync(staticSrc)) {
+    mkdirSync(join(dest, ".next"), { recursive: true });
+    cpSync(staticSrc, staticDest, { recursive: true });
+  }
+
+  const publicSrc = join(frontendRoot, "public");
+  if (existsSync(publicSrc)) {
+    cpSync(publicSrc, join(dest, "public"), { recursive: true });
+  }
+
+  if (!existsSync(join(dest, "server.js"))) {
+    throw new Error("Frontend stage missing server.js after standalone copy");
+  }
+}
+
+function stageOpenWa(appStage) {
+  const dest = join(appStage, "openwa");
+  ensureEmptyDir(dest);
+  const src = join(REPO_ROOT, "OpenWA");
+
+  log("Staging OpenWA production build (dist only, no src/)...");
+  cpSync(join(src, "dist"), join(dest, "dist"), { recursive: true });
+  cpSync(join(src, "package.json"), join(dest, "package.json"));
+  if (existsSync(join(src, "package-lock.json"))) {
+    cpSync(join(src, "package-lock.json"), join(dest, "package-lock.json"));
+  }
+
+  // Keep empty sessions dir marker only
+  mkdirSync(join(dest, "data", "sessions"), { recursive: true });
+  writeFileSync(join(dest, "data", "sessions", ".gitkeep"), "");
+
+  installProdDeps(dest);
+
+  // Remove source / dashboard / tests if npm somehow left them — we never copied them
+  for (const junk of ["src", "dashboard", "test", "docs", ".git"]) {
+    const p = join(dest, junk);
+    if (existsSync(p)) rmSync(p, { recursive: true, force: true });
+  }
+}
+
+function stageLauncherScripts(appStage) {
+  for (const name of ["launch-services.mjs", "stop-services.mjs"]) {
+    cpSync(join(DESKTOP_DIR, "scripts", name), join(appStage, name));
+  }
+}
+
+function prepareAppPayload() {
+  const appStage = join(STAGE_DIR, "payload");
+  ensureEmptyDir(appStage);
+  const appDir = join(appStage, "app");
+  mkdirSync(appDir, { recursive: true });
+
+  stageBackend(appDir);
+  stageFrontend(appDir);
+  stageOpenWa(appDir);
+  stageLauncherScripts(appDir);
+
   writeFileSync(
     join(appStage, ".schoolsms-bundle.json"),
     JSON.stringify(
       {
         version: APP_VERSION,
+        kind: "production-builds-only",
         bundledAt: new Date().toISOString(),
         nodeVersion: NODE_VERSION,
-        repo: "School (SmS)",
         layout: {
+          app: "app/ (backend dist, frontend standalone, openwa dist)",
           data: "data/",
           runtime: "runtime/",
-          backup: "Copy the whole SchoolSMS folder (especially data/).",
         },
       },
       null,
@@ -315,8 +359,8 @@ async function prepareVcRedist() {
 }
 
 async function main() {
-  log(`Preparing SchoolSMS v${APP_VERSION} Windows install payload...`);
-  log(`Portable Node target: ${NODE_VERSION} (match CI / build machine Node major)`);
+  log(`Preparing SchoolSMS v${APP_VERSION} PRODUCTION-ONLY Windows payload...`);
+  log(`Portable Node: ${NODE_VERSION}`);
   requireBuiltArtifacts();
   mkdirSync(RESOURCES_DIR, { recursive: true });
   ensureEmptyDir(STAGE_DIR);
@@ -327,6 +371,7 @@ async function main() {
 
   const manifest = {
     version: APP_VERSION,
+    kind: "production-builds-only",
     nodeVersion: NODE_VERSION,
     nodeRuntimeZip: "node-runtime.zip",
     appPayloadZip: "app-payload.zip",
@@ -337,20 +382,16 @@ async function main() {
     createdAt: new Date().toISOString(),
     installLayout: {
       exe: "school-sms-desktop.exe",
-      config: "schoolsms.config.json",
-      data: "data/  (school.db, uploads, logs — BACKUP THIS)",
-      runtime: "runtime/  (portable Node, auto-unpacked)",
-      app: "backend/, frontend/, OpenWA/, desktop/scripts/",
-      resources: "resources/  (payload zips)",
+      app: "app/backend, app/frontend, app/openwa (builds only — no source)",
+      data: "data/ (school.db, uploads, logs)",
+      runtime: "runtime/node.exe",
     },
   };
   writeFileSync(
     join(RESOURCES_DIR, "bundle-manifest.json"),
     JSON.stringify(manifest, null, 2)
   );
-  log("Done. Resources ready for Tauri NSIS bundle.");
-  log("Secrets (.env) and local DBs are excluded from the payload.");
-  log("Install PC will not need a system Node.js install.");
+  log("Done. Installer will ship compiled builds under app/, not the Git source tree.");
 }
 
 main().catch((err) => {
