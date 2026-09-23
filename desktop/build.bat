@@ -42,7 +42,7 @@ if errorlevel 1 (
 )
 
 for /f "tokens=1 delims=v" %%V in ('node -v') do set "NODE_VER=%%V"
-echo [info] Build Node: %NODE_VER%  ^(bundle ships 22.14.0 — use Node 22 for OpenWA^)
+echo [info] Build Node: %NODE_VER%  ^(bundle ships 22.19.0 — use Node 22.19+ for OpenWA^)
 
 echo [1/9] desktop npm install...
 call npm install
@@ -72,7 +72,7 @@ call node .\scripts\copy-splash.mjs
 if errorlevel 1 exit /b 1
 
 echo [7/9] prepare production-only bundle ^(app\ builds, no source^)...
-set SCHOOL_SMS_BUNDLE_NODE=22.14.0
+set SCHOOL_SMS_BUNDLE_NODE=22.19.0
 call node .\scripts\prepare-bundle.mjs
 if errorlevel 1 exit /b 1
 

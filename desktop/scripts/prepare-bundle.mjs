@@ -36,7 +36,7 @@ const REPO_ROOT = resolve(DESKTOP_DIR, "..");
 const RESOURCES_DIR = join(DESKTOP_DIR, "src-tauri", "resources");
 const STAGE_DIR = join(DESKTOP_DIR, ".bundle-stage");
 
-const NODE_VERSION = process.env.SCHOOL_SMS_BUNDLE_NODE || "22.14.0";
+const NODE_VERSION = process.env.SCHOOL_SMS_BUNDLE_NODE || "22.19.0";
 const NODE_ZIP_NAME = `node-v${NODE_VERSION}-win-x64.zip`;
 const NODE_URL = `https://nodejs.org/dist/v${NODE_VERSION}/${NODE_ZIP_NAME}`;
 
@@ -203,20 +203,37 @@ async function prepareNodeRuntime() {
   return outZip;
 }
 
-function installProdDeps(cwd, extraPkgs = []) {
+function installProdDeps(cwd, extraPkgs = [], opts = {}) {
+  const ignoreScripts = opts.ignoreScripts === true;
+  const scriptArgs = ignoreScripts ? ["--ignore-scripts"] : [];
   const hasLock = existsSync(join(cwd, "package-lock.json"));
   if (hasLock) {
-    log(`npm ci --omit=dev in ${cwd}`);
-    run(npmCmd, ["ci", "--omit=dev", "--no-audit", "--no-fund"], { cwd });
+    log(`npm ci --omit=dev${ignoreScripts ? " --ignore-scripts" : ""} in ${cwd}`);
+    run(npmCmd, ["ci", "--omit=dev", "--no-audit", "--no-fund", ...scriptArgs], {
+      cwd,
+    });
   } else {
-    log(`npm install --omit=dev in ${cwd}`);
-    run(npmCmd, ["install", "--omit=dev", "--no-audit", "--no-fund"], { cwd });
+    log(`npm install --omit=dev${ignoreScripts ? " --ignore-scripts" : ""} in ${cwd}`);
+    run(
+      npmCmd,
+      ["install", "--omit=dev", "--no-audit", "--no-fund", ...scriptArgs],
+      { cwd }
+    );
   }
   if (extraPkgs.length) {
     log(`Adding runtime tools: ${extraPkgs.join(", ")}`);
-    run(npmCmd, ["install", ...extraPkgs, "--no-audit", "--no-fund", "--no-save"], {
-      cwd,
-    });
+    run(
+      npmCmd,
+      [
+        "install",
+        ...extraPkgs,
+        "--no-audit",
+        "--no-fund",
+        "--no-save",
+        ...scriptArgs,
+      ],
+      { cwd }
+    );
   }
 }
 
@@ -242,7 +259,18 @@ function stageBackend(appStage) {
     cwd: dest,
   });
 
-  // Strip junk
+  // Prisma outputs to src/generated; compiled dist imports ../generated from dist/*
+  const genSrc = join(dest, "src", "generated");
+  const genDist = join(dest, "dist", "generated");
+  if (existsSync(genSrc)) {
+    mkdirSync(dirname(genDist), { recursive: true });
+    cpSync(genSrc, genDist, { recursive: true });
+    log("Copied Prisma client → dist/generated/");
+  } else {
+    throw new Error("Prisma generate did not create src/generated — backend stage incomplete");
+  }
+
+  // Strip source / junk (keep dist + prisma + node_modules only)
   for (const junk of ["README.md", "src", "tsconfig.json"]) {
     const p = join(dest, junk);
     if (existsSync(p)) rmSync(p, { recursive: true, force: true });
@@ -288,13 +316,18 @@ function stageOpenWa(appStage) {
     cpSync(join(src, "package-lock.json"), join(dest, "package-lock.json"));
   }
 
+  // postinstall needs scripts/*.js (patches whatsapp-web.js). No dashboard → skip dashboard:ci.
+  if (existsSync(join(src, "scripts"))) {
+    cpSync(join(src, "scripts"), join(dest, "scripts"), { recursive: true });
+  }
+
   // Keep empty sessions dir marker only
   mkdirSync(join(dest, "data", "sessions"), { recursive: true });
   writeFileSync(join(dest, "data", "sessions", ".gitkeep"), "");
 
   installProdDeps(dest);
 
-  // Remove source / dashboard / tests if npm somehow left them — we never copied them
+  // Remove source / dashboard / tests — keep scripts (runtime patches already applied)
   for (const junk of ["src", "dashboard", "test", "docs", ".git"]) {
     const p = join(dest, junk);
     if (existsSync(p)) rmSync(p, { recursive: true, force: true });

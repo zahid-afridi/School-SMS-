@@ -36,8 +36,8 @@ permissions:
   contents: write
 
 env:
-  # Must match OpenWA engines (>=22.13) and portable runtime in prepare-bundle.mjs
-  SCHOOL_SMS_BUNDLE_NODE: "22.14.0"
+  # Must match OpenWA engines / undici (>=22.19) and portable runtime in prepare-bundle.mjs
+  SCHOOL_SMS_BUNDLE_NODE: "22.19.0"
 
 jobs:
   build-windows:
@@ -71,8 +71,8 @@ jobs:
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          # Match SCHOOL_SMS_BUNDLE_NODE / OpenWA engines so better-sqlite3 ABI matches runtime.
-          node-version: "22.14.0"
+          # Match SCHOOL_SMS_BUNDLE_NODE (undici/OpenWA need >=22.19)
+          node-version: "22.19.0"
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json

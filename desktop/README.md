@@ -88,4 +88,4 @@ npm run desktop:tauri:dev    # Tauri window + repo source
 - Product name **SchoolSMS** (no spaces) for safe SQLite paths
 - Upgrades re-unpack `app/` when the payload hash changes; **`data/` is never overwritten**
 - Uninstall keeps `data/`
-- Build machine / CI should use **Node 22.14.0** (matches portable runtime + OpenWA)
+- Build machine / CI should use **Node 22.19.0** (matches portable runtime + OpenWA)
