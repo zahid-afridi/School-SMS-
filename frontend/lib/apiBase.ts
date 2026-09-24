@@ -25,7 +25,8 @@ export function getUploadBaseUrl(): string {
       hostname === "localhost" ||
       hostname === "127.0.0.1" ||
       hostname.endsWith(".localhost") ||
-      hostname.includes("tauri");
+      hostname.includes("tauri") ||
+      hostname.includes("electron");
     if (localHost) {
       return `http://127.0.0.1:${BACKEND_PORT}`;
     }

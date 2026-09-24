@@ -1,13 +1,12 @@
-# Build a self-contained Windows SchoolSMS installer (NSIS).
-# Includes portable Node + production app/ payload — target PCs do not need Node.js.
+# SchoolSMS — Windows Electron installer (NSIS)
+# Self-contained: portable Node + production app/ payload (school PCs need no Node.js).
 #
 # Triggers:
-#   1) Tag push  → builds + creates/updates a GitHub Release with the .exe
-#        git tag v1.1.0 && git push origin v1.1.0
-#   2) Manual    → builds + uploads artifact; optionally creates a Release
-#        Actions → "Desktop Windows Installer" → Run workflow
+#   1) Tag push  → build + GitHub Release with the .exe
+#        git tag v1.1.1 && git push origin v1.1.1
+#   2) Manual    → Actions → "SchoolSMS Electron Windows" → Run workflow
 
-name: Desktop Windows Installer
+name: SchoolSMS Electron Windows
 
 on:
   workflow_dispatch:
@@ -17,7 +16,7 @@ on:
         type: boolean
         default: true
       release_tag:
-        description: "Release tag (e.g. v1.1.0). Required when Create Release is true."
+        description: "Release tag (e.g. v1.1.1). Required when Create Release is true."
         type: string
         default: "v1.1.1"
       prerelease:
@@ -29,7 +28,7 @@ on:
       - "v*"
 
 concurrency:
-  group: desktop-windows-${{ github.ref }}-${{ github.event_name }}
+  group: schoolsms-electron-windows-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
@@ -40,8 +39,8 @@ env:
   SCHOOL_SMS_BUNDLE_NODE: "22.19.0"
 
 jobs:
-  build-windows:
-    name: Build SchoolSMS NSIS installer
+  build-electron-windows:
+    name: Build Electron NSIS installer
     runs-on: windows-latest
     timeout-minutes: 180
 
@@ -63,7 +62,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Setup MSVC dev environment
+      - name: Setup MSVC (native modules)
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
@@ -80,27 +79,16 @@ jobs:
             OpenWA/package-lock.json
             desktop/package-lock.json
 
-      - name: Setup Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: "desktop/src-tauri -> target"
-          shared-key: schoolsms-desktop-windows
-
       - name: Install npm dependencies
         shell: pwsh
         env:
-          # Help node-gyp find the VS toolchain on windows-latest
           npm_config_msvs_version: "2022"
         run: |
           Write-Host "Node $(node -v) / npm $(npm -v)"
           npm ci --prefix backend
           npm ci --prefix frontend
           npm ci --prefix OpenWA
-          # Note: desktop must NOT use an npm lifecycle script named "prepare"
-          # (that auto-runs on ci and broke Prisma before backend scripts were ready).
+          # desktop must NOT use an npm lifecycle script named "prepare"
           npm ci --prefix desktop
 
       - name: Prisma generate
@@ -123,24 +111,22 @@ jobs:
           NEXT_PUBLIC_BACKEND_PORT: "5000"
         run: npm run build
 
-      - name: Copy splash assets
+      - name: Copy Electron splash assets
         working-directory: desktop
         run: npm run prepare:splash
 
-      - name: Prepare production-only bundle (app/ builds)
+      - name: Prepare production bundle (app/ + portable Node)
         working-directory: desktop
         env:
           SCHOOL_SMS_BUNDLE_NODE: ${{ env.SCHOOL_SMS_BUNDLE_NODE }}
         run: npm run prepare:bundle
 
-      - name: Free disk space before Tauri build
+      - name: Free disk space before Electron package
         shell: pwsh
         run: |
-          # Staging tree is already zipped into resources/ — drop heavy copies
           if (Test-Path "desktop\.bundle-stage") {
             Remove-Item -Recurse -Force "desktop\.bundle-stage"
           }
-          # Source node_modules are already baked into app-payload.zip
           foreach ($p in @(
             "OpenWA\node_modules",
             "frontend\node_modules",
@@ -154,23 +140,28 @@ jobs:
           }
           Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
 
-      - name: Tauri build (NSIS)
+      - name: Package Electron NSIS installer
         working-directory: desktop
         env:
-          STATIC_VCRUNTIME: "true"
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run build
 
-      - name: Collect installer artifacts
+      - name: Collect Electron installer
         id: collect
         shell: pwsh
         run: |
-          $nsisDir = "desktop\src-tauri\target\release\bundle\nsis"
-          if (!(Test-Path $nsisDir)) {
-            throw "NSIS output folder missing: $nsisDir"
+          $releaseDir = "desktop\release"
+          if (!(Test-Path $releaseDir)) {
+            throw "Electron release folder missing: $releaseDir"
           }
-          $nsis = Get-ChildItem -Path $nsisDir -Filter "*.exe" -ErrorAction Stop
+          $nsis = Get-ChildItem -Path $releaseDir -Filter "SchoolSMS_*_x64-setup.exe" -ErrorAction SilentlyContinue
           if ($nsis.Count -eq 0) {
-            throw "No NSIS .exe found under $nsisDir"
+            $nsis = Get-ChildItem -Path $releaseDir -Filter "*.exe" -ErrorAction Stop |
+              Where-Object { $_.Name -notmatch '(?i)uninstall' -and $_.Name -notmatch '\.blockmap$' }
+          }
+          if ($nsis.Count -eq 0) {
+            Get-ChildItem $releaseDir -Recurse | Format-Table FullName, Length
+            throw "No SchoolSMS NSIS .exe found under $releaseDir"
           }
           $out = "dist-installer"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
@@ -184,10 +175,10 @@ jobs:
           Get-ChildItem $out | Format-Table Name, Length
           "installer_name=$($names[0])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Upload installer artifact
+      - name: Upload Electron installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SchoolSMS-Windows-x64
+          name: SchoolSMS-Electron-Windows-x64
           path: dist-installer/*.exe
           if-no-files-found: error
           retention-days: 30
@@ -203,13 +194,14 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
-            ## SchoolSMS Windows installer
+            ## SchoolSMS Windows installer (Electron)
 
             Download **`${{ steps.collect.outputs.installer_name }}`**, run it on Windows 10+, then open **SchoolSMS**.
 
-            - Node.js is bundled (no separate Node install)
-            - School data lives in the install folder `data\` — backup = copy the whole SchoolSMS folder
-            - First launch unpacks the app runtime once (or again after an upgrade)
+            - Electron desktop shell + bundled Node (no separate Node install)
+            - School database: install folder `data\school.db` (created on first launch)
+            - Backup = copy the whole SchoolSMS folder (especially `data\`)
+            - First launch unpacks `app\` + `runtime\` once (or again after an upgrade)
 
             See `BACKUP.txt` inside the install folder.
         env:
@@ -228,13 +220,14 @@ jobs:
           fail_on_unmatched_files: true
           files: dist-installer/*.exe
           body: |
-            ## SchoolSMS Windows installer
+            ## SchoolSMS Windows installer (Electron)
 
             Download **`${{ steps.collect.outputs.installer_name }}`**, run it on Windows 10+, then open **SchoolSMS**.
 
-            - Node.js is bundled (no separate Node install)
-            - School data lives in the install folder `data\` — backup = copy the whole SchoolSMS folder
-            - First launch unpacks the app runtime once (or again after an upgrade)
+            - Electron desktop shell + bundled Node (no separate Node install)
+            - School database: install folder `data\school.db` (created on first launch)
+            - Backup = copy the whole SchoolSMS folder (especially `data\`)
+            - First launch unpacks `app\` + `runtime\` once (or again after an upgrade)
 
             Built from commit `${{ github.sha }}` via workflow_dispatch.
         env:

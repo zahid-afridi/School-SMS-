@@ -53,5 +53,5 @@ OPENWA_API_KEY=owa_k1_...
 ### Windows note
 `OpenWA/.env` uses `DATABASE_SYNCHRONIZE=true` so SQLite tables create correctly (TypeORM migration globs break on Windows).
 
-## Electron (future)
-Prefer the Tauri desktop shell in [`docs/DESKTOP.md`](DESKTOP.md). OpenWA can be added later as an optional sidecar when internet is available.
+## Desktop shell
+Prefer the Electron desktop shell in [`docs/DESKTOP.md`](DESKTOP.md). OpenWA runs as a local sidecar after the school UI is ready.

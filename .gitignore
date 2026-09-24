@@ -15,9 +15,13 @@ frontend/.next/
 *.log
 .DS_Store
 
-# Desktop / Tauri
+# Desktop / Electron
 desktop/node_modules/
 desktop/dist/
-desktop/src-tauri/target/
-desktop/src-tauri/gen/
+desktop/release/
 desktop-data/
+desktop/resources/app-payload.zip
+desktop/resources/node-runtime.zip
+desktop/resources/vc_redist.x64.exe
+desktop/resources/bundle-manifest.json
+desktop/.bundle-stage/

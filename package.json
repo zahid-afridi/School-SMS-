@@ -7,8 +7,9 @@
     "desktop": "node ./desktop/scripts/run-desktop.mjs",
     "desktop:prod": "node ./desktop/scripts/run-desktop.mjs --mode=prod",
     "desktop:stop": "node ./desktop/scripts/stop-services.mjs",
-    "desktop:tauri:dev": "npm --prefix ./desktop run dev",
-    "desktop:tauri:build": "npm --prefix ./desktop run build",
+    "desktop:dev": "npm --prefix ./desktop run dev",
+    "desktop:electron:dev": "npm --prefix ./desktop run dev",
+    "desktop:electron:build": "npm --prefix ./desktop run build",
     "desktop:build": "cmd /c desktop\\build.bat"
   }
 }
