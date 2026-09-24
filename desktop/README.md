@@ -89,3 +89,5 @@ npm run desktop:tauri:dev    # Tauri window + repo source
 - Upgrades re-unpack `app/` when the payload hash changes; **`data/` is never overwritten**
 - Uninstall keeps `data/`
 - Build machine / CI should use **Node 22.19.0** (matches portable runtime + OpenWA)
+- Startup order: **database → backend → frontend → open app**, then WhatsApp (OpenWA) in the background. Missing Chrome/Edge must not block the school UI.
+- If splash fails: open `data\logs\` (`launcher.log`, `backend.log`, `prisma.log`, `startup-status.json`)

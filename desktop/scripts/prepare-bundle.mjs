@@ -425,9 +425,21 @@ async function main() {
   const appZip = prepareAppPayload();
   const vcRedist = await prepareVcRedist();
 
+  // Refuse to ship incomplete installers (empty/placeholder resources break school PCs).
+  for (const [label, path] of [
+    ["node-runtime.zip", nodeZip],
+    ["app-payload.zip", appZip],
+    ["vc_redist.x64.exe", vcRedist],
+  ]) {
+    if (!existsSync(path) || statSync(path).size < 100_000) {
+      throw new Error(`Bundle resource too small or missing: ${label} (${path})`);
+    }
+  }
+
   const manifest = {
     version: APP_VERSION,
     kind: "production-builds-only",
+    placeholder: false,
     nodeVersion: NODE_VERSION,
     nodeRuntimeZip: "node-runtime.zip",
     appPayloadZip: "app-payload.zip",

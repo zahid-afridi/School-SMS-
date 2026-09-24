@@ -9,6 +9,7 @@
     "core:webview:allow-set-webview-focus",
     "allow-start-services",
     "allow-open-app",
-    "allow-get-data-dir"
+    "allow-get-data-dir",
+    "allow-get-startup-status"
   ]
 }

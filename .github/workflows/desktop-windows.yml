@@ -19,7 +19,7 @@ on:
       release_tag:
         description: "Release tag (e.g. v1.1.0). Required when Create Release is true."
         type: string
-        default: "v1.1.0"
+        default: "v1.1.1"
       prerelease:
         description: "Mark the Release as pre-release"
         type: boolean

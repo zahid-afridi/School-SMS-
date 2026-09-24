@@ -12,3 +12,8 @@ commands.allow = ["open_app"]
 identifier = "allow-get-data-dir"
 description = "Read the local data directory path"
 commands.allow = ["get_data_dir"]
+
+[[permission]]
+identifier = "allow-get-startup-status"
+description = "Read local service startup progress for the splash screen"
+commands.allow = ["get_startup_status"]

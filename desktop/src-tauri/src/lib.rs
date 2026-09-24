@@ -3,7 +3,7 @@ use std::io;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -15,7 +15,7 @@ const FRONTEND_URL: &str = "http://127.0.0.1:3000";
 const BACKEND_HEALTH: &str = "http://127.0.0.1:5000/health";
 
 struct ServiceState {
-  launcher: Mutex<Option<Child>>,
+  launcher: Arc<Mutex<Option<Child>>>,
 }
 
 fn exe_dir() -> Option<PathBuf> {
@@ -300,6 +300,20 @@ fn ensure_install_folders(dir: &Path) -> Result<(), String> {
   Ok(())
 }
 
+fn write_startup_status(step: &str, message: &str) {
+  let dir = data_dir().join("logs");
+  let _ = std::fs::create_dir_all(&dir);
+  let payload = serde_json::json!({
+    "step": step,
+    "message": message,
+    "at": chrono_like_now(),
+  });
+  let _ = std::fs::write(
+    dir.join("startup-status.json"),
+    serde_json::to_string_pretty(&payload).unwrap_or_else(|_| "{}".into()),
+  );
+}
+
 /// Unpack bundled Node + app next to the .exe when present (installed builds).
 /// Re-extracts when installer payload hash changes (smooth upgrades) without touching data/.
 fn ensure_bundled_runtime() -> Result<(), String> {
@@ -316,12 +330,19 @@ fn ensure_bundled_runtime() -> Result<(), String> {
   ensure_install_folders(&dir)?;
 
   let manifest = bundle_manifest().unwrap_or_else(|| serde_json::json!({}));
+  if manifest.get("placeholder").and_then(|v| v.as_bool()) == Some(true) {
+    return Err(
+      "Installer is incomplete (placeholder bundle manifest).\nRebuild with build.bat / CI so app-payload.zip is included."
+        .into(),
+    );
+  }
   let installed = read_installed_marker(&dir);
 
   let runtime_marker = dir.join("runtime").join("node.exe");
   let need_node = !runtime_marker.exists() || sha_changed(&manifest, &installed, "nodeSha256");
   if let Some(ref zip) = node_zip {
     if need_node {
+      write_startup_status("unpack", "Installing portable Node runtime…");
       let _ = std::fs::remove_dir_all(dir.join("runtime"));
       extract_zip(zip, &dir.join("runtime"))?;
     }
@@ -331,6 +352,7 @@ fn ensure_bundled_runtime() -> Result<(), String> {
   let need_app = !app_marker.exists() || sha_changed(&manifest, &installed, "appSha256");
   if let Some(ref zip) = app_zip {
     if need_app {
+      write_startup_status("unpack", "Unpacking local app (first launch)…");
       extract_zip(zip, &dir)?;
     }
   }
@@ -436,53 +458,111 @@ fn ensure_data_layout() -> Result<PathBuf, String> {
   Ok(data)
 }
 
-fn wait_http_ok(url: &str, attempts: u32) -> Result<(), String> {
+fn read_log_tail(path: &Path, max_chars: usize) -> String {
+  let Ok(text) = std::fs::read_to_string(path) else {
+    return String::new();
+  };
+  let trimmed = text.trim();
+  if trimmed.is_empty() {
+    return String::new();
+  }
+  if trimmed.len() <= max_chars {
+    return trimmed.to_string();
+  }
+  trimmed[trimmed.len().saturating_sub(max_chars)..].to_string()
+}
+
+fn startup_status_path() -> PathBuf {
+  data_dir().join("logs").join("startup-status.json")
+}
+
+fn read_startup_status_message() -> Option<String> {
+  let path = startup_status_path();
+  let val = read_json_file(&path)?;
+  let step = val.get("step").and_then(|v| v.as_str()).unwrap_or("");
+  let message = val.get("message").and_then(|v| v.as_str()).unwrap_or("");
+  if message.is_empty() {
+    return None;
+  }
+  if step.is_empty() {
+    Some(message.to_string())
+  } else {
+    Some(format!("[{step}] {message}"))
+  }
+}
+
+fn launcher_failed_message(log_path: &Path) -> String {
+  let status = read_startup_status_message().unwrap_or_default();
+  let launcher = read_log_tail(log_path, 1200);
+  let backend = read_log_tail(&data_dir().join("logs").join("backend.log"), 800);
+  let prisma = read_log_tail(&data_dir().join("logs").join("prisma.log"), 800);
+
+  let mut parts = vec!["Local services failed to start.".to_string()];
+  if !status.is_empty() {
+    parts.push(status);
+  }
+  if !prisma.is_empty() {
+    parts.push(format!("--- prisma.log ---\n{prisma}"));
+  }
+  if !backend.is_empty() {
+    parts.push(format!("--- backend.log ---\n{backend}"));
+  }
+  if !launcher.is_empty() {
+    parts.push(format!("--- launcher.log ---\n{launcher}"));
+  }
+  parts.push(format!("Full logs: {}", data_dir().join("logs").display()));
+  parts.join("\n\n")
+}
+
+fn child_exited(launcher: &Mutex<Option<Child>>) -> Option<String> {
+  let Ok(mut guard) = launcher.lock() else {
+    return None;
+  };
+  let Some(child) = guard.as_mut() else {
+    return None;
+  };
+  match child.try_wait() {
+    Ok(Some(status)) => Some(format!("exit {status}")),
+    _ => None,
+  }
+}
+
+fn wait_http_ok(
+  url: &str,
+  attempts: u32,
+  launcher: &Mutex<Option<Child>>,
+  log_path: &Path,
+) -> Result<(), String> {
   for i in 0..attempts {
+    if let Some(exit) = child_exited(launcher) {
+      return Err(format!(
+        "Launcher stopped unexpectedly ({exit}).\n\n{}",
+        launcher_failed_message(log_path)
+      ));
+    }
     if http_reachable(url) {
       return Ok(());
     }
     if i + 1 == attempts {
       break;
     }
-    thread::sleep(Duration::from_millis(800));
+    thread::sleep(Duration::from_millis(500));
   }
-  Err(format!("Timed out waiting for {url}"))
+  Err(format!(
+    "Timed out waiting for {url}.\n\n{}",
+    launcher_failed_message(log_path)
+  ))
 }
 
 fn http_reachable(url: &str) -> bool {
-  if let Ok(out) = Command::new("curl")
-    .args([
-      "-s",
-      "-o",
-      "NUL",
-      "-w",
-      "%{http_code}",
-      "--max-time",
-      "2",
-      url,
-    ])
-    .stdout(Stdio::piped())
-    .stderr(Stdio::null())
-    .output()
-  {
-    let code = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if code.starts_with('2')
-      || code.starts_with('3')
-      || code == "401"
-      || code == "403"
-      || code == "404"
-    {
-      return true;
-    }
-  }
-
+  // TCP connect is enough — school PCs often lack curl, and port bind means the service is up.
   if let Ok(parsed) = Url::parse(url) {
     let host = parsed.host_str().unwrap_or("127.0.0.1");
     let port = parsed.port_or_known_default().unwrap_or(80);
     let addr = format!("{host}:{port}");
     if let Ok(mut addrs) = addr.to_socket_addrs() {
       if let Some(socket) = addrs.next() {
-        return TcpStream::connect_timeout(&socket, Duration::from_secs(2)).is_ok();
+        return TcpStream::connect_timeout(&socket, Duration::from_millis(800)).is_ok();
       }
     }
   }
@@ -533,9 +613,17 @@ fn cleanup(app: &AppHandle) {
 }
 
 #[tauri::command]
-fn start_services(state: State<ServiceState>) -> Result<(), String> {
+async fn start_services(state: State<'_, ServiceState>) -> Result<(), String> {
+  // Run on a worker thread so splash can keep polling get_startup_status.
+  const launcher = Arc::clone(&state.launcher);
+  tauri::async_runtime::spawn_blocking(move || start_services_inner(&launcher))
+    .await
+    .map_err(|e| format!("Startup task failed: {e}"))?
+}
+
+fn start_services_inner(launcher: &Mutex<Option<Child>>) -> Result<(), String> {
   {
-    let mut guard = state.launcher.lock().map_err(|e| e.to_string())?;
+    let mut guard = launcher.lock().map_err(|e| e.to_string())?;
     if let Some(child) = guard.as_mut() {
       if child.try_wait().ok().flatten().is_some() {
         *guard = None;
@@ -543,11 +631,12 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
     }
   }
 
+  write_startup_status("prepare", "Preparing local data…");
   let data = ensure_data_layout()?;
   ensure_bundled_runtime()?;
 
   {
-    let mut guard = state.launcher.lock().map_err(|e| e.to_string())?;
+    let mut guard = launcher.lock().map_err(|e| e.to_string())?;
     if let Some(mut child) = guard.take() {
       kill_child_tree(&mut child);
     }
@@ -578,6 +667,8 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
     "prod"
   };
 
+  write_startup_status("launch", "Starting local backend & frontend…");
+
   let node = node_bin();
   let mut cmd = Command::new(&node);
   cmd
@@ -602,15 +693,15 @@ fn start_services(state: State<ServiceState>) -> Result<(), String> {
   })?;
 
   {
-    let mut guard = state.launcher.lock().map_err(|e| e.to_string())?;
+    let mut guard = launcher.lock().map_err(|e| e.to_string())?;
     *guard = Some(child);
   }
 
-  wait_http_ok(BACKEND_HEALTH, 180)
-    .map_err(|e| format!("{e}. See log: {}", log_path.display()))?;
-  wait_http_ok(FRONTEND_URL, 240)
-    .map_err(|e| format!("{e}. See log: {}", log_path.display()))?;
+  // Core local app only — OpenWA is optional and must not block the UI.
+  wait_http_ok(BACKEND_HEALTH, 180, launcher, &log_path)?;
+  wait_http_ok(FRONTEND_URL, 180, launcher, &log_path)?;
 
+  write_startup_status("ready", "Opening SchoolSMS…");
   Ok(())
 }
 
@@ -640,16 +731,22 @@ fn get_data_dir() -> String {
   data_dir().to_string_lossy().to_string()
 }
 
+#[tauri::command]
+fn get_startup_status() -> String {
+  read_startup_status_message().unwrap_or_else(|| "Starting local services…".into())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .manage(ServiceState {
-      launcher: Mutex::new(None),
+      launcher: Arc::new(Mutex::new(None)),
     })
     .invoke_handler(tauri::generate_handler![
       start_services,
       open_app,
-      get_data_dir
+      get_data_dir,
+      get_startup_status
     ])
     .on_window_event(|window, event| {
       if let WindowEvent::CloseRequested { .. } = event {

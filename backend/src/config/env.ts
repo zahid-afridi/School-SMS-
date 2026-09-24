@@ -51,36 +51,47 @@ function offlinePublicUploadBaseUrl(): string {
 }
 
 // Absolute path to OpenWA's api-key file — resolved once at module load.
-// OpenWA writes this file in its own data/ folder regardless of where it is started from.
+// Packaged desktop layout uses app/openwa/; dev repo uses OpenWA/.
 const OPENWA_KEY_FILE_PATH = ((): string => {
   const cwd = process.cwd(); // = backend/
   const candidates = [
+    resolve(cwd, "../openwa/data/.api-key"),
     resolve(cwd, "../OpenWA/data/.api-key"),
     resolve(cwd, "../Whatsapp/OpenWA/data/.api-key"),
     resolve(cwd, "../../OpenWA/data/.api-key"),
     resolve(cwd, "../../Whatsapp/OpenWA/data/.api-key"),
   ];
-  return candidates.find((p) => existsSync(p)) ?? "";
+  return candidates.find((p) => existsSync(p)) ?? candidates[0];
 })();
 
 /**
  * Read the OpenWA API key fresh on every call.
  *
  * Priority:
- *   1. OPENWA_API_KEY in .env  (explicit pin — remove this line to go fully auto)
- *   2. The live key file at OpenWA/data/.api-key  (auto-sync, survives restarts)
- *
- * Reading from the file on every request means the backend NEVER needs restarting
- * after OpenWA regenerates its key — the next request will pick it up automatically.
+ *   1. OPENWA_API_KEY in env  (desktop launcher may inject)
+ *   2. The live key file under openwa/OpenWA data/.api-key
  */
 export function getOpenWaApiKey(): string {
   // Env var always wins when set
   const envKey = process.env.OPENWA_API_KEY?.trim();
   if (envKey) return envKey;
 
-  // Live file read — fresh every call, so a key rotation is invisible
-  if (OPENWA_KEY_FILE_PATH && existsSync(OPENWA_KEY_FILE_PATH)) {
-    return readFileSync(OPENWA_KEY_FILE_PATH, "utf8").trim();
+  // Live file read — try known paths each time (key may appear after OpenWA boots)
+  const paths = [
+    OPENWA_KEY_FILE_PATH,
+    resolve(process.cwd(), "../openwa/data/.api-key"),
+    resolve(process.cwd(), "../OpenWA/data/.api-key"),
+  ].filter(Boolean);
+
+  for (const p of paths) {
+    if (p && existsSync(p)) {
+      try {
+        const key = readFileSync(p, "utf8").trim();
+        if (key) return key;
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   return "";
