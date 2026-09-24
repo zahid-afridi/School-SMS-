@@ -615,7 +615,7 @@ fn cleanup(app: &AppHandle) {
 #[tauri::command]
 async fn start_services(state: State<'_, ServiceState>) -> Result<(), String> {
   // Run on a worker thread so splash can keep polling get_startup_status.
-  const launcher = Arc::clone(&state.launcher);
+  let launcher = Arc::clone(&state.launcher);
   tauri::async_runtime::spawn_blocking(move || start_services_inner(&launcher))
     .await
     .map_err(|e| format!("Startup task failed: {e}"))?
