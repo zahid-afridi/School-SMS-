@@ -1,6 +1,6 @@
 /**
  * SchoolSMS Electron main process.
- * Ports the former Tauri/Rust shell: unpack bundles, start local services, open UI.
+ * Desktop shell: unpack bundles, start local services, open the school UI.
  */
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import {

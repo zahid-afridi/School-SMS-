@@ -34,6 +34,7 @@
   "build": {
     "appId": "com.schoolsms.desktop",
     "productName": "SchoolSMS",
+    "executableName": "SchoolSMS",
     "copyright": "Copyright © School SmS",
     "directories": {
       "output": "release",

@@ -70,7 +70,7 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
-Or: Actions → **Desktop Windows Installer** → Run workflow (Create Release = on).
+Or: Actions → **SchoolSMS Electron Windows** → Run workflow (Create Release = on).
 
 ---
 

@@ -1,6 +1,6 @@
 ; SchoolSMS — electron-builder NSIS hooks
 ; Creates a backup-friendly folder layout, writes config once,
-; and installs VC++ runtime so api-ms-win-crt-*.dll errors are avoided.
+; installs VC++ runtime, and keeps data\ on uninstall.
 
 !macro customInstall
   CreateDirectory "$INSTDIR\data"
@@ -45,18 +45,49 @@
   FileWrite $0 "  data\.jwt-secret$\r$\n"
   FileWrite $0 "$\r$\n"
   FileWrite $0 "After install: open SchoolSMS — first launch unpacks app builds + Node,$\r$\n"
-  FileWrite $0 "then starts local services (backend :5000, frontend :3000).$\r$\n"
+  FileWrite $0 "creates data\school.db, then starts local services (backend :5000, frontend :3000).$\r$\n"
   FileWrite $0 "Installed app code lives in app\ (compiled builds — not your Git source).$\r$\n"
   FileWrite $0 "Node.js is bundled — you do not need to install Node separately.$\r$\n"
   FileWrite $0 "Requires Windows 10+. Chrome or Edge needed for WhatsApp features.$\r$\n"
   FileClose $0
 
   FileOpen $0 "$INSTDIR\data\README-BACKUP.txt" w
-  FileWrite $0 "This data folder holds school records.$\r$\n"
+  FileWrite $0 "This data folder holds school records (including school.db).$\r$\n"
   FileWrite $0 "Always include it when copying/backing up SchoolSMS.$\r$\n"
   FileClose $0
 !macroend
 
+; Replace default "delete entire $INSTDIR" so school records survive uninstall.
+!macro customRemoveFiles
+  ; Electron / app runtime
+  RMDir /r "$INSTDIR\resources"
+  RMDir /r "$INSTDIR\locales"
+  RMDir /r "$INSTDIR\app"
+  RMDir /r "$INSTDIR\runtime"
+
+  Delete "$INSTDIR\SchoolSMS.exe"
+  Delete "$INSTDIR\*.dll"
+  Delete "$INSTDIR\*.pak"
+  Delete "$INSTDIR\*.bin"
+  Delete "$INSTDIR\*.dat"
+  Delete "$INSTDIR\*.json"
+  Delete "$INSTDIR\chrome_100_percent.pak"
+  Delete "$INSTDIR\chrome_200_percent.pak"
+  Delete "$INSTDIR\icudtl.dat"
+  Delete "$INSTDIR\snapshot_blob.bin"
+  Delete "$INSTDIR\v8_context_snapshot.bin"
+  Delete "$INSTDIR\vk_swiftshader_icd.json"
+  Delete "$INSTDIR\LICENSE*"
+  Delete "$INSTDIR\LICENSES*"
+  Delete "$INSTDIR\version"
+  Delete "$INSTDIR\BACKUP.txt"
+  Delete "$INSTDIR\schoolsms.config.json"
+  Delete "$INSTDIR\.schoolsms-installed.json"
+
+  ; Keep $INSTDIR\data (school.db, uploads, logs, .jwt-secret)
+  RMDir "$INSTDIR"
+!macroend
+
 !macro customUnInstall
-  ; Keep $INSTDIR\data so school records are not deleted on uninstall.
+  ; data\ is intentionally preserved by customRemoveFiles
 !macroend
