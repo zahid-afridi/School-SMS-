@@ -1,6 +1,6 @@
 # SchoolSMS Desktop
 
-Windows installer that ships **production builds only** (not your Git source tree).
+Windows installer that ships **production builds only** (not your Git source tree). Built with **Electron**.
 
 | OS | Build script | Output |
 |----|--------------|--------|
@@ -22,7 +22,7 @@ Windows installer that ships **production builds only** (not your Git source tre
 
 ```
 SchoolSMS/
-  school-sms-desktop.exe
+  SchoolSMS.exe
   schoolsms.config.json
   BACKUP.txt
 
@@ -40,7 +40,7 @@ SchoolSMS/
     stop-services.mjs
 
   runtime/                      portable Node
-  resources/                    installer payload zips
+  resources/                    installer payload zips + Electron runtime
 ```
 
 **Backup** = copy the whole `SchoolSMS` folder (especially `data/`).  
@@ -61,7 +61,7 @@ This:
 2. Builds **OpenWA** → `dist/`
 3. Builds **frontend** → Next `standalone`
 4. Packs only those builds into `app-payload.zip`
-5. Creates the NSIS installer
+5. Creates the Electron NSIS installer under `desktop/release/`
 
 ### GitHub Release
 
@@ -77,8 +77,8 @@ Or: Actions → **Desktop Windows Installer** → Run workflow (Create Release =
 ## Dev (no installer)
 
 ```bash
-npm run desktop              # services in browser flow
-npm run desktop:tauri:dev    # Tauri window + repo source
+npm run desktop                 # services in browser flow
+npm run desktop:electron:dev    # Electron window + repo source
 ```
 
 ---

@@ -33,7 +33,7 @@ import { Readable } from "node:stream";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DESKTOP_DIR = resolve(__dirname, "..");
 const REPO_ROOT = resolve(DESKTOP_DIR, "..");
-const RESOURCES_DIR = join(DESKTOP_DIR, "src-tauri", "resources");
+const RESOURCES_DIR = join(DESKTOP_DIR, "resources");
 const STAGE_DIR = join(DESKTOP_DIR, ".bundle-stage");
 
 const NODE_VERSION = process.env.SCHOOL_SMS_BUNDLE_NODE || "22.19.0";
@@ -449,10 +449,11 @@ async function main() {
     vcRedistSha256: sha256File(vcRedist),
     createdAt: new Date().toISOString(),
     installLayout: {
-      exe: "school-sms-desktop.exe",
+      exe: "SchoolSMS.exe",
       app: "app/backend, app/frontend, app/openwa (builds only — no source)",
       data: "data/ (school.db, uploads, logs)",
       runtime: "runtime/node.exe",
+      shell: "Electron",
     },
   };
   writeFileSync(

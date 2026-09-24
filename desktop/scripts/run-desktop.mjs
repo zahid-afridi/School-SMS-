@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Desktop runner (works today without a Tauri binary).
+ * Lightweight desktop runner (no Electron binary required).
  * Starts backend + frontend, opens a dedicated app window (Edge/Chrome --app),
  * and stops services when you close this process (Ctrl+C).
+ * Prefer `npm run desktop:dev` (Electron) for the full splash + shell.
  *
  * Usage:
  *   node desktop/scripts/run-desktop.mjs

@@ -1,9 +1,8 @@
-; SchoolSMS — NSIS installer hooks
+; SchoolSMS — electron-builder NSIS hooks
 ; Creates a backup-friendly folder layout, writes config once,
 ; and installs VC++ runtime so api-ms-win-crt-*.dll errors are avoided.
 
-!macro NSIS_HOOK_POSTINSTALL
-  ; ── Folder structure (easy backup = copy $INSTDIR) ──
+!macro customInstall
   CreateDirectory "$INSTDIR\data"
   CreateDirectory "$INSTDIR\data\uploads"
   CreateDirectory "$INSTDIR\data\logs"
@@ -13,8 +12,7 @@
   CreateDirectory "$INSTDIR\app\openwa\data"
   CreateDirectory "$INSTDIR\app\openwa\data\sessions"
 
-  ; Install Microsoft VC++ Redistributable (x64) quietly when present.
-  ; Fixes: "api-ms-win-crt-math-l1-1-0.dll is missing"
+  ; electron-builder extraResources land in $INSTDIR\resources\
   StrCpy $2 "$INSTDIR\resources\vc_redist.x64.exe"
   IfFileExists "$2" do_vcredist 0
   StrCpy $2 "$INSTDIR\vc_redist.x64.exe"
@@ -25,7 +23,6 @@
     DetailPrint "VC++ Redistributable exit code: $1"
   skip_vcredist:
 
-  ; Write config only on first install — preserve custom paths on upgrade.
   IfFileExists "$INSTDIR\schoolsms.config.json" skip_cfg 0
   FileOpen $0 "$INSTDIR\schoolsms.config.json" w
   FileWrite $0 "{$\r$\n"
@@ -35,7 +32,6 @@
   FileClose $0
   skip_cfg:
 
-  ; Root backup guide (also written again on first app launch)
   FileOpen $0 "$INSTDIR\BACKUP.txt" w
   FileWrite $0 "SchoolSMS — Backup Guide$\r$\n"
   FileWrite $0 "========================$\r$\n"
@@ -61,6 +57,6 @@
   FileClose $0
 !macroend
 
-!macro NSIS_HOOK_PREUNINSTALL
+!macro customUnInstall
   ; Keep $INSTDIR\data so school records are not deleted on uninstall.
 !macroend

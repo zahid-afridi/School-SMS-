@@ -14,12 +14,11 @@ function setError(text) {
 }
 
 async function invoke(cmd, args) {
-  // Offline installers must not depend on a CDN.
-  if (window.__TAURI__?.core?.invoke) {
-    return window.__TAURI__.core.invoke(cmd, args);
+  if (window.schoolsms?.invoke) {
+    return window.schoolsms.invoke(cmd, args);
   }
   throw new Error(
-    "Tauri API unavailable. Reinstall SchoolSMS or rebuild the desktop app."
+    "Desktop bridge unavailable. Reinstall SchoolSMS or rebuild the Electron app."
   );
 }
 
@@ -29,7 +28,7 @@ async function boot() {
     setStatus("Preparing local data…");
     try {
       const dataDir = await invoke("get_data_dir");
-      if (dataDir) setStatus(`Data folder ready`);
+      if (dataDir) setStatus("Data folder ready");
     } catch {
       // optional
     }

@@ -2,14 +2,17 @@
   "name": "school-sms-desktop",
   "version": "1.1.1",
   "private": true,
-  "description": "School (SmS) desktop shell (Tauri + local services)",
+  "description": "School (SmS) desktop shell (Electron + local services)",
+  "author": "School SmS",
+  "main": "electron/main.mjs",
   "type": "module",
   "scripts": {
     "start": "node ./scripts/run-desktop.mjs",
     "start:prod": "node ./scripts/run-desktop.mjs --mode=prod",
-    "dev": "tauri dev",
-    "build": "tauri build",
-    "tauri": "tauri",
+    "dev": "electron .",
+    "prebuild": "node ./scripts/check-bundle-resources.mjs",
+    "build": "electron-builder --win nsis",
+    "pack": "electron-builder --dir",
     "services:dev": "node ./scripts/launch-services.mjs --mode=dev",
     "services:prod": "node ./scripts/launch-services.mjs --mode=prod",
     "services:stop": "node ./scripts/stop-services.mjs",
@@ -21,10 +24,69 @@
     "prepare:all": "npm run prepare:backend && npm run prepare:frontend && npm run prepare:splash",
     "build:all": "npm run prepare:all && npm --prefix ../OpenWA run build && npm run prepare:bundle && npm run build"
   },
-  "devDependencies": {
-    "@tauri-apps/cli": "^2.9.0"
-  },
   "dependencies": {
-    "@tauri-apps/api": "^2.9.0"
+    "adm-zip": "^0.5.16"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.schoolsms.desktop",
+    "productName": "SchoolSMS",
+    "copyright": "Copyright © School SmS",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "index.html",
+      "splash.js",
+      "package.json",
+      "node_modules/adm-zip/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/app-payload.zip",
+        "to": "app-payload.zip"
+      },
+      {
+        "from": "resources/node-runtime.zip",
+        "to": "node-runtime.zip"
+      },
+      {
+        "from": "resources/bundle-manifest.json",
+        "to": "bundle-manifest.json"
+      },
+      {
+        "from": "resources/vc_redist.x64.exe",
+        "to": "vc_redist.x64.exe"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "SchoolSMS_${version}_x64-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SchoolSMS",
+      "include": "build/installer.nsh",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    },
+    "asar": true
   }
 }
