@@ -65,12 +65,18 @@ This:
 
 ### GitHub Release
 
-```bash
-git tag v1.1.0
-git push origin v1.1.0
-```
+**Manual (recommended):** Actions → **SchoolSMS Electron Windows** → Run workflow  
+- Set **App version** to e.g. `2.2` (becomes `2.2.0`)  
+- Installer file: `SchoolSMS_2.2.0_x64-setup.exe`  
+- Release title: `SchoolSMS 2.2.0` (tag `v2.2.0` created automatically)  
+- Leave version empty to auto-bump the patch (1.1.2 → 1.1.3)
 
-Or: Actions → **SchoolSMS Electron Windows** → Run workflow (Create Release = on).
+**Or tag push:**
+
+```bash
+git tag v2.2.0
+git push origin v2.2.0
+```
 
 ---
 

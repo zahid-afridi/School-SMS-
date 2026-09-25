@@ -1,24 +1,27 @@
 # SchoolSMS — Windows Electron installer (NSIS)
 # Self-contained: portable Node + production app/ payload (school PCs need no Node.js).
 #
+# Version + installer filename come from desktop/package.json (set in this workflow).
+# Example: app_version=2.2  →  SchoolSMS_2.2.0_x64-setup.exe  +  release "SchoolSMS 2.2.0"
+#
 # Triggers:
-#   1) Tag push  → build + GitHub Release with the .exe
-#        git tag v1.1.1 && git push origin v1.1.1
-#   2) Manual    → Actions → "SchoolSMS Electron Windows" → Run workflow
+#   1) Tag push  → version from tag (v2.2.0 → 2.2.0)
+#        git tag v2.2.0 && git push origin v2.2.0
+#   2) Manual    → Actions → "SchoolSMS Electron Windows" → set App version
 
 name: SchoolSMS Electron Windows
 
 on:
   workflow_dispatch:
     inputs:
+      app_version:
+        description: "App version for the installer filename (e.g. 2.2 or 2.2.0). Leave empty to auto-bump patch."
+        type: string
+        default: ""
       create_release:
         description: "Also create/update a GitHub Release and attach the installer"
         type: boolean
         default: true
-      release_tag:
-        description: "Release tag (e.g. v1.1.1). Required when Create Release is true."
-        type: string
-        default: "v1.1.1"
       prerelease:
         description: "Mark the Release as pre-release"
         type: boolean
@@ -91,6 +94,81 @@ jobs:
           # desktop must NOT use an npm lifecycle script named "prepare"
           npm ci --prefix desktop
 
+      - name: Resolve app version
+        id: ver
+        shell: pwsh
+        run: |
+          $pkgPath = "desktop/package.json"
+          $current = (Get-Content $pkgPath -Raw | ConvertFrom-Json).version
+
+          function Normalize-Semver([string]$raw) {
+            $v = $raw.Trim()
+            if ($v.StartsWith("v") -or $v.StartsWith("V")) { $v = $v.Substring(1) }
+
+            $pre = $null
+            $build = $null
+            if ($v.Contains('+')) {
+              $bits = $v -split '\+', 2
+              $v = $bits[0]
+              $build = $bits[1]
+            }
+            if ($v.Contains('-')) {
+              $bits = $v -split '-', 2
+              $v = $bits[0]
+              $pre = $bits[1]
+            }
+            if ($v -notmatch '^\d+(\.\d+){0,2}$') {
+              throw "Invalid version '$raw'. Use forms like 2.2 or 2.2.0"
+            }
+            $parts = @($v.Split('.'))
+            while ($parts.Count -lt 3) { $parts += '0' }
+            $normalized = ($parts[0..2] -join '.')
+            if ($pre) { $normalized = "$normalized-$pre" }
+            if ($build) { $normalized = "$normalized+$build" }
+            return $normalized
+          }
+
+          $resolved = $null
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $input = "${{ inputs.app_version }}".Trim()
+            if ($input) {
+              $resolved = Normalize-Semver $input
+              Write-Host "Using workflow input version: $resolved"
+            } else {
+              $parts = @($current.Split('.')[0..2])
+              while ($parts.Count -lt 3) { $parts += '0' }
+              $major = [int]$parts[0]; $minor = [int]$parts[1]; $patch = [int]$parts[2] + 1
+              $resolved = "$major.$minor.$patch"
+              Write-Host "Auto-bumped patch: $current → $resolved"
+            }
+          } else {
+            $tag = "${{ github.ref_name }}"
+            $resolved = Normalize-Semver $tag
+            Write-Host "Using tag version: $resolved (from $tag)"
+          }
+
+          # Update package.json (+ lock) without creating a git tag
+          Push-Location desktop
+          npm version $resolved --no-git-tag-version --allow-same-version
+          Pop-Location
+
+          $check = (Get-Content $pkgPath -Raw | ConvertFrom-Json).version
+          if ($check -ne $resolved) {
+            throw "Failed to set desktop version (got '$check', expected '$resolved')"
+          }
+
+          $tagName = "v$resolved"
+          $installerGuess = "SchoolSMS_${resolved}_x64-setup.exe"
+
+          "version=$resolved" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=$tagName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "release_name=SchoolSMS $resolved" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "installer_guess=$installerGuess" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+          Write-Host "package.json version → $resolved"
+          Write-Host "Installer filename → $installerGuess"
+          Write-Host "Release → SchoolSMS $resolved ($tagName)"
+
       - name: Prisma generate
         working-directory: backend
         run: npm run prisma:generate
@@ -151,18 +229,26 @@ jobs:
         shell: pwsh
         run: |
           $releaseDir = "desktop\release"
+          $expected = "${{ steps.ver.outputs.installer_guess }}"
           if (!(Test-Path $releaseDir)) {
             throw "Electron release folder missing: $releaseDir"
           }
-          $nsis = Get-ChildItem -Path $releaseDir -Filter "SchoolSMS_*_x64-setup.exe" -ErrorAction SilentlyContinue
+
+          $nsis = @()
+          if ($expected -and (Test-Path (Join-Path $releaseDir $expected))) {
+            $nsis = @(Get-Item (Join-Path $releaseDir $expected))
+          } else {
+            $nsis = @(Get-ChildItem -Path $releaseDir -Filter "SchoolSMS_*_x64-setup.exe" -ErrorAction SilentlyContinue)
+          }
           if ($nsis.Count -eq 0) {
-            $nsis = Get-ChildItem -Path $releaseDir -Filter "*.exe" -ErrorAction Stop |
-              Where-Object { $_.Name -notmatch '(?i)uninstall' -and $_.Name -notmatch '\.blockmap$' }
+            $nsis = @(Get-ChildItem -Path $releaseDir -Filter "*.exe" -ErrorAction Stop |
+              Where-Object { $_.Name -notmatch '(?i)uninstall' -and $_.Name -notmatch '\.blockmap$' })
           }
           if ($nsis.Count -eq 0) {
             Get-ChildItem $releaseDir -Recurse | Format-Table FullName, Length
-            throw "No SchoolSMS NSIS .exe found under $releaseDir"
+            throw "No SchoolSMS NSIS .exe found under $releaseDir (expected $expected)"
           }
+
           $out = "dist-installer"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           $names = @()
@@ -174,11 +260,12 @@ jobs:
           }
           Get-ChildItem $out | Format-Table Name, Length
           "installer_name=$($names[0])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "app_version=${{ steps.ver.outputs.version }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Upload Electron installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SchoolSMS-Electron-Windows-x64
+          name: SchoolSMS-${{ steps.ver.outputs.version }}-Windows-x64
           path: dist-installer/*.exe
           if-no-files-found: error
           retention-days: 30
@@ -188,16 +275,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist-installer/*.exe
-          name: SchoolSMS ${{ github.ref_name }}
+          name: ${{ steps.ver.outputs.release_name }}
           draft: false
           make_latest: true
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
-            ## SchoolSMS Windows installer (Electron)
+            ## SchoolSMS ${{ steps.ver.outputs.version }} — Windows installer (Electron)
 
             Download **`${{ steps.collect.outputs.installer_name }}`**, run it on Windows 10+, then open **SchoolSMS**.
 
+            - Version: **${{ steps.ver.outputs.version }}**
             - Electron desktop shell + bundled Node (no separate Node install)
             - School database: install folder `data\school.db` (created on first launch)
             - Backup = copy the whole SchoolSMS folder (especially `data\`)
@@ -211,8 +299,8 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && (inputs.create_release == true || inputs.create_release == 'true')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag }}
-          name: SchoolSMS ${{ inputs.release_tag }}
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.release_name }}
           draft: false
           prerelease: ${{ inputs.prerelease == true || inputs.prerelease == 'true' }}
           make_latest: ${{ !(inputs.prerelease == true || inputs.prerelease == 'true') }}
@@ -220,10 +308,11 @@ jobs:
           fail_on_unmatched_files: true
           files: dist-installer/*.exe
           body: |
-            ## SchoolSMS Windows installer (Electron)
+            ## SchoolSMS ${{ steps.ver.outputs.version }} — Windows installer (Electron)
 
             Download **`${{ steps.collect.outputs.installer_name }}`**, run it on Windows 10+, then open **SchoolSMS**.
 
+            - Version: **${{ steps.ver.outputs.version }}**
             - Electron desktop shell + bundled Node (no separate Node install)
             - School database: install folder `data\school.db` (created on first launch)
             - Backup = copy the whole SchoolSMS folder (especially `data\`)
