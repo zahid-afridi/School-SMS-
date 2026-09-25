@@ -260,16 +260,25 @@ function stageBackend(appStage) {
     cwd: dest,
   });
 
-  // Prisma outputs to src/generated; compiled dist imports ../generated from dist/*
-  const genSrc = join(dest, "src", "generated");
+  // Keep the compiled dist/generated from `npm run build` (JS).
+  // Do NOT copy Prisma's TypeScript output over it — that breaks `node dist/index.js`.
   const genDist = join(dest, "dist", "generated");
-  if (existsSync(genSrc)) {
-    mkdirSync(dirname(genDist), { recursive: true });
-    cpSync(genSrc, genDist, { recursive: true });
-    log("Copied Prisma client → dist/generated/");
-  } else {
-    throw new Error("Prisma generate did not create src/generated — backend stage incomplete");
+  const clientJs = join(genDist, "prisma-sqlite", "client.js");
+  const classJs = join(genDist, "prisma-sqlite", "internal", "class.js");
+  if (!existsSync(clientJs) || !existsSync(classJs)) {
+    throw new Error(
+      "Backend stage missing compiled Prisma client under dist/generated/prisma-sqlite.\n" +
+        "Run backend prisma:generate + build before prepare:bundle."
+    );
   }
+
+  // Prisma emits extensionless ESM imports; Node cannot load them without .js suffixes.
+  const fixScript = join(REPO_ROOT, "backend", "scripts", "fix-prisma-esm-imports.mjs");
+  if (!existsSync(fixScript)) {
+    throw new Error(`Missing ${fixScript}`);
+  }
+  run(process.execPath, [fixScript, genDist]);
+  log("Fixed Prisma ESM imports under dist/generated/");
 
   // Strip source / junk (keep dist + prisma + node_modules only)
   for (const junk of ["README.md", "src", "tsconfig.json"]) {

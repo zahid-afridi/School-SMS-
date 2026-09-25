@@ -4,11 +4,12 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/fix-prisma-esm-imports.mjs",
     "start": "node dist/index.js",
     "start:prod": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "prisma:generate": "npx prisma generate && npx prisma generate --schema=prisma/schema.sqlite.prisma",
+    "fix:prisma-esm": "node scripts/fix-prisma-esm-imports.mjs",
     "db:migrate": "npx prisma migrate dev",
     "db:push:sqlite": "npx prisma db push --schema=prisma/schema.sqlite.prisma",
     "db:studio": "npx prisma studio",
