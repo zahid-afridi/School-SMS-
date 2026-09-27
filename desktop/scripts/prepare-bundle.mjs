@@ -230,11 +230,39 @@ function installProdDeps(cwd, extraPkgs = [], opts = {}) {
         "--no-audit",
         "--no-fund",
         "--no-save",
-        ...scriptArgs,
+        // Extra CLI tools (e.g. prisma) can skip scripts; native deps already installed above.
+        ...(opts.extraIgnoreScripts ? ["--ignore-scripts"] : scriptArgs),
       ],
       { cwd }
     );
   }
+}
+
+function assertNativeBinding(cwd, packageName) {
+  const root = join(cwd, "node_modules", packageName);
+  if (!existsSync(root)) {
+    throw new Error(`Missing dependency ${packageName} under ${cwd}`);
+  }
+  // Walk for a compiled .node binary (prebuild or node-gyp output).
+  const stack = [root];
+  while (stack.length) {
+    const dir = stack.pop();
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      const st = statSync(p);
+      if (st.isDirectory()) {
+        if (name === ".cache" || name === "docs" || name === "test") continue;
+        stack.push(p);
+      } else if (name.endsWith(".node")) {
+        log(`Native binding OK: ${packageName} → ${p}`);
+        return;
+      }
+    }
+  }
+  throw new Error(
+    `No .node binary found for ${packageName} in ${root}. ` +
+      `Native module build failed — school PCs will crash on startup.`
+  );
 }
 
 function stageBackend(appStage) {
@@ -253,9 +281,18 @@ function stageBackend(appStage) {
     cpSync(join(src, "prisma.config.ts"), join(dest, "prisma.config.ts"));
   }
 
-  // Production deps + prisma CLI (needed for first-run db push on school PCs)
-  // ignore-scripts avoids any unexpected prepare hooks; we generate Prisma explicitly next.
-  installProdDeps(dest, ["prisma@7.8.0"], { ignoreScripts: true });
+  // MUST run install scripts so better-sqlite3 / bcrypt compile (or download prebuilds).
+  // Previously --ignore-scripts left school installs without .node binaries → random crashes.
+  installProdDeps(dest, ["prisma@7.8.0"], { extraIgnoreScripts: true });
+
+  // Rebuild native modules explicitly (Windows CI has MSVC).
+  log("Rebuilding native modules (better-sqlite3, bcrypt)...");
+  run(npmCmd, ["rebuild", "better-sqlite3", "bcrypt", "--no-audit", "--no-fund"], {
+    cwd: dest,
+  });
+  assertNativeBinding(dest, "better-sqlite3");
+  assertNativeBinding(dest, "bcrypt");
+
   run(npmCmd, ["exec", "--", "prisma", "generate", "--schema=prisma/schema.sqlite.prisma"], {
     cwd: dest,
   });
@@ -279,6 +316,18 @@ function stageBackend(appStage) {
   }
   run(process.execPath, [fixScript, genDist]);
   log("Fixed Prisma ESM imports under dist/generated/");
+
+  // Smoke-test: load native modules the same way the school PC will.
+  log("Smoke-testing backend native modules...");
+  run(
+    process.execPath,
+    [
+      "--input-type=commonjs",
+      "-e",
+      "require('better-sqlite3'); require('bcrypt'); console.log('[prepare-bundle] native modules load OK');",
+    ],
+    { cwd: dest }
+  );
 
   // Strip source / junk (keep dist + prisma + node_modules only)
   for (const junk of ["README.md", "src", "tsconfig.json"]) {

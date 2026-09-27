@@ -608,6 +608,41 @@ async function main() {
     commonEnv.OPENWA_API_KEY = readFileSync(packagedKey, "utf8").trim();
   }
 
+  // Fail fast with a clear message if native DB/auth modules cannot load
+  // (common when an old incomplete installer was used, or VC++ runtime is missing).
+  if (packaged || MODE === "prod") {
+    writeStatus("preflight", "Checking local database engine…");
+    const preflight = spawnSync(
+      process.execPath,
+      [
+        "--input-type=commonjs",
+        "-e",
+        "require('better-sqlite3'); require('bcrypt');",
+      ],
+      {
+        cwd: BACKEND_DIR,
+        env: commonEnv,
+        encoding: "utf8",
+        windowsHide: true,
+      }
+    );
+    if (preflight.status !== 0) {
+      const errText = String(preflight.stderr || preflight.stdout || "").trim();
+      writeFileSync(
+        join(LOG_DIR, "preflight.log"),
+        errText || "native module preflight failed",
+        "utf8"
+      );
+      throw new Error(
+        "Local database engine failed to load (better-sqlite3 / bcrypt).\n" +
+          "Install the SchoolSMS Visual C++ runtime (included in setup), then reinstall SchoolSMS.\n" +
+          "Details: " +
+          join(LOG_DIR, "preflight.log") +
+          (errText ? "\n\n" + errText.slice(0, 800) : "")
+      );
+    }
+  }
+
   writeFileSync(
     join(DATA_DIR, "desktop.env.json"),
     JSON.stringify(
