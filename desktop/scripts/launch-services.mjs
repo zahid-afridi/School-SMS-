@@ -13,7 +13,7 @@
  *   4. OpenWA (port 2785)    ← best-effort; never blocks the school app
  */
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   createWriteStream,
   existsSync,
@@ -23,6 +23,7 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createConnection } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -93,7 +94,9 @@ function npxCmd() {
 }
 
 function ensureDirs() {
-  for (const d of [DATA_DIR, LOG_DIR, UPLOAD_DIR]) mkdirSync(d, { recursive: true });
+  for (const d of [DATA_DIR, LOG_DIR, UPLOAD_DIR, join(DATA_DIR, "sessions")]) {
+    mkdirSync(d, { recursive: true });
+  }
 }
 
 function writeStatus(step, message, extra = {}) {
@@ -225,10 +228,10 @@ function spawnLogged(name, command, args, cwd, env, opts) {
 
 async function waitForUrl(url, label, attempts, intervalMs) {
   attempts = attempts ?? 90;
-  intervalMs = intervalMs ?? 1000;
+  intervalMs = intervalMs ?? 400;
   for (let i = 0; i < attempts; i++) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
       if (res.ok || res.status < 500) {
         console.log("[desktop] " + label + " ready (" + url + ")");
         return true;
@@ -253,6 +256,21 @@ async function backendMatchesDataDir() {
   } catch {
     return false;
   }
+}
+
+function isPortInUse(port) {
+  return new Promise((resolvePromise) => {
+    const socket = createConnection({ host: "127.0.0.1", port: Number(port) }, () => {
+      socket.destroy();
+      resolvePromise(true);
+    });
+    socket.setTimeout(200);
+    socket.on("timeout", () => {
+      socket.destroy();
+      resolvePromise(false);
+    });
+    socket.on("error", () => resolvePromise(false));
+  });
 }
 
 function killPort(port) {
@@ -283,22 +301,49 @@ function killPort(port) {
 }
 
 async function stopAllPorts() {
-  console.log(
-    "[desktop] Freeing ports " +
-      BACKEND_PORT +
-      " / " +
-      FRONTEND_PORT +
-      " / " +
-      OPENWA_PORT +
-      "..."
-  );
-  killPort(BACKEND_PORT);
-  killPort(FRONTEND_PORT);
-  killPort(OPENWA_PORT);
-  await delay(800);
+  const ports = [BACKEND_PORT, FRONTEND_PORT, OPENWA_PORT];
+  let killedAny = false;
+  for (const port of ports) {
+    if (await isPortInUse(port)) {
+      console.log(`[desktop] Freeing occupied port ${port}...`);
+      killPort(port);
+      killedAny = true;
+    }
+  }
+  if (killedAny) {
+    await delay(500);
+  }
 }
 
 async function ensureSqliteSchema(env) {
+  const schemaFile = join(BACKEND_DIR, "prisma", "schema.sqlite.prisma");
+  const markerFile = join(DATA_DIR, ".schema-hash");
+
+  let currentHash = "";
+  if (existsSync(schemaFile)) {
+    try {
+      currentHash = createHash("sha256").update(readFileSync(schemaFile)).digest("hex");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const dbExists = existsSync(DB_FILE);
+  let savedHash = "";
+  if (existsSync(markerFile)) {
+    try {
+      savedHash = readFileSync(markerFile, "utf8").trim();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // If school.db exists and schema is unchanged, skip slow prisma db push!
+  if (dbExists && currentHash && savedHash === currentHash) {
+    console.log("[desktop] SQLite database ready (schema up to date)");
+    return;
+  }
+
   writeStatus("schema", "Preparing local database…");
   await new Promise((ok, fail) => {
     const prismaJs = join(
@@ -358,16 +403,25 @@ async function ensureSqliteSchema(env) {
       } finally {
         out.end();
       }
-      code === 0
-        ? ok()
-        : fail(
-            new Error(
-              "Database setup failed (prisma db push exit " +
-                code +
-                "). See " +
-                logPath
-            )
-          );
+      if (code === 0) {
+        if (currentHash) {
+          try {
+            writeFileSync(markerFile, currentHash, "utf8");
+          } catch {
+            /* ignore */
+          }
+        }
+        ok();
+      } else {
+        fail(
+          new Error(
+            "Database setup failed (prisma db push exit " +
+              code +
+              "). See " +
+              logPath
+          )
+        );
+      }
     });
   });
 }
@@ -484,7 +538,7 @@ function startOpenWaBackground(children, pids, commonEnv) {
     PATH: commonEnv.PATH,
     NODE_ENV: MODE === "prod" ? "production" : "development",
     PORT: OPENWA_PORT,
-    SESSION_DATA_PATH: join(OPENWA_DIR, "data", "sessions"),
+    SESSION_DATA_PATH: join(DATA_DIR, "sessions"),
     DATABASE_TYPE: "sqlite",
     SERVE_DASHBOARD: "false",
     AUTO_START_SESSIONS: "false",
@@ -669,9 +723,14 @@ async function main() {
   // ── 1. Database ────────────────────────────────────────────────────────────
   await ensureSqliteSchema(commonEnv);
 
-  // ── 2. Backend (required) ──────────────────────────────────────────────────
+  // ── 2. Backend & Frontend in parallel (cuts boot time in half) ───────────
   startBackend(commonEnv, children, pids);
-  await waitForUrl(BACKEND_URL + "/health", "backend", 90, 1000);
+  startFrontend(commonEnv, children, pids);
+
+  await Promise.all([
+    waitForUrl(BACKEND_URL + "/health", "backend", 90, 400),
+    waitForUrl(FRONTEND_URL, "frontend", 90, 400),
+  ]);
 
   const dbOk = await backendMatchesDataDir();
   if (!dbOk) {
@@ -684,10 +743,6 @@ async function main() {
   }
   console.log("[desktop] DB      -> " + DB_FILE);
   console.log("[desktop] Uploads -> " + UPLOAD_DIR);
-
-  // ── 3. Frontend (required — opens the desktop UI) ──────────────────────────
-  startFrontend(commonEnv, children, pids);
-  await waitForUrl(FRONTEND_URL, "frontend", 90, 1000);
 
   writeStatus("ready", "Local app ready", {
     backendUrl: BACKEND_URL,

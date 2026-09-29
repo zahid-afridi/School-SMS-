@@ -2,7 +2,7 @@
  * SchoolSMS Electron main process.
  * Desktop shell: unpack bundles, start local services, open the school UI.
  */
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, Menu, ipcMain, shell } from "electron";
 import {
   existsSync,
   mkdirSync,
@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createConnection } from "node:net";
 import { createRequire } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
@@ -224,6 +224,19 @@ function shouldPreserveOpenWaSession(relStr, dest) {
 
 function extractZip(zipPath, dest) {
   mkdirSync(dest, { recursive: true });
+  // Fast native tar extraction on Windows (takes 2-3s instead of 90s)
+  if (process.platform === "win32") {
+    try {
+      const tar = spawnSync("tar", ["-xf", zipPath, "-C", dest], {
+        windowsHide: true,
+        stdio: "ignore",
+      });
+      if (tar.status === 0) return;
+    } catch {
+      /* fallback to AdmZip */
+    }
+  }
+
   const zip = new AdmZip(zipPath);
   for (const entry of zip.getEntries()) {
     const rel = entry.entryName.replace(/\\/g, "/");
@@ -611,7 +624,16 @@ async function openApp() {
 }
 
 function createWindow() {
-  const iconPath = join(DESKTOP_DIR, "build", "icon.ico");
+  Menu.setApplicationMenu(null);
+
+  const iconCandidates = [
+    join(DESKTOP_DIR, "build", "icon.ico"),
+    join(DESKTOP_DIR, "build", "icon.png"),
+    join(exeDir(), "resources", "icon.ico"),
+    join(process.resourcesPath || "", "icon.ico"),
+  ];
+  const iconPath = iconCandidates.find((p) => p && existsSync(p));
+
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 860,
@@ -626,7 +648,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
     },
-    ...(existsSync(iconPath) ? { icon: iconPath } : {}),
+    ...(iconPath ? { icon: iconPath } : {}),
   });
 
   mainWindow.once("ready-to-show", () => {
@@ -641,6 +663,13 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
+  });
+
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!url.startsWith(FRONTEND_URL) && !url.startsWith("file:")) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
   });
 
   const splashHtml = join(DESKTOP_DIR, "index.html");
@@ -662,6 +691,12 @@ function registerIpc() {
   ipcMain.handle("get_startup_status", async () =>
     readStartupStatusMessage() || "Starting local services…"
   );
+  ipcMain.handle("open_logs_dir", async () => {
+    const logs = join(dataDir(), "logs");
+    mkdirSync(logs, { recursive: true });
+    shell.openPath(logs);
+    return null;
+  });
 }
 
 const gotLock = app.requestSingleInstanceLock();

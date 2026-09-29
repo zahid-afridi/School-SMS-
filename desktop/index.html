@@ -92,6 +92,41 @@
         text-align: left;
         font-size: 0.85rem;
         margin-top: 1rem;
+        max-height: 140px;
+        overflow-y: auto;
+        padding: 0.5rem;
+        background: #fff1f2;
+        border-radius: 8px;
+        border: 1px solid #fecdd3;
+      }
+      .actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        margin-top: 1.25rem;
+      }
+      .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.15s ease;
+      }
+      .btn-primary {
+        background: #0284c7;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #0369a1;
+      }
+      .btn-secondary {
+        background: #e2e8f0;
+        color: #334155;
+      }
+      .btn-secondary:hover {
+        background: #cbd5e1;
       }
     </style>
   </head>
@@ -104,6 +139,10 @@
         <div class="bar" id="bar"><span></span></div>
         <div class="status" id="status">Preparing…</div>
         <div class="error" id="error" hidden></div>
+        <div class="actions" id="actions" hidden>
+          <button class="btn btn-primary" id="btn-retry">Retry Launch</button>
+          <button class="btn btn-secondary" id="btn-logs">Open Logs Folder</button>
+        </div>
       </div>
     </main>
     <script src="./splash.js"></script>

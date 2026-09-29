@@ -24,6 +24,22 @@
     DetailPrint "VC++ Redistributable exit code: $1"
   skip_vcredist:
 
+  ; Extract Node runtime & App payload at install time using Windows built-in tar.exe.
+  ; This eliminates the 1-2 minute freeze on first launch!
+  IfFileExists "$WINDIR\System32\tar.exe" do_tar skip_tar
+  do_tar:
+    IfFileExists "$INSTDIR\resources\node-runtime.zip" 0 +3
+    DetailPrint "Extracting Node runtime..."
+    ExecWait '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\resources\node-runtime.zip" -C "$INSTDIR\runtime"' $1
+
+    IfFileExists "$INSTDIR\resources\app-payload.zip" 0 +3
+    DetailPrint "Extracting SchoolSMS application..."
+    ExecWait '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\resources\app-payload.zip" -C "$INSTDIR"' $1
+
+    IfFileExists "$INSTDIR\resources\bundle-manifest.json" 0 +2
+    CopyFiles /SILENT "$INSTDIR\resources\bundle-manifest.json" "$INSTDIR\.schoolsms-installed.json"
+  skip_tar:
+
   IfFileExists "$INSTDIR\schoolsms.config.json" skip_cfg 0
   FileOpen $0 "$INSTDIR\schoolsms.config.json" w
   FileWrite $0 "{$\r$\n"
@@ -45,8 +61,7 @@
   FileWrite $0 "  data/logs/$\r$\n"
   FileWrite $0 "  data/.jwt-secret$\r$\n"
   FileWrite $0 "$\r$\n"
-  FileWrite $0 "After install: open SchoolSMS - first launch unpacks app builds + Node,$\r$\n"
-  FileWrite $0 "creates data/school.db, then starts local services (backend :5000, frontend :3000).$\r$\n"
+  FileWrite $0 "After install: open SchoolSMS - services start immediately.$\r$\n"
   FileWrite $0 "Installed app code lives in app/ (compiled builds - not your Git source).$\r$\n"
   FileWrite $0 "Node.js is bundled - you do not need to install Node separately.$\r$\n"
   FileWrite $0 "Requires Windows 10+. Chrome or Edge needed for WhatsApp features.$\r$\n"
@@ -82,10 +97,9 @@
   Delete "$INSTDIR\LICENSES*"
   Delete "$INSTDIR\version"
   Delete "$INSTDIR\BACKUP.txt"
-  Delete "$INSTDIR\schoolsms.config.json"
   Delete "$INSTDIR\.schoolsms-installed.json"
 
-  ; Keep $INSTDIR/data (school.db, uploads, logs, .jwt-secret)
+  ; Keep $INSTDIR/data and $INSTDIR/schoolsms.config.json
   RMDir "$INSTDIR"
 !macroend
 

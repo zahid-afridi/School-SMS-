@@ -1,6 +1,9 @@
 const statusEl = document.getElementById("status");
 const errorEl = document.getElementById("error");
 const barEl = document.getElementById("bar");
+const actionsEl = document.getElementById("actions");
+const btnRetry = document.getElementById("btn-retry");
+const btnLogs = document.getElementById("btn-logs");
 
 function setStatus(text) {
   if (statusEl) statusEl.textContent = text;
@@ -10,6 +13,7 @@ function setError(text) {
   if (!errorEl) return;
   errorEl.hidden = !text;
   errorEl.textContent = text || "";
+  if (actionsEl) actionsEl.hidden = !text;
   if (barEl) barEl.style.display = text ? "none" : "";
 }
 
@@ -22,10 +26,14 @@ async function invoke(cmd, args) {
   );
 }
 
+let statusTimer = null;
+
 async function boot() {
-  let statusTimer = null;
+  if (statusTimer) clearInterval(statusTimer);
+  setError(null);
+  setStatus("Starting SchoolSMS…");
+
   try {
-    setStatus("Preparing local data…");
     try {
       const dataDir = await invoke("get_data_dir");
       if (dataDir) setStatus("Data folder ready");
@@ -40,9 +48,9 @@ async function boot() {
       } catch {
         /* ignore while starting */
       }
-    }, 700);
+    }, 350);
 
-    setStatus("Starting local backend & frontend…");
+    setStatus("Starting local services…");
     await invoke("start_services");
     if (statusTimer) clearInterval(statusTimer);
     setStatus("Opening SchoolSMS…");
@@ -54,5 +62,17 @@ async function boot() {
     setStatus("Could not start SchoolSMS");
   }
 }
+
+btnRetry?.addEventListener("click", () => {
+  boot();
+});
+
+btnLogs?.addEventListener("click", async () => {
+  try {
+    await invoke("open_logs_dir");
+  } catch (err) {
+    console.error(err);
+  }
+});
 
 boot();

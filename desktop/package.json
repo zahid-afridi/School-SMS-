@@ -45,6 +45,7 @@
       "index.html",
       "splash.js",
       "package.json",
+      "build/icon.ico",
       "node_modules/adm-zip/**/*"
     ],
     "extraResources": [
