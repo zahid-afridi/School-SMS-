@@ -672,10 +672,23 @@ async function main() {
     commonEnv.OPENWA_API_KEY = readFileSync(packagedKey, "utf8").trim();
   }
 
-  // Fail fast with a clear message if native DB/auth modules cannot load
-  // (common when an old incomplete installer was used, or VC++ runtime is missing).
+  // Fail fast with a clear message if native DB/auth modules cannot load.
+  // "Cannot find module" means the installer unpack stopped before node_modules.
+  // A missing DLL inside an existing .node file is the Visual C++ runtime.
   if (packaged || MODE === "prod") {
     writeStatus("preflight", "Checking local database engine…");
+    const sqlitePkg = join(BACKEND_DIR, "node_modules", "better-sqlite3", "package.json");
+    const bcryptPkg = join(BACKEND_DIR, "node_modules", "bcrypt", "package.json");
+    if (!existsSync(sqlitePkg) || !existsSync(bcryptPkg)) {
+      const missing = !existsSync(sqlitePkg) ? sqlitePkg : bcryptPkg;
+      throw new Error(
+        "SchoolSMS app files are incomplete. The database module was not unpacked.\n" +
+          "Missing: " +
+          missing +
+          "\nClose SchoolSMS and open it again so setup can finish.\n" +
+          "If it still fails, uninstall SchoolSMS, keep the data folder, and reinstall."
+      );
+    }
     const preflight = spawnSync(
       process.execPath,
       [
@@ -697,12 +710,18 @@ async function main() {
         errText || "native module preflight failed",
         "utf8"
       );
+      const moduleMissing = /Cannot find module/.test(errText);
       throw new Error(
-        "Local database engine failed to load (better-sqlite3 / bcrypt).\n" +
-          "Install the SchoolSMS Visual C++ runtime (included in setup), then reinstall SchoolSMS.\n" +
-          "Details: " +
-          join(LOG_DIR, "preflight.log") +
-          (errText ? "\n\n" + errText.slice(0, 800) : "")
+        moduleMissing
+          ? "SchoolSMS app files are incomplete. The database module was not unpacked.\n" +
+              "Close SchoolSMS and open it again so setup can finish.\n" +
+              "Details: " +
+              join(LOG_DIR, "preflight.log")
+          : "Local database engine failed to load (better-sqlite3 / bcrypt).\n" +
+              "Install the SchoolSMS Visual C++ runtime (included in setup), then reinstall SchoolSMS.\n" +
+              "Details: " +
+              join(LOG_DIR, "preflight.log") +
+              (errText ? "\n\n" + errText.slice(0, 800) : "")
       );
     }
   }

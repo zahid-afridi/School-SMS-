@@ -18,7 +18,9 @@ import {
   mkdirSync,
   rmSync,
   cpSync,
+  lstatSync,
   readdirSync,
+  readlinkSync,
   statSync,
   readFileSync,
   writeFileSync,
@@ -125,6 +127,67 @@ function zipFolder(folder, zipPath) {
   mkdirSync(dirname(zipPath), { recursive: true });
   if (process.platform === "win32") zipFolderWindows(folder, zipPath);
   else zipFolderUnix(folder, zipPath);
+}
+
+/**
+ * Windows tar.exe refuses to recreate symlinks on school PCs (no Developer Mode)
+ * and then stops the rest of the archive. node_modules/.bin is full of those
+ * links, so better-sqlite3 — which is archived after .bin — never lands on disk.
+ * Copy each link's target as a real file before zipping.
+ */
+function materializeSymlinks(dir) {
+  let count = 0;
+  const walk = (current) => {
+    for (const name of readdirSync(current)) {
+      const p = join(current, name);
+      let st;
+      try {
+        st = lstatSync(p);
+      } catch {
+        continue;
+      }
+      if (st.isSymbolicLink()) {
+        let target = "";
+        try {
+          target = resolve(current, readlinkSync(p));
+        } catch {
+          target = "";
+        }
+        rmSync(p, { recursive: true, force: true });
+        if (target && existsSync(target) && target !== p && !target.startsWith(p + "\\") && !target.startsWith(p + "/")) {
+          cpSync(target, p, { recursive: true, dereference: true });
+          count += 1;
+        }
+        continue;
+      }
+      if (st.isDirectory()) walk(p);
+    }
+  };
+  walk(dir);
+  log(`Materialized ${count} symlinks so Windows tar can extract the payload`);
+}
+
+function assertZipContains(zipPath, fragments) {
+  const py = process.platform === "win32" ? "python" : "python3";
+  const script = [
+    "import sys, zipfile",
+    "z = zipfile.ZipFile(sys.argv[1])",
+    'names = [n.replace("\\\\", "/") for n in z.namelist()]',
+    "missing = [frag for frag in sys.argv[2:] if not any(frag in n for n in names)]",
+    "if missing:",
+    '    sys.stderr.write("app-payload.zip is missing:\\n" + "\\n".join(missing) + "\\n")',
+    "    sys.exit(1)",
+    "print(len(names))",
+  ].join("\n");
+  const r = spawnSync(py, ["-c", script, zipPath, ...fragments], {
+    encoding: "utf8",
+  });
+  if (r.status !== 0) {
+    throw new Error(
+      (r.stderr || r.stdout || `Could not verify ${zipPath}`).trim()
+    );
+  }
+  log(`Payload zip OK (${String(r.stdout || "").trim()} entries) and includes native modules`);
 }
 
 function sha256File(path) {
@@ -432,6 +495,7 @@ function prepareAppPayload() {
   stageFrontend(appDir);
   stageOpenWa(appDir);
   stageLauncherScripts(appDir);
+  materializeSymlinks(appStage);
 
   writeFileSync(
     join(appStage, ".schoolsms-bundle.json"),
@@ -454,6 +518,11 @@ function prepareAppPayload() {
 
   const outZip = join(RESOURCES_DIR, "app-payload.zip");
   zipFolder(appStage, outZip);
+  assertZipContains(outZip, [
+    "app/backend/node_modules/better-sqlite3/package.json",
+    "app/backend/node_modules/bcrypt/package.json",
+    "better_sqlite3.node",
+  ]);
   log(`Wrote ${outZip}`);
   return outZip;
 }

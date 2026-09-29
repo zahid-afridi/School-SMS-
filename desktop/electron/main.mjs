@@ -4,6 +4,8 @@
  */
 import { app, BrowserWindow, Menu, ipcMain, shell } from "electron";
 import {
+  appendFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   openSync,
@@ -222,21 +224,30 @@ function shouldPreserveOpenWaSession(relStr, dest) {
   return false;
 }
 
-function extractZip(zipPath, dest) {
-  mkdirSync(dest, { recursive: true });
-  // Fast native tar extraction on Windows (takes 2-3s instead of 90s)
-  if (process.platform === "win32") {
-    try {
-      const tar = spawnSync("tar", ["-xf", zipPath, "-C", dest], {
-        windowsHide: true,
-        stdio: "ignore",
-      });
-      if (tar.status === 0) return;
-    } catch {
-      /* fallback to AdmZip */
-    }
-  }
+function appPayloadComplete(dir) {
+  const modules = join(dir, "app", "backend", "node_modules");
+  return (
+    existsSync(join(dir, "app", "launch-services.mjs")) &&
+    existsSync(join(dir, "app", "backend", "dist", "index.js")) &&
+    existsSync(join(modules, "better-sqlite3", "package.json")) &&
+    existsSync(join(modules, "bcrypt", "package.json"))
+  );
+}
 
+function noteUnpack(message) {
+  try {
+    const logDir = join(dataDir(), "logs");
+    mkdirSync(logDir, { recursive: true });
+    appendFileSync(
+      join(logDir, "unpack.log"),
+      `\n===== ${new Date().toISOString()} =====\n${message}\n`
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function extractZipEntries(zipPath, dest) {
   const zip = new AdmZip(zipPath);
   for (const entry of zip.getEntries()) {
     const rel = entry.entryName.replace(/\\/g, "/");
@@ -251,6 +262,62 @@ function extractZip(zipPath, dest) {
     }
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, entry.getData());
+  }
+}
+
+function extractZip(zipPath, dest) {
+  mkdirSync(dest, { recursive: true });
+  if (process.platform === "win32") {
+    const tar = spawnSync("tar", ["-xf", zipPath, "-C", dest], {
+      windowsHide: true,
+      encoding: "utf8",
+    });
+    if (tar.status === 0) return;
+    noteUnpack(
+      `tar exit ${tar.status} for ${zipPath}\n${tar.stderr || tar.stdout || ""}`
+    );
+  }
+  extractZipEntries(zipPath, dest);
+}
+
+function extractAppPayload(zipPath, dest) {
+  mkdirSync(dest, { recursive: true });
+  const sessions = join(dest, "app", "openwa", "data", "sessions");
+  const sessionBackup = join(dest, "data", ".session-backup");
+  if (existsSync(sessions)) {
+    rmSync(sessionBackup, { recursive: true, force: true });
+    cpSync(sessions, sessionBackup, { recursive: true });
+  }
+
+  if (process.platform === "win32") {
+    const tar = spawnSync("tar", ["-xf", zipPath, "-C", dest], {
+      windowsHide: true,
+      encoding: "utf8",
+    });
+    if (tar.status === 0 && appPayloadComplete(dest)) {
+      rmSync(sessionBackup, { recursive: true, force: true });
+      return;
+    }
+    noteUnpack(
+      `App tar extract incomplete (exit ${tar.status}). Falling back to full unpack.\n${
+        tar.stderr || tar.stdout || ""
+      }`
+    );
+  }
+
+  if (appPayloadComplete(dest)) {
+    rmSync(sessionBackup, { recursive: true, force: true });
+    return;
+  }
+
+  // A partial tar extract leaves launch-services.mjs without node_modules.
+  // Replace app/ so the database module is written as real files.
+  rmSync(join(dest, "app"), { recursive: true, force: true });
+  extractZipEntries(zipPath, dest);
+  if (existsSync(sessionBackup)) {
+    mkdirSync(dirname(sessions), { recursive: true });
+    cpSync(sessionBackup, sessions, { recursive: true });
+    rmSync(sessionBackup, { recursive: true, force: true });
   }
 }
 
@@ -331,17 +398,18 @@ async function ensureBundledRuntime() {
     await extractZip(nodeZip, join(dir, "runtime"));
   }
 
-  const appMarker = join(dir, "app", "launch-services.mjs");
   const needApp =
-    !existsSync(appMarker) || shaChanged(manifest, installed, "appSha256");
+    !appPayloadComplete(dir) || shaChanged(manifest, installed, "appSha256");
   if (appZip && needApp) {
-    writeStartupStatus("unpack", "Unpacking local app (first launch)…");
-    await extractZip(appZip, dir);
+    writeStartupStatus("unpack", "Unpacking local app…");
+    await extractAppPayload(appZip, dir);
   }
 
-  if (appZip && !looksLikeAppRoot(dir)) {
+  if (appZip && !appPayloadComplete(dir)) {
     throw new Error(
-      "Bundled School app files are missing. Reinstall SchoolSMS or rebuild with prepare-bundle."
+      "SchoolSMS unpacked without the local database module (better-sqlite3).\n" +
+        "Reinstall SchoolSMS. Details: " +
+        join(dataDir(), "logs", "unpack.log")
     );
   }
 

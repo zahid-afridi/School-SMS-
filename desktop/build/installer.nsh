@@ -24,20 +24,29 @@
     DetailPrint "VC++ Redistributable exit code: $1"
   skip_vcredist:
 
-  ; Extract Node runtime & App payload at install time using Windows built-in tar.exe.
-  ; This eliminates the 1-2 minute freeze on first launch!
-  IfFileExists "$WINDIR\System32\tar.exe" do_tar skip_tar
-  do_tar:
-    IfFileExists "$INSTDIR\resources\node-runtime.zip" 0 +3
+  ; Extract Node runtime and the app payload at install time.
+  ; Only stamp the install marker when better-sqlite3 actually landed on disk.
+  ; tar.exe often returns success after skipping symlinks and the rest of node_modules.
+  IfFileExists "$WINDIR\System32\tar.exe" 0 skip_tar
+
+  IfFileExists "$INSTDIR\resources\node-runtime.zip" 0 skip_node_zip
     DetailPrint "Extracting Node runtime..."
     ExecWait '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\resources\node-runtime.zip" -C "$INSTDIR\runtime"' $1
+  skip_node_zip:
 
-    IfFileExists "$INSTDIR\resources\app-payload.zip" 0 +3
+  IfFileExists "$INSTDIR\resources\app-payload.zip" 0 skip_tar
     DetailPrint "Extracting SchoolSMS application..."
     ExecWait '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\resources\app-payload.zip" -C "$INSTDIR"' $1
-
-    IfFileExists "$INSTDIR\resources\bundle-manifest.json" 0 +2
-    CopyFiles /SILENT "$INSTDIR\resources\bundle-manifest.json" "$INSTDIR\.schoolsms-installed.json"
+    StrCmp $1 "0" 0 app_extract_bad
+    IfFileExists "$INSTDIR\app\launch-services.mjs" 0 app_extract_bad
+    IfFileExists "$INSTDIR\app\backend\node_modules\better-sqlite3\package.json" 0 app_extract_bad
+    IfFileExists "$INSTDIR\app\backend\node_modules\bcrypt\package.json" 0 app_extract_bad
+    IfFileExists "$INSTDIR\resources\bundle-manifest.json" 0 skip_tar
+      CopyFiles /SILENT "$INSTDIR\resources\bundle-manifest.json" "$INSTDIR\.schoolsms-installed.json"
+      Goto skip_tar
+  app_extract_bad:
+    DetailPrint "App extract incomplete (database module missing). First launch will finish unpacking."
+    Delete "$INSTDIR\.schoolsms-installed.json"
   skip_tar:
 
   IfFileExists "$INSTDIR\schoolsms.config.json" skip_cfg 0
