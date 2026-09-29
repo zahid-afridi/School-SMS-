@@ -175,19 +175,29 @@ function readJwtSecret() {
   return generated;
 }
 
-/** Prefer Chrome, then Edge — school PCs often only have one browser. */
+/** Prefer Chrome, then Edge — school PCs often only have one browser, sometimes in LocalAppData */
 function findChromiumPath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH?.trim()) {
     return process.env.PUPPETEER_EXECUTABLE_PATH.trim();
   }
+  const localAppData = process.env.LOCALAPPDATA || "";
+  const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+  const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+
   const candidates = [
+    join(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
+    join(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+    localAppData ? join(localAppData, "Google", "Chrome", "Application", "chrome.exe") : "",
+    join(programFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
+    join(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
+    localAppData ? join(localAppData, "Microsoft", "Edge", "Application", "msedge.exe") : "",
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
     "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
   ];
   for (const p of candidates) {
-    if (existsSync(p)) return p;
+    if (p && existsSync(p)) return p;
   }
   return "";
 }

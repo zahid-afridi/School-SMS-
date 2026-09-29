@@ -413,6 +413,7 @@ function stageOpenWa(appStage) {
   if (!existsSync(join(dest, "node_modules"))) {
     throw new Error("OpenWA stage missing node_modules");
   }
+  assertNativeBinding(dest, "better-sqlite3");
 }
 
 function stageLauncherScripts(appStage) {
