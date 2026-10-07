@@ -93,9 +93,12 @@ export interface FeePayment {
   receiptNo: string;
   amount: number;
   method: FeePaymentMethod;
+  status?: "COMPLETED" | "VOIDED";
   paidAt: string;
   reference?: string | null;
   remarks?: string | null;
+  voidedAt?: string | null;
+  voidReason?: string | null;
   student?: { id: string; name: string; registrationNo: string };
   allocations?: Array<{
     id: string;
@@ -172,6 +175,8 @@ export interface StudentFeeLedger {
     totalBilled: number;
     totalPaid: number;
     totalBalance: number;
+    advanceBalance?: number;
+    netPayable?: number;
     unpaidMonths: number;
     paidMonths: number;
   };
@@ -220,6 +225,7 @@ export interface StudentFeePreview {
     paidAmount: number;
   }>;
   outstandingBalance: number;
+  advanceBalance?: number;
 }
 
 export interface CollectionReport {
@@ -229,4 +235,44 @@ export interface CollectionReport {
   paymentCount: number;
   byMethod: Record<string, number>;
   payments: FeePayment[];
+}
+
+export interface FeeReceiptData {
+  receiptNo: string;
+  paidAt: string;
+  amount: number;
+  method: FeePaymentMethod;
+  status: "COMPLETED" | "VOIDED";
+  reference?: string | null;
+  remarks?: string | null;
+  voidedAt?: string | null;
+  voidReason?: string | null;
+  school: {
+    id: string;
+    name: string;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    logoUrl?: string | null;
+  };
+  student: {
+    id: string;
+    name: string;
+    registrationNo: string;
+    className: string;
+    sectionName?: string | null;
+    rollNo?: string | null;
+    fatherName?: string | null;
+    contactPhone?: string | null;
+    advanceBalance: number;
+    remainingDue: number;
+  };
+  allocations: Array<{
+    invoiceNo: string;
+    monthLabel: string;
+    allocatedAmount: number;
+    invoiceTotal: number;
+    invoiceBalance: number;
+    items: FeeInvoiceItem[];
+  }>;
 }

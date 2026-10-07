@@ -11,6 +11,7 @@ import type {
   SaveFeeStructureRequest,
   StudentFeeLedger,
   StudentFeePreview,
+  FeeReceiptData,
 } from "./feeTypes";
 
 function toQuery(params: Record<string, string | number | undefined | null>) {
@@ -176,6 +177,36 @@ export const feeApi = rootApi.injectEndpoints({
       }),
       invalidatesTags: ["Fees"],
     }),
+
+    getFeePaymentReceipt: builder.query<FeeReceiptData, string>({
+      query: (paymentId) => `/fees/payments/${paymentId}/receipt`,
+      transformResponse: (res: ApiData<FeeReceiptData>) => res.data,
+      providesTags: (_r, _e, id) => [{ type: "Fees", id }],
+    }),
+
+    voidFeePayment: builder.mutation<
+      ApiData<{ message: string }>,
+      { id: string; reason?: string }
+    >({
+      query: ({ id, reason }) => ({
+        url: `/fees/payments/${id}/void`,
+        method: "POST",
+        body: reason ? { reason } : {},
+      }),
+      invalidatesTags: ["Fees"],
+    }),
+
+    waiveInvoiceFine: builder.mutation<
+      ApiData<{ message: string }>,
+      { id: string; reason?: string }
+    >({
+      query: ({ id, reason }) => ({
+        url: `/fees/invoices/${id}/waive-fine`,
+        method: "POST",
+        body: reason ? { reason } : {},
+      }),
+      invalidatesTags: ["Fees"],
+    }),
   }),
   overrideExisting: true,
 });
@@ -192,4 +223,8 @@ export const {
   useLazyPreviewStudentFeeQuery,
   useGetFeeCollectionReportQuery,
   useCancelFeeInvoiceMutation,
+  useGetFeePaymentReceiptQuery,
+  useLazyGetFeePaymentReceiptQuery,
+  useVoidFeePaymentMutation,
+  useWaiveInvoiceFineMutation,
 } = feeApi;

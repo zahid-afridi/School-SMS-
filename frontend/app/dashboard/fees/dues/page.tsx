@@ -10,6 +10,7 @@ import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
 import {
   useCancelFeeInvoiceMutation,
   useGetFeeInvoicesQuery,
+  useWaiveInvoiceFineMutation,
 } from "@/redux/features/fees/feeApi";
 
 const MONTHS = [
@@ -68,6 +69,7 @@ export default function MonthlyDuesPage() {
     useGetFeeInvoicesQuery(query);
   const [cancelInvoice, { isLoading: cancelling }] =
     useCancelFeeInvoiceMutation();
+  const [waiveFine, { isLoading: waiving }] = useWaiveInvoiceFineMutation();
 
   const rows = useMemo(() => invoices, [invoices]);
 
@@ -86,6 +88,27 @@ export default function MonthlyDuesPage() {
       toast.error(
         (err as { data?: { message?: string } })?.data?.message ??
           "Failed to cancel invoice"
+      );
+    }
+  };
+
+  const handleWaiveFine = async (
+    id: string,
+    invoiceNo: string,
+    fineAmount: number
+  ) => {
+    const reason = window.prompt(
+      `Waive fine of PKR ${fineAmount} on invoice ${invoiceNo}?\nEnter reason:`,
+      "Principal approved waiver"
+    );
+    if (!reason) return;
+    try {
+      await waiveFine({ id, reason }).unwrap();
+      toast.success(`Fine on ${invoiceNo} waived successfully`);
+    } catch (err: unknown) {
+      toast.error(
+        (err as { data?: { message?: string } })?.data?.message ??
+          "Failed to waive fine"
       );
     }
   };
@@ -276,6 +299,19 @@ export default function MonthlyDuesPage() {
                       >
                         Collect
                       </Link>
+                      {inv.fineAmount > 0 && (
+                        <button
+                          type="button"
+                          disabled={waiving}
+                          onClick={() =>
+                            handleWaiveFine(inv.id, inv.invoiceNo, inv.fineAmount)
+                          }
+                          className="text-amber-600 hover:underline mr-3 disabled:opacity-50"
+                          title="Waive fine"
+                        >
+                          Waive Fine
+                        </button>
+                      )}
                       {inv.status === "UNPAID" && inv.paidAmount === 0 && (
                         <button
                           type="button"

@@ -153,7 +153,12 @@ async function resolveStudentCharges(
     montlyFee: number;
     sectionName: string | null;
   };
-  student: { id: string; name: string; registrationNo: string };
+  student: {
+    id: string;
+    name: string;
+    registrationNo: string;
+    advanceBalance: number;
+  };
   lines: ChargeLine[];
   previousBalance: number;
 }> {
@@ -165,6 +170,7 @@ async function resolveStudentCharges(
       id: true,
       name: true,
       registrationNo: true,
+      advanceBalance: true,
       enrollments: {
         where: { isCurrent: true },
         take: 1,
@@ -296,6 +302,7 @@ async function resolveStudentCharges(
       id: student.id,
       name: student.name,
       registrationNo: student.registrationNo,
+      advanceBalance: student.advanceBalance ?? 0,
     },
     lines,
     previousBalance,
@@ -731,7 +738,7 @@ export const collectFeePayment = async (req: Request, res: Response) => {
 
   const student = await getPrisma().student.findFirst({
     where: { id: studentId, schoolId },
-    select: { id: true },
+    select: { id: true, name: true, registrationNo: true, advanceBalance: true },
   });
   if (!student) {
     throw new AppError(ApiMessages.STUDENT_NOT_FOUND, HttpStatus.NOT_FOUND);
@@ -758,23 +765,6 @@ export const collectFeePayment = async (req: Request, res: Response) => {
     orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }, { createdAt: "asc" }],
   });
 
-  if (openInvoices.length === 0) {
-    throw new AppError(
-      "No unpaid invoices found for this student",
-      HttpStatus.BAD_REQUEST
-    );
-  }
-
-  const totalDue = roundMoney(
-    openInvoices.reduce((s, inv) => s + inv.balanceAmount, 0)
-  );
-  if (amount > totalDue + 0.01) {
-    throw new AppError(
-      `Payment exceeds outstanding balance (PKR ${totalDue})`,
-      HttpStatus.BAD_REQUEST
-    );
-  }
-
   const receiptNo = await nextReceiptNo(schoolId, paidAt);
 
   const result = await getPrisma().$transaction(async (tx) => {
@@ -783,6 +773,7 @@ export const collectFeePayment = async (req: Request, res: Response) => {
         receiptNo,
         amount,
         method: method as (typeof PAYMENT_METHODS)[number],
+        status: "COMPLETED",
         paidAt,
         reference:
           typeof body.reference === "string" ? body.reference.trim() : null,
@@ -823,6 +814,21 @@ export const collectFeePayment = async (req: Request, res: Response) => {
       remaining = roundMoney(remaining - apply);
     }
 
+    // If remaining cash > 0, credit it directly to student.advanceBalance
+    let creditedToAdvance = 0;
+    if (remaining > 0) {
+      creditedToAdvance = roundMoney(remaining);
+      await tx.student.update({
+        where: { id: studentId },
+        data: { advanceBalance: { increment: creditedToAdvance } },
+      });
+    }
+
+    const updatedStudent = await tx.student.findUniqueOrThrow({
+      where: { id: studentId },
+      select: { id: true, name: true, registrationNo: true, advanceBalance: true },
+    });
+
     const fullPayment = await tx.feePayment.findUniqueOrThrow({
       where: { id: payment.id },
       include: {
@@ -843,17 +849,25 @@ export const collectFeePayment = async (req: Request, res: Response) => {
           },
         },
         student: {
-          select: { id: true, name: true, registrationNo: true },
+          select: { id: true, name: true, registrationNo: true, advanceBalance: true },
         },
       },
     });
 
-    return fullPayment;
+    return {
+      ...fullPayment,
+      appliedToInvoices: roundMoney(amount - remaining),
+      creditedToAdvance,
+      newAdvanceBalance: updatedStudent.advanceBalance,
+    };
   });
 
   return ApiResponse.success(res, {
     statusCode: HttpStatus.CREATED,
-    message: "Payment recorded successfully",
+    message:
+      result.creditedToAdvance > 0
+        ? `Payment recorded. PKR ${result.appliedToInvoices} applied to invoices, PKR ${result.creditedToAdvance} added to advance balance.`
+        : "Payment recorded successfully",
     data: result,
   });
 };
@@ -871,6 +885,7 @@ export const getStudentFeeLedger = async (req: Request, res: Response) => {
       registrationNo: true,
       photoUrl: true,
       contactPhone: true,
+      advanceBalance: true,
       enrollments: {
         where: { isCurrent: true },
         take: 1,
@@ -917,7 +932,10 @@ export const getStudentFeeLedger = async (req: Request, res: Response) => {
   const totalBilled = roundMoney(
     invoices.reduce((s, i) => s + i.totalAmount, 0)
   );
-  const totalPaid = roundMoney(payments.reduce((s, p) => s + p.amount, 0));
+  const completedPayments = payments.filter((p) => p.status !== "VOIDED");
+  const totalPaid = roundMoney(
+    completedPayments.reduce((s, p) => s + p.amount, 0)
+  );
   const totalBalance = roundMoney(
     invoices
       .filter((i) => i.status === "UNPAID" || i.status === "PARTIAL")
@@ -951,6 +969,8 @@ export const getStudentFeeLedger = async (req: Request, res: Response) => {
         totalBilled,
         totalPaid,
         totalBalance,
+        advanceBalance: student.advanceBalance ?? 0,
+        netPayable: roundMoney(Math.max(0, totalBalance - (student.advanceBalance ?? 0))),
         unpaidMonths: months.filter((m) => !m.isPaid).length,
         paidMonths: months.filter((m) => m.isPaid).length,
       },
@@ -1081,7 +1101,7 @@ export const getFeesDashboard = async (req: Request, res: Response) => {
         _sum: { totalAmount: true },
       }),
       getPrisma().feePayment.aggregate({
-        where: { schoolId },
+        where: { schoolId, status: { not: "VOIDED" } },
         _sum: { amount: true },
       }),
       getPrisma().feeInvoice.aggregate({
@@ -1105,6 +1125,7 @@ export const getFeesDashboard = async (req: Request, res: Response) => {
       getPrisma().feePayment.aggregate({
         where: {
           schoolId,
+          status: { not: "VOIDED" },
           paidAt: {
             gte: new Date(year, month - 1, now.getDate()),
             lt: new Date(year, month - 1, now.getDate() + 1),
@@ -1185,8 +1206,9 @@ export const getFeeCollectionReport = async (req: Request, res: Response) => {
     orderBy: { paidAt: "desc" },
   });
 
+  const activePayments = payments.filter((p) => p.status !== "VOIDED");
   const byMethod: Record<string, number> = {};
-  for (const p of payments) {
+  for (const p of activePayments) {
     byMethod[p.method] = roundMoney((byMethod[p.method] ?? 0) + p.amount);
   }
 
@@ -1195,8 +1217,8 @@ export const getFeeCollectionReport = async (req: Request, res: Response) => {
     data: {
       from,
       to: end,
-      totalCollected: roundMoney(payments.reduce((s, p) => s + p.amount, 0)),
-      paymentCount: payments.length,
+      totalCollected: roundMoney(activePayments.reduce((s, p) => s + p.amount, 0)),
+      paymentCount: activePayments.length,
       byMethod,
       payments,
     },
@@ -1248,6 +1270,7 @@ export const previewStudentFee = async (req: Request, res: Response) => {
       outstandingBalance: roundMoney(
         openInvoices.reduce((s, i) => s + i.balanceAmount, 0)
       ),
+      advanceBalance: resolved.student.advanceBalance ?? 0,
     },
   });
 };
@@ -1302,6 +1325,234 @@ export const cancelFeeInvoice = async (req: Request, res: Response) => {
     data: {
       ...updated,
       monthLabel: `${MONTH_NAMES[updated.billingMonth - 1]} ${updated.billingYear}`,
+    },
+  });
+};
+
+/** POST /fees/payments/:id/void — void a payment and restore invoice balances */
+export const voidFeePayment = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+  const body = req.body ?? {};
+  const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : "Voided by admin";
+
+  const payment = await getPrisma().feePayment.findFirst({
+    where: { id, schoolId },
+    include: {
+      allocations: {
+        include: {
+          invoice: true,
+        },
+      },
+      student: true,
+    },
+  });
+
+  if (!payment) {
+    throw new AppError("Payment not found", HttpStatus.NOT_FOUND);
+  }
+
+  if (payment.status === "VOIDED") {
+    throw new AppError("Payment is already voided", HttpStatus.BAD_REQUEST);
+  }
+
+  await getPrisma().$transaction(async (tx) => {
+    let totalAllocated = 0;
+    for (const alloc of payment.allocations) {
+      totalAllocated += alloc.amount;
+      const inv = alloc.invoice;
+      const newPaid = roundMoney(Math.max(0, inv.paidAmount - alloc.amount));
+      const newBal = roundMoney(Math.max(0, inv.totalAmount - newPaid));
+      const newStatus = invoiceStatus(inv.totalAmount, newPaid);
+
+      await tx.feeInvoice.update({
+        where: { id: inv.id },
+        data: {
+          paidAmount: newPaid,
+          balanceAmount: newBal,
+          status: newStatus,
+        },
+      });
+    }
+
+    // If payment amount exceeded totalAllocated, excess was credited to student.advanceBalance!
+    const excessCredit = roundMoney(Math.max(0, payment.amount - totalAllocated));
+    if (excessCredit > 0 && payment.studentId) {
+      const student = await tx.student.findUnique({
+        where: { id: payment.studentId },
+        select: { advanceBalance: true },
+      });
+      if (student) {
+        const updatedAdvance = roundMoney(Math.max(0, (student.advanceBalance ?? 0) - excessCredit));
+        await tx.student.update({
+          where: { id: payment.studentId },
+          data: { advanceBalance: updatedAdvance },
+        });
+      }
+    }
+
+    await tx.feePayment.update({
+      where: { id: payment.id },
+      data: {
+        status: "VOIDED",
+        voidedAt: new Date(),
+        voidedByUserId: req.user?.userId ?? null,
+        voidReason: reason,
+      },
+    });
+  });
+
+  return ApiResponse.success(res, {
+    message: "Payment voided and invoice balances restored successfully",
+  });
+};
+
+/** POST /fees/invoices/:id/waive-fine — waive fine on invoice */
+export const waiveInvoiceFine = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+  const body = req.body ?? {};
+  const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : "Fine waived by administrator";
+
+  const invoice = await getPrisma().feeInvoice.findFirst({
+    where: { id, schoolId },
+  });
+
+  if (!invoice) {
+    throw new AppError("Invoice not found", HttpStatus.NOT_FOUND);
+  }
+
+  if (invoice.fineAmount <= 0) {
+    throw new AppError("Invoice has no fine to waive", HttpStatus.BAD_REQUEST);
+  }
+
+  if (invoice.fineWaived) {
+    throw new AppError("Fine has already been waived on this invoice", HttpStatus.BAD_REQUEST);
+  }
+
+  const fineToWaive = invoice.fineAmount;
+  const newTotal = roundMoney(Math.max(0, invoice.totalAmount - fineToWaive));
+  const newBalance = roundMoney(Math.max(0, newTotal - invoice.paidAmount));
+  const newStatus = invoiceStatus(newTotal, invoice.paidAmount);
+
+  await getPrisma().$transaction(async (tx) => {
+    // Delete fine line item
+    await tx.feeInvoiceItem.deleteMany({
+      where: { invoiceId: invoice.id, key: "FINE" },
+    });
+
+    await tx.feeInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        fineAmount: 0,
+        fineWaived: true,
+        fineWaivedAmount: fineToWaive,
+        fineWaivedReason: reason,
+        fineWaivedAt: new Date(),
+        fineWaivedByUserId: req.user?.userId ?? null,
+        totalAmount: newTotal,
+        balanceAmount: newBalance,
+        status: newStatus,
+      },
+    });
+  });
+
+  return ApiResponse.success(res, {
+    message: `Fine of PKR ${fineToWaive} waived successfully`,
+  });
+};
+
+/** GET /fees/payments/:id/receipt — get full receipt/challan data for printing */
+export const getFeePaymentReceipt = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+
+  const payment = await getPrisma().feePayment.findFirst({
+    where: { id, schoolId },
+    include: {
+      allocations: {
+        include: {
+          invoice: {
+            include: {
+              items: { orderBy: { sortOrder: "asc" } },
+            },
+          },
+        },
+      },
+      student: {
+        include: {
+          enrollments: {
+            where: { isCurrent: true },
+            take: 1,
+            include: { class: true, section: true },
+          },
+          parents: {
+            where: { isPrimaryGuardian: true },
+            take: 1,
+            include: { parent: true },
+          },
+        },
+      },
+      school: true,
+    },
+  });
+
+  if (!payment) {
+    throw new AppError("Payment receipt not found", HttpStatus.NOT_FOUND);
+  }
+
+  const openInvoices = await getPrisma().feeInvoice.aggregate({
+    where: {
+      schoolId,
+      studentId: payment.studentId,
+      status: { in: ["UNPAID", "PARTIAL"] },
+    },
+    _sum: { balanceAmount: true },
+  });
+
+  const enrollment = payment.student.enrollments[0] ?? null;
+  const primaryParent = payment.student.parents[0]?.parent ?? null;
+
+  return ApiResponse.success(res, {
+    message: ApiMessages.SUCCESS,
+    data: {
+      receiptNo: payment.receiptNo,
+      paidAt: payment.paidAt,
+      amount: payment.amount,
+      method: payment.method,
+      status: payment.status,
+      reference: payment.reference,
+      remarks: payment.remarks,
+      voidedAt: payment.voidedAt,
+      voidReason: payment.voidReason,
+      school: {
+        id: payment.school.id,
+        name: payment.school.name,
+        address: payment.school.address,
+        phone: payment.school.phone,
+        email: payment.school.email,
+        logoUrl: payment.school.logoUrl,
+      },
+      student: {
+        id: payment.student.id,
+        name: payment.student.name,
+        registrationNo: payment.student.registrationNo,
+        className: enrollment?.class.className ?? "—",
+        sectionName: enrollment?.section?.sectionName ?? "",
+        rollNo: enrollment?.rollNo ?? "—",
+        fatherName: primaryParent?.name ?? "",
+        contactPhone: payment.student.contactPhone ?? primaryParent?.mobileNo ?? "",
+        advanceBalance: payment.student.advanceBalance ?? 0,
+        remainingDue: roundMoney(openInvoices._sum.balanceAmount ?? 0),
+      },
+      allocations: payment.allocations.map((a) => ({
+        invoiceNo: a.invoice.invoiceNo,
+        monthLabel: `${MONTH_NAMES[a.invoice.billingMonth - 1]} ${a.invoice.billingYear}`,
+        allocatedAmount: a.amount,
+        invoiceTotal: a.invoice.totalAmount,
+        invoiceBalance: a.invoice.balanceAmount,
+        items: a.invoice.items,
+      })),
     },
   });
 };

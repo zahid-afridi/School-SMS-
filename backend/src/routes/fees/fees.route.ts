@@ -11,10 +11,13 @@ import {
   getFeeCollectionReport,
   getFeeDefaulters,
   getFeeInvoiceById,
+  getFeePaymentReceipt,
   getFeesDashboard,
   getStudentFeeLedger,
   listFeeInvoices,
   previewStudentFee,
+  voidFeePayment,
+  waiveInvoiceFine,
 } from "../../controllers/fees/feeBilling.controller.js";
 import { auth } from "../../middleware/auth.middleware.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
@@ -45,8 +48,24 @@ FeesRouter.post(
   auth("ADMIN"),
   asyncHandler(cancelFeeInvoice)
 );
+FeesRouter.post(
+  "/invoices/:id/waive-fine",
+  auth("ADMIN"),
+  asyncHandler(waiveInvoiceFine)
+);
 
 FeesRouter.post("/collect", auth("ADMIN"), asyncHandler(collectFeePayment));
+FeesRouter.post(
+  "/payments/:id/void",
+  auth("ADMIN"),
+  asyncHandler(voidFeePayment)
+);
+FeesRouter.get(
+  "/payments/:id/receipt",
+  auth("ADMIN"),
+  asyncHandler(getFeePaymentReceipt)
+);
+
 FeesRouter.get(
   "/preview/:studentId",
   auth("ADMIN"),

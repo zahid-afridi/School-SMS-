@@ -6,13 +6,19 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
+import { FaPrint, FaWallet } from "react-icons/fa";
 import { useGetAllClassesQuery } from "@/redux/features/classes/ClassApi";
 import { useGetAllStudentsQuery } from "@/redux/features/students/studentApi";
 import {
   useCollectFeePaymentMutation,
+  useLazyGetFeePaymentReceiptQuery,
   useLazyPreviewStudentFeeQuery,
 } from "@/redux/features/fees/feeApi";
-import type { StudentFeePreview } from "@/redux/features/fees/feeTypes";
+import type {
+  FeeReceiptData,
+  StudentFeePreview,
+} from "@/redux/features/fees/feeTypes";
+import FeeReceiptModal from "../components/FeeReceiptModal";
 
 const METHODS = [
   { value: "CASH", label: "Cash" },
@@ -61,13 +67,17 @@ function CollectFeesInner() {
   const [remarks, setRemarks] = useState("");
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [lastReceipt, setLastReceipt] = useState<{
+    id?: string;
     receiptNo: string;
     amount: number;
   } | null>(null);
   const [preview, setPreview] = useState<StudentFeePreview | null>(null);
+  const [activeReceipt, setActiveReceipt] = useState<FeeReceiptData | null>(null);
 
   const [previewFee, { isFetching: loadingPreview }] =
     useLazyPreviewStudentFeeQuery();
+  const [getReceipt, { isFetching: loadingReceipt }] =
+    useLazyGetFeePaymentReceiptQuery();
   const [collect, { isLoading: collecting }] = useCollectFeePaymentMutation();
 
   const filteredStudents = useMemo(() => students, [students]);
@@ -132,14 +142,6 @@ function CollectFeesInner() {
       toast.error("Enter a valid amount");
       return;
     }
-    if (
-      preview &&
-      preview.openInvoices.length > 0 &&
-      selectedInvoices.length === 0
-    ) {
-      toast.error("Select at least one unpaid month");
-      return;
-    }
     try {
       const res = await collect({
         studentId,
@@ -149,11 +151,22 @@ function CollectFeesInner() {
         reference: reference || undefined,
         remarks: remarks || undefined,
       }).unwrap();
-      toast.success(`Payment saved. Receipt: ${res.data.receiptNo}`);
+
+      toast.success(res.message || `Payment saved. Receipt: ${res.data.receiptNo}`);
       setLastReceipt({
+        id: res.data.id,
         receiptNo: res.data.receiptNo,
         amount: res.data.amount,
       });
+
+      // Automatically open receipt modal
+      try {
+        const receiptData = await getReceipt(res.data.id).unwrap();
+        setActiveReceipt(receiptData);
+      } catch {
+        // Fallback if receipt query fails
+      }
+
       const refreshed = await previewFee(studentId).unwrap();
       applyPreview(refreshed);
       setReference("");
@@ -171,8 +184,8 @@ function CollectFeesInner() {
       <div className="max-w-5xl mx-auto">
         <h1 className="text-3xl font-bold text-slate-900 mb-2">Collect Fees</h1>
         <p className="text-slate-500 mb-8">
-          Select a student, review unpaid months, and record payment. Amount is
-          applied oldest-month first.
+          Select a student, review unpaid months or advance credit, and record payment. Amount is
+          applied oldest-month first, and extra cash is credited to advance balance.
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -193,7 +206,7 @@ function CollectFeesInner() {
                     setLastReceipt(null);
                     setPreview(null);
                   }}
-                  className="w-full h-11 rounded-xl border border-slate-200 px-3"
+                  className="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"
                 >
                   <option value="">All classes</option>
                   {classes.map((c) => (
@@ -210,7 +223,7 @@ function CollectFeesInner() {
                 <select
                   value={studentId}
                   onChange={(e) => loadStudent(e.target.value)}
-                  className="w-full h-11 rounded-xl border border-slate-200 px-3"
+                  className="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"
                   disabled={loadingStudents}
                 >
                   <option value="">Select student</option>
@@ -223,10 +236,19 @@ function CollectFeesInner() {
               </div>
             </div>
 
+            {preview && (preview.advanceBalance ?? 0) > 0 && (
+              <div className="flex items-center gap-2 p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-sm">
+                <FaWallet className="text-emerald-600" />
+                <span>
+                  Student has <strong>{money(preview.advanceBalance)}</strong> existing credit in Advance Wallet.
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Amount (PKR) *
+                  Amount Received (PKR) *
                 </label>
                 <input
                   type="number"
@@ -234,16 +256,16 @@ function CollectFeesInner() {
                   step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full h-11 rounded-xl border border-slate-200 px-3"
+                  className="w-full h-11 rounded-xl border border-slate-200 px-3 font-semibold text-slate-800"
                   placeholder="0"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Method</label>
+                <label className="block text-sm font-medium mb-2">Payment Method</label>
                 <select
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}
-                  className="w-full h-11 rounded-xl border border-slate-200 px-3"
+                  className="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"
                 >
                   {METHODS.map((m) => (
                     <option key={m.value} value={m.value}>
@@ -256,12 +278,13 @@ function CollectFeesInner() {
 
             <div>
               <label className="block text-sm font-medium mb-2">
-                Reference (cheque / bank)
+                Reference No (cheque / bank transfer ID)
               </label>
               <input
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
                 className="w-full h-11 rounded-xl border border-slate-200 px-3"
+                placeholder="Optional cheque # or transaction ID"
               />
             </div>
             <div>
@@ -270,67 +293,92 @@ function CollectFeesInner() {
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 className="w-full h-11 rounded-xl border border-slate-200 px-3"
+                placeholder="Optional cashier note"
               />
             </div>
 
             <button
               type="submit"
               disabled={collecting || !studentId}
-              className="w-full h-12 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60"
+              className="w-full h-12 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60 transition-all shadow-sm"
             >
-              {collecting ? "Saving..." : "Record Payment"}
+              {collecting ? "Saving Payment..." : "Record Payment & Print Receipt"}
             </button>
 
             {lastReceipt && (
-              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-800">
-                Receipt <strong>{lastReceipt.receiptNo}</strong> ·{" "}
-                {money(lastReceipt.amount)}
-                {studentId && (
-                  <Link
-                    href={`/dashboard/fees/ledger/${studentId}`}
-                    className="block mt-2 text-emerald-700 underline"
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-800 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold">
+                    Payment Saved: Receipt #{lastReceipt.receiptNo}
+                  </p>
+                  <p className="text-xs text-emerald-600">
+                    Amount: {money(lastReceipt.amount)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (lastReceipt.id) {
+                        const receiptData = await getReceipt(lastReceipt.id).unwrap();
+                        setActiveReceipt(receiptData);
+                      }
+                    }}
+                    disabled={loadingReceipt}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 shadow-sm"
                   >
-                    View student ledger →
-                  </Link>
-                )}
+                    <FaPrint size={12} /> Print Receipt
+                  </button>
+                  {studentId && (
+                    <Link
+                      href={`/dashboard/fees/ledger/${studentId}`}
+                      className="text-xs text-emerald-800 underline font-medium"
+                    >
+                      Ledger →
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
           </form>
 
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <h2 className="font-semibold text-slate-900 mb-4">
-              Outstanding months
+              Billing & Dues Status
             </h2>
             {loadingPreview ? (
-              <PageLoader compact label="Loading" />
+              <PageLoader compact label="Loading dues" />
             ) : !preview ? (
               <p className="text-slate-400 text-sm">
-                Select a student to see unpaid invoices.
+                Select a student to see unpaid invoices or advance status.
               </p>
             ) : preview.openInvoices.length === 0 ? (
-              <div>
-                <p className="text-emerald-600 text-sm font-medium">
-                  No outstanding balance.
-                </p>
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-emerald-800 text-sm">
+                  <p className="font-semibold">All Invoices Cleared!</p>
+                  <p className="text-xs mt-1 text-emerald-600">
+                    Student has no outstanding balance. Any payment recorded now will be added as credit to their Advance Balance.
+                  </p>
+                </div>
                 <Link
                   href={`/dashboard/fees/ledger/${studentId}`}
-                  className="text-sm text-blue-600 underline mt-2 inline-block"
+                  className="text-sm text-blue-600 underline inline-block"
                 >
-                  Open ledger
+                  Open student fee ledger →
                 </Link>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-slate-500">
-                  Total due:{" "}
-                  <strong className="text-rose-600">
+                  Total outstanding:{" "}
+                  <strong className="text-rose-600 font-bold">
                     {money(preview.outstandingBalance)}
                   </strong>
                 </p>
                 {preview.openInvoices.map((inv) => (
                   <label
                     key={inv.id}
-                    className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer"
+                    className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
                   >
                     <input
                       type="checkbox"
@@ -344,14 +392,14 @@ function CollectFeesInner() {
                       </p>
                       <p className="text-xs text-slate-400">{inv.invoiceNo}</p>
                       <p className="text-rose-600 font-semibold mt-1">
-                        {money(inv.balanceAmount)}
+                        Due: {money(inv.balanceAmount)}
                       </p>
                     </div>
                   </label>
                 ))}
                 <Link
                   href={`/dashboard/fees/ledger/${studentId}`}
-                  className="text-sm text-blue-600 underline inline-block"
+                  className="text-sm text-blue-600 underline inline-block pt-2"
                 >
                   Full payment history →
                 </Link>
@@ -360,6 +408,12 @@ function CollectFeesInner() {
           </div>
         </div>
       </div>
+
+      {/* Printable Receipt Modal */}
+      <FeeReceiptModal
+        receipt={activeReceipt}
+        onClose={() => setActiveReceipt(null)}
+      />
     </div>
   );
 }

@@ -2,10 +2,25 @@
 
 import PageLoader from "@/app/components/PageLoader";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { FaArrowLeft, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
-import { useGetStudentFeeLedgerQuery } from "@/redux/features/fees/feeApi";
+import toast from "react-hot-toast";
+import {
+  FaArrowLeft,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaPrint,
+  FaBan,
+  FaWallet,
+} from "react-icons/fa";
+import {
+  useGetStudentFeeLedgerQuery,
+  useLazyGetFeePaymentReceiptQuery,
+  useVoidFeePaymentMutation,
+} from "@/redux/features/fees/feeApi";
+import type { FeeReceiptData } from "@/redux/features/fees/feeTypes";
+import FeeReceiptModal from "../../components/FeeReceiptModal";
 
 function money(n?: number) {
   return `PKR ${(n ?? 0).toLocaleString()}`;
@@ -14,9 +29,43 @@ function money(n?: number) {
 export default function StudentFeeLedgerPage() {
   const params = useParams();
   const studentId = String(params.studentId ?? "");
-  const { data, isLoading, isError } = useGetStudentFeeLedgerQuery(studentId, {
-    skip: !studentId,
-  });
+  const { data, isLoading, isError, refetch } = useGetStudentFeeLedgerQuery(
+    studentId,
+    { skip: !studentId }
+  );
+
+  const [activeReceipt, setActiveReceipt] = useState<FeeReceiptData | null>(null);
+  const [getReceipt, { isFetching: loadingReceipt }] =
+    useLazyGetFeePaymentReceiptQuery();
+  const [voidPayment, { isLoading: voiding }] = useVoidFeePaymentMutation();
+
+  const handlePrintReceipt = async (paymentId: string) => {
+    try {
+      const receiptData = await getReceipt(paymentId).unwrap();
+      setActiveReceipt(receiptData);
+    } catch {
+      toast.error("Failed to load receipt details");
+    }
+  };
+
+  const handleVoidPayment = async (paymentId: string, receiptNo: string) => {
+    const reason = window.prompt(
+      `Are you sure you want to VOID payment #${receiptNo}?\nThis will revert all invoice balances and deduct any advance credit.\n\nPlease enter a reason:`,
+      "Entered by mistake"
+    );
+    if (!reason) return;
+
+    try {
+      await voidPayment({ id: paymentId, reason }).unwrap();
+      toast.success(`Payment #${receiptNo} voided successfully`);
+      void refetch();
+    } catch (err: unknown) {
+      toast.error(
+        (err as { data?: { message?: string } })?.data?.message ??
+          "Failed to void payment"
+      );
+    }
+  };
 
   if (isLoading) {
     return (
@@ -44,7 +93,7 @@ export default function StudentFeeLedgerPage() {
           href="/dashboard/fees/defaulters"
           className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 mb-6"
         >
-          <FaArrowLeft size={12} /> Back
+          <FaArrowLeft size={12} /> Back to Defaulters
         </Link>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm mb-6">
@@ -74,29 +123,34 @@ export default function StudentFeeLedgerPage() {
             </div>
             <Link
               href={`/dashboard/fees/collect?studentId=${studentId}`}
-              className="inline-flex justify-center px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
+              className="inline-flex justify-center px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 shadow-sm"
             >
               Collect Payment
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-            <MiniStat label="Billed" value={money(summary.totalBilled)} />
-            <MiniStat label="Paid" value={money(summary.totalPaid)} />
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6">
+            <MiniStat label="Total Billed" value={money(summary.totalBilled)} />
+            <MiniStat label="Total Paid" value={money(summary.totalPaid)} />
             <MiniStat
-              label="Remaining"
+              label="Remaining Due"
               value={money(summary.totalBalance)}
-              danger
+              danger={summary.totalBalance > 0}
             />
             <MiniStat
-              label="Months"
+              label="Advance Wallet"
+              value={money(summary.advanceBalance ?? 0)}
+              highlight={(summary.advanceBalance ?? 0) > 0}
+            />
+            <MiniStat
+              label="Months Status"
               value={`${summary.paidMonths} paid / ${summary.unpaidMonths} due`}
             />
           </div>
         </div>
 
         <h2 className="text-lg font-semibold text-slate-900 mb-3">
-          Month-wise status
+          Month-wise Invoices
         </h2>
         {months.length === 0 ? (
           <p className="text-slate-400 mb-8">
@@ -154,45 +208,113 @@ export default function StudentFeeLedgerPage() {
         )}
 
         <h2 className="text-lg font-semibold text-slate-900 mb-3">
-          Payment history
+          Payment History
         </h2>
         {payments.length === 0 ? (
           <p className="text-slate-400">No payments recorded yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full min-w-[640px] text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[700px] text-sm">
               <thead className="bg-slate-50 text-slate-500 text-left">
                 <tr>
                   <th className="px-4 py-3">Receipt</th>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Method</th>
+                  <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Applied to</th>
                   <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p) => (
-                  <tr key={p.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-medium">{p.receiptNo}</td>
-                    <td className="px-4 py-3">
-                      {new Date(p.paidAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">{p.method.replace("_", " ")}</td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {p.allocations
-                        ?.map((a) => a.invoice.invoiceNo)
-                        .join(", ") || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">
-                      {money(p.amount)}
-                    </td>
-                  </tr>
-                ))}
+                {payments.map((p) => {
+                  const isVoided = p.status === "VOIDED";
+                  return (
+                    <tr
+                      key={p.id}
+                      className={`border-t border-slate-100 ${
+                        isVoided ? "bg-slate-50/70 opacity-75" : ""
+                      }`}
+                    >
+                      <td className="px-4 py-3 font-medium">
+                        <span className={isVoided ? "line-through text-slate-400" : ""}>
+                          {p.receiptNo}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {new Date(p.paidAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">{p.method.replace("_", " ")}</td>
+                      <td className="px-4 py-3">
+                        {isVoided ? (
+                          <span
+                            title={p.voidReason || "Voided by admin"}
+                            className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-semibold cursor-help"
+                          >
+                            VOIDED
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold">
+                            PAID
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">
+                        {p.allocations
+                          ?.map((a) => a.invoice.invoiceNo)
+                          .join(", ") || (
+                          <span className="italic text-emerald-700">
+                            Advance Wallet Deposit
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold">
+                        <span
+                          className={
+                            isVoided
+                              ? "line-through text-slate-400"
+                              : "text-emerald-700"
+                          }
+                        >
+                          {money(p.amount)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintReceipt(p.id)}
+                          disabled={loadingReceipt}
+                          className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 mr-2"
+                          title="Print Receipt / Challan"
+                        >
+                          <FaPrint size={14} />
+                        </button>
+                        {!isVoided && (
+                          <button
+                            type="button"
+                            onClick={() => handleVoidPayment(p.id, p.receiptNo)}
+                            disabled={voiding}
+                            className="p-1.5 rounded-lg text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                            title="Void Payment"
+                          >
+                            <FaBan size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Printable Receipt Modal */}
+      <FeeReceiptModal
+        receipt={activeReceipt}
+        onClose={() => setActiveReceipt(null)}
+      />
     </div>
   );
 }
@@ -201,17 +323,29 @@ function MiniStat({
   label,
   value,
   danger,
+  highlight,
 }: {
   label: string;
   value: string;
   danger?: boolean;
+  highlight?: boolean;
 }) {
   return (
-    <div className="rounded-xl bg-slate-50 p-3">
+    <div
+      className={`rounded-xl p-3 border ${
+        highlight
+          ? "bg-emerald-50 border-emerald-200"
+          : "bg-slate-50 border-slate-100"
+      }`}
+    >
       <p className="text-xs text-slate-500">{label}</p>
       <p
         className={`text-sm font-bold mt-1 ${
-          danger ? "text-rose-600" : "text-slate-800"
+          danger
+            ? "text-rose-600"
+            : highlight
+            ? "text-emerald-700"
+            : "text-slate-800"
         }`}
       >
         {value}

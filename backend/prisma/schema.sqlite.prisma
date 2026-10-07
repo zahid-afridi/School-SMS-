@@ -84,6 +84,11 @@ enum FeePaymentMethod {
   OTHER
 }
 
+enum PaymentStatus {
+  COMPLETED
+  VOIDED
+}
+
 enum AttendanceStatus {
   PRESENT
   LEAVE
@@ -270,6 +275,7 @@ model Student {
   province           String?
   postalCode         String?
   emergencyPhone     String?
+  advanceBalance     Float        @default(0)
   leavingDate        DateTime?
   leavingReason      String?
   status             PersonStatus @default(ACTIVE)
@@ -466,6 +472,11 @@ model FeeInvoice {
   subtotal       Float @default(0) // sum of charge lines (excl. discount)
   discountAmount Float @default(0)
   fineAmount     Float @default(0)
+  fineWaived     Boolean   @default(false)
+  fineWaivedAmount Float   @default(0)
+  fineWaivedReason String?
+  fineWaivedAt   DateTime?
+  fineWaivedByUserId String?
   totalAmount    Float @default(0) // payable = (charges incl. fine) - discount
   paidAmount     Float @default(0)
   balanceAmount  Float @default(0)
@@ -524,9 +535,13 @@ model FeePayment {
   receiptNo  String
   amount     Float
   method     FeePaymentMethod @default(CASH)
+  status     PaymentStatus    @default(COMPLETED)
   paidAt     DateTime         @default(now())
   reference  String? // cheque no / bank ref
   remarks    String?
+  voidedAt   DateTime?
+  voidedByUserId String?
+  voidReason String?
 
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -545,6 +560,7 @@ model FeePayment {
   @@index([schoolId])
   @@index([studentId])
   @@index([paidAt])
+  @@index([status])
 }
 
 model FeePaymentAllocation {
