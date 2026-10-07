@@ -392,8 +392,8 @@ function stageBackend(appStage) {
     { cwd: dest }
   );
 
-  // Strip source / junk (keep dist + prisma + node_modules only)
-  for (const junk of ["README.md", "src", "tsconfig.json"]) {
+  // Strip source / junk and .bin symlinks (keep dist + prisma + node_modules only)
+  for (const junk of ["README.md", "src", "tsconfig.json", join("node_modules", ".bin")]) {
     const p = join(dest, junk);
     if (existsSync(p)) rmSync(p, { recursive: true, force: true });
   }
@@ -420,6 +420,9 @@ function stageFrontend(appStage) {
   if (existsSync(publicSrc)) {
     cpSync(publicSrc, join(dest, "public"), { recursive: true });
   }
+
+  const frontendBin = join(dest, "node_modules", ".bin");
+  if (existsSync(frontendBin)) rmSync(frontendBin, { recursive: true, force: true });
 
   if (!existsSync(join(dest, "server.js"))) {
     throw new Error("Frontend stage missing server.js after standalone copy");
@@ -464,8 +467,8 @@ function stageOpenWa(appStage) {
   mkdirSync(join(dest, "data", "sessions"), { recursive: true });
   writeFileSync(join(dest, "data", "sessions", ".gitkeep"), "");
 
-  // Never ship source / dashboard / patch scripts
-  for (const junk of ["src", "dashboard", "test", "docs", ".git", "scripts"]) {
+  // Never ship source / dashboard / patch scripts / symlink .bin
+  for (const junk of ["src", "dashboard", "test", "docs", ".git", "scripts", join("node_modules", ".bin")]) {
     const p = join(dest, junk);
     if (existsSync(p)) rmSync(p, { recursive: true, force: true });
   }

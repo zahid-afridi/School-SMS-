@@ -28,10 +28,14 @@ async function invoke(cmd, args) {
 
 let statusTimer = null;
 
-async function boot() {
+async function boot(retryAttempt = 0) {
   if (statusTimer) clearInterval(statusTimer);
   setError(null);
-  setStatus("Starting SchoolSMS…");
+  setStatus(
+    retryAttempt > 0
+      ? "Initializing database & services (retrying)…"
+      : "Starting SchoolSMS…"
+  );
 
   try {
     try {
@@ -58,6 +62,16 @@ async function boot() {
   } catch (err) {
     if (statusTimer) clearInterval(statusTimer);
     console.error(err);
+
+    // On low-spec school systems, if the very first launch hits a transient lag during initial DB push,
+    // automatically retry once before displaying error buttons.
+    if (retryAttempt === 0) {
+      console.log("[SchoolSMS] First boot needs a second attempt, auto-retrying...");
+      setStatus("Finalizing database setup, retrying…");
+      await new Promise((r) => setTimeout(r, 2000));
+      return boot(1);
+    }
+
     setError(String(err?.message || err));
     setStatus("Could not start SchoolSMS");
   }

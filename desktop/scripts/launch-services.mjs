@@ -236,10 +236,26 @@ function spawnLogged(name, command, args, cwd, env, opts) {
   return child;
 }
 
-async function waitForUrl(url, label, attempts, intervalMs) {
-  attempts = attempts ?? 90;
-  intervalMs = intervalMs ?? 400;
+async function waitForUrl(url, label, attempts, intervalMs, childProcess = null) {
+  attempts = attempts ?? 240; // 120s max for school PCs
+  intervalMs = intervalMs ?? 500;
   for (let i = 0; i < attempts; i++) {
+    if (childProcess && (childProcess.exitCode != null || childProcess.signalCode != null)) {
+      const exitInfo = childProcess.exitCode != null
+        ? `exit code ${childProcess.exitCode}`
+        : `signal ${childProcess.signalCode}`;
+      const logFile = join(LOG_DIR, label + ".log");
+      let tail = "";
+      if (existsSync(logFile)) {
+        try {
+          const content = readFileSync(logFile, "utf8").trim();
+          tail = content.slice(-1000);
+        } catch {
+          /* ignore */
+        }
+      }
+      throw new Error(`${label} stopped unexpectedly (${exitInfo}).\n${tail}`);
+    }
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
       if (res.ok || res.status < 500) {
@@ -255,17 +271,24 @@ async function waitForUrl(url, label, attempts, intervalMs) {
 }
 
 async function backendMatchesDataDir() {
-  try {
-    const res = await fetch(BACKEND_URL + "/health", {
-      signal: AbortSignal.timeout(2000),
-    });
-    if (!res.ok) return false;
-    const json = await res.json();
-    const conn = normPath(json?.data?.connection ?? "");
-    return conn.includes(normPath(DB_FILE)) || conn.includes(normPath(DATA_DIR));
-  } catch {
-    return false;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const res = await fetch(BACKEND_URL + "/health", {
+        signal: AbortSignal.timeout(2000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const conn = normPath(json?.data?.connection ?? "");
+        if (conn.includes(normPath(DB_FILE)) || conn.includes(normPath(DATA_DIR))) {
+          return true;
+        }
+      }
+    } catch {
+      /* retry */
+    }
+    await delay(300);
   }
+  return false;
 }
 
 function isPortInUse(port) {
@@ -284,8 +307,9 @@ function isPortInUse(port) {
 }
 
 function killPort(port) {
+  const targetPortStr = ":" + port;
   if (process.platform === "win32") {
-    const r = spawnSync("cmd", ["/c", "netstat -ano | findstr :" + port], {
+    const r = spawnSync("cmd", ["/c", "netstat -ano | findstr " + targetPortStr], {
       encoding: "utf8",
       windowsHide: true,
     });
@@ -293,8 +317,11 @@ function killPort(port) {
     for (const line of (r.stdout || "").split(/\r?\n/)) {
       if (!line.includes("LISTENING")) continue;
       const parts = line.trim().split(/\s+/);
-      const pid = Number(parts[parts.length - 1]);
-      if (pid > 0) pids.add(pid);
+      // Netstat output format: Proto Local_Address Foreign_Address State PID
+      if (parts.length >= 5 && parts[1].endsWith(targetPortStr)) {
+        const pid = Number(parts[parts.length - 1]);
+        if (pid > 0 && pid !== process.pid) pids.add(pid);
+      }
     }
     for (const pid of pids) {
       console.log("[desktop] Stopping PID " + pid + " on port " + port);
@@ -310,18 +337,23 @@ function killPort(port) {
   });
 }
 
-async function stopAllPorts() {
-  const ports = [BACKEND_PORT, FRONTEND_PORT, OPENWA_PORT];
-  let killedAny = false;
-  for (const port of ports) {
-    if (await isPortInUse(port)) {
-      console.log(`[desktop] Freeing occupied port ${port}...`);
-      killPort(port);
-      killedAny = true;
+async function ensurePortFree(port, maxAttempts = 15) {
+  if (!(await isPortInUse(port))) return;
+  killPort(port);
+  for (let i = 0; i < maxAttempts; i++) {
+    await delay(200);
+    if (!(await isPortInUse(port))) {
+      console.log(`[desktop] Port ${port} is now free`);
+      return;
     }
   }
-  if (killedAny) {
-    await delay(500);
+  console.warn(`[desktop] Warning: Port ${port} may still be busy; continuing`);
+}
+
+async function stopAllPorts() {
+  const ports = [BACKEND_PORT, FRONTEND_PORT, OPENWA_PORT];
+  for (const port of ports) {
+    await ensurePortFree(port);
   }
 }
 
@@ -355,85 +387,126 @@ async function ensureSqliteSchema(env) {
   }
 
   writeStatus("schema", "Preparing local database…");
-  await new Promise((ok, fail) => {
-    const prismaJs = join(
-      BACKEND_DIR,
-      "node_modules",
-      "prisma",
-      "build",
-      "index.js"
-    );
-    const logPath = join(LOG_DIR, "prisma.log");
-    const out = createWriteStream(logPath, { flags: "a" });
-    out.write("\n===== " + new Date().toISOString() + " prisma db push =====\n");
 
-    const child = existsSync(prismaJs)
-      ? spawn(
-          process.execPath,
-          [
-            prismaJs,
-            "db",
-            "push",
-            "--schema=prisma/schema.sqlite.prisma",
-            "--url",
-            env.PRISMA_SQLITE_URL,
-          ],
-          {
-            cwd: BACKEND_DIR,
-            env,
-            stdio: ["ignore", "pipe", "pipe"],
-            shell: false,
-            windowsHide: true,
-          }
-        )
-      : spawn(
-          npxCmd(),
-          [
-            "prisma",
-            "db",
-            "push",
-            "--schema=prisma/schema.sqlite.prisma",
-            "--url",
-            env.PRISMA_SQLITE_URL,
-          ],
-          {
-            cwd: BACKEND_DIR,
-            env,
-            stdio: ["ignore", "pipe", "pipe"],
-            shell: process.platform === "win32",
-            windowsHide: true,
-          }
-        );
+  function runPushOnce() {
+    return new Promise((ok, fail) => {
+      const prismaJs = join(
+        BACKEND_DIR,
+        "node_modules",
+        "prisma",
+        "build",
+        "index.js"
+      );
+      const logPath = join(LOG_DIR, "prisma.log");
+      const out = createWriteStream(logPath, { flags: "a" });
+      out.write("\n===== " + new Date().toISOString() + " prisma db push =====\n");
 
-    child.stdout?.pipe(out, { end: false });
-    child.stderr?.pipe(out, { end: false });
-    child.on("exit", (code) => {
-      try {
-        out.write("===== exit code=" + code + " =====\n");
-      } finally {
-        out.end();
-      }
-      if (code === 0) {
-        if (currentHash) {
-          try {
-            writeFileSync(markerFile, currentHash, "utf8");
-          } catch {
-            /* ignore */
-          }
-        }
-        ok();
-      } else {
-        fail(
-          new Error(
-            "Database setup failed (prisma db push exit " +
-              code +
-              "). See " +
-              logPath
+      const child = existsSync(prismaJs)
+        ? spawn(
+            process.execPath,
+            [
+              "--max-old-space-size=512",
+              prismaJs,
+              "db",
+              "push",
+              "--schema=prisma/schema.sqlite.prisma",
+              "--url",
+              env.PRISMA_SQLITE_URL,
+            ],
+            {
+              cwd: BACKEND_DIR,
+              env,
+              stdio: ["ignore", "pipe", "pipe"],
+              shell: false,
+              windowsHide: true,
+            }
           )
-        );
-      }
+        : spawn(
+            npxCmd(),
+            [
+              "prisma",
+              "db",
+              "push",
+              "--schema=prisma/schema.sqlite.prisma",
+              "--url",
+              env.PRISMA_SQLITE_URL,
+            ],
+            {
+              cwd: BACKEND_DIR,
+              env,
+              stdio: ["ignore", "pipe", "pipe"],
+              shell: process.platform === "win32",
+              windowsHide: true,
+            }
+          );
+
+      child.stdout?.pipe(out, { end: false });
+      child.stderr?.pipe(out, { end: false });
+      child.on("exit", (code) => {
+        try {
+          out.write("===== exit code=" + code + " =====\n");
+        } finally {
+          out.end();
+        }
+        if (code === 0) ok();
+        else fail(new Error("prisma db push exit " + code));
+      });
+      child.on("error", (err) => {
+        try {
+          out.end();
+        } catch {
+          /* ignore */
+        }
+        fail(err);
+      });
     });
-  });
+  }
+
+  let pushOk = false;
+  let pushErr = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      if (attempt > 1) {
+        console.log(`[desktop] Retrying SQLite schema preparation (attempt ${attempt})...`);
+        writeStatus("schema", "Retrying database initialization…");
+        await delay(2000);
+      }
+      await runPushOnce();
+      pushOk = true;
+      break;
+    } catch (err) {
+      pushErr = err;
+      console.warn(`[desktop] Schema attempt ${attempt} warning:`, err?.message || err);
+    }
+  }
+
+  if (pushOk) {
+    if (currentHash) {
+      try {
+        writeFileSync(markerFile, currentHash, "utf8");
+      } catch {
+        /* ignore */
+      }
+    }
+    console.log("[desktop] SQLite database schema ready");
+    return;
+  }
+
+  // If school.db already exists from a previous run or partially completed, don't crash the school app
+  if (existsSync(DB_FILE)) {
+    console.warn(
+      "[desktop] Warning: prisma db push had errors, but school.db exists. Proceeding with existing database."
+    );
+    return;
+  }
+
+  const logPath = join(LOG_DIR, "prisma.log");
+  throw new Error(
+    "Database setup failed (" +
+      (pushErr?.message || "unknown error") +
+      "). See " +
+      logPath
+  );
 }
 
 function startBackend(commonEnv, children, pids) {
@@ -753,12 +826,12 @@ async function main() {
   await ensureSqliteSchema(commonEnv);
 
   // ── 2. Backend & Frontend in parallel (cuts boot time in half) ───────────
-  startBackend(commonEnv, children, pids);
-  startFrontend(commonEnv, children, pids);
+  const backendChild = startBackend(commonEnv, children, pids);
+  const frontendChild = startFrontend(commonEnv, children, pids);
 
   await Promise.all([
-    waitForUrl(BACKEND_URL + "/health", "backend", 90, 400),
-    waitForUrl(FRONTEND_URL, "frontend", 90, 400),
+    waitForUrl(BACKEND_URL + "/health", "backend", 240, 500, backendChild),
+    waitForUrl(FRONTEND_URL, "frontend", 240, 500, frontendChild),
   ]);
 
   const dbOk = await backendMatchesDataDir();

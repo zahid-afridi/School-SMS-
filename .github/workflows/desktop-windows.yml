@@ -46,6 +46,9 @@ jobs:
     name: Build Electron NSIS installer
     runs-on: windows-latest
     timeout-minutes: 180
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout

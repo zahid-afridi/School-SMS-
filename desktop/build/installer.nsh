@@ -13,41 +13,72 @@
   CreateDirectory "$INSTDIR\app\openwa\data"
   CreateDirectory "$INSTDIR\app\openwa\data\sessions"
 
-  ; electron-builder extraResources land in $INSTDIR/resources
-  StrCpy $2 "$INSTDIR\resources\vc_redist.x64.exe"
-  IfFileExists "$2" do_vcredist 0
-  StrCpy $2 "$INSTDIR\vc_redist.x64.exe"
-  IfFileExists "$2" do_vcredist skip_vcredist
-  do_vcredist:
-    DetailPrint "Installing Visual C++ Redistributable..."
-    ExecWait '"$2" /install /quiet /norestart' $1
-    DetailPrint "VC++ Redistributable exit code: $1"
+  ; Check if Visual C++ 2015-2022 x64 runtime is already present
+  IfFileExists "$WINDIR\System32\vcruntime140.dll" 0 check_vcredist_needed
+  IfFileExists "$WINDIR\System32\msvcp140.dll" skip_vcredist check_vcredist_needed
+
+  check_vcredist_needed:
+    ; electron-builder extraResources land in $INSTDIR/resources
+    StrCpy $2 "$INSTDIR\resources\vc_redist.x64.exe"
+    IfFileExists "$2" do_vcredist 0
+    StrCpy $2 "$INSTDIR\vc_redist.x64.exe"
+    IfFileExists "$2" do_vcredist skip_vcredist
+    do_vcredist:
+      DetailPrint "Installing Visual C++ Redistributable..."
+      nsExec::Exec '"$2" /install /quiet /norestart'
+      Pop $1
+      DetailPrint "VC++ Redistributable exit code: $1"
   skip_vcredist:
 
-  ; Extract Node runtime and the app payload at install time.
-  ; Only stamp the install marker when better-sqlite3 actually landed on disk.
-  ; tar.exe often returns success after skipping symlinks and the rest of node_modules.
-  IfFileExists "$WINDIR\System32\tar.exe" 0 skip_tar
-
-  IfFileExists "$INSTDIR\resources\node-runtime.zip" 0 skip_node_zip
+  ; Extract Node runtime at install time (prefer tar, fallback to PowerShell - silent execution)
+  IfFileExists "$INSTDIR\resources\node-runtime.zip" 0 skip_node_runtime
     DetailPrint "Extracting Node runtime..."
-    ExecWait '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\resources\node-runtime.zip" -C "$INSTDIR\runtime"' $1
-  skip_node_zip:
+    IfFileExists "$WINDIR\System32\tar.exe" 0 node_try_powershell
+      nsExec::Exec '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\resources\node-runtime.zip" -C "$INSTDIR\runtime"'
+      Pop $1
+    node_try_powershell:
+    IfFileExists "$INSTDIR\runtime\node.exe" skip_node_runtime 0
+      DetailPrint "Extracting Node runtime via PowerShell..."
+      nsExec::Exec 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "[System.IO.Compression.ZipFile]::ExtractToDirectory(\`"$INSTDIR\resources\node-runtime.zip\`", \`"$INSTDIR\runtime\`")"'
+      Pop $1
+      IfFileExists "$INSTDIR\runtime\node.exe" skip_node_runtime 0
+        nsExec::Exec 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath \`"$INSTDIR\resources\node-runtime.zip\`" -DestinationPath \`"$INSTDIR\runtime\`" -Force"'
+        Pop $1
+  skip_node_runtime:
 
-  IfFileExists "$INSTDIR\resources\app-payload.zip" 0 skip_tar
+  ; Extract SchoolSMS app payload at install time (silent execution, no black console window)
+  IfFileExists "$INSTDIR\resources\app-payload.zip" 0 skip_app_extract
     DetailPrint "Extracting SchoolSMS application..."
-    ExecWait '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\resources\app-payload.zip" -C "$INSTDIR"' $1
-    StrCmp $1 "0" 0 app_extract_bad
+    IfFileExists "$WINDIR\System32\tar.exe" 0 app_try_powershell
+      nsExec::Exec '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\resources\app-payload.zip" -C "$INSTDIR"'
+      Pop $1
+    app_try_powershell:
+    ; Check if payload files landed on disk (don't fail on harmless tar timestamp warnings)
+    IfFileExists "$INSTDIR\app\launch-services.mjs" 0 app_do_ps
+    IfFileExists "$INSTDIR\app\backend\node_modules\better-sqlite3\package.json" 0 app_do_ps
+    IfFileExists "$INSTDIR\app\backend\node_modules\bcrypt\package.json" app_verify_done 0
+
+    app_do_ps:
+      DetailPrint "Extracting SchoolSMS payload via PowerShell..."
+      nsExec::Exec 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "[System.IO.Compression.ZipFile]::ExtractToDirectory(\`"$INSTDIR\resources\app-payload.zip\`", \`"$INSTDIR\`")"'
+      Pop $1
+      IfFileExists "$INSTDIR\app\backend\node_modules\better-sqlite3\package.json" app_verify_done 0
+        nsExec::Exec 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath \`"$INSTDIR\resources\app-payload.zip\`" -DestinationPath \`"$INSTDIR\`" -Force"'
+        Pop $1
+
+    app_verify_done:
     IfFileExists "$INSTDIR\app\launch-services.mjs" 0 app_extract_bad
     IfFileExists "$INSTDIR\app\backend\node_modules\better-sqlite3\package.json" 0 app_extract_bad
     IfFileExists "$INSTDIR\app\backend\node_modules\bcrypt\package.json" 0 app_extract_bad
-    IfFileExists "$INSTDIR\resources\bundle-manifest.json" 0 skip_tar
+    IfFileExists "$INSTDIR\resources\bundle-manifest.json" 0 skip_app_extract
       CopyFiles /SILENT "$INSTDIR\resources\bundle-manifest.json" "$INSTDIR\.schoolsms-installed.json"
-      Goto skip_tar
-  app_extract_bad:
-    DetailPrint "App extract incomplete (database module missing). First launch will finish unpacking."
-    Delete "$INSTDIR\.schoolsms-installed.json"
-  skip_tar:
+      DetailPrint "Installation verified successfully."
+      Goto skip_app_extract
+
+    app_extract_bad:
+      DetailPrint "App extract deferred: first launch will finish unpacking."
+      Delete "$INSTDIR\.schoolsms-installed.json"
+  skip_app_extract:
 
   IfFileExists "$INSTDIR\schoolsms.config.json" skip_cfg 0
   FileOpen $0 "$INSTDIR\schoolsms.config.json" w
@@ -94,8 +125,6 @@
   Delete "$INSTDIR\*.dll"
   Delete "$INSTDIR\*.pak"
   Delete "$INSTDIR\*.bin"
-  Delete "$INSTDIR\*.dat"
-  Delete "$INSTDIR\*.json"
   Delete "$INSTDIR\chrome_100_percent.pak"
   Delete "$INSTDIR\chrome_200_percent.pak"
   Delete "$INSTDIR\icudtl.dat"

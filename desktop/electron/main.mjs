@@ -247,9 +247,35 @@ function noteUnpack(message) {
   }
 }
 
-function extractZipEntries(zipPath, dest) {
+function runProcessAsync(cmd, args, opts = {}) {
+  return new Promise((resolveResult) => {
+    let stdout = "";
+    let stderr = "";
+    const child = spawn(cmd, args, {
+      windowsHide: true,
+      ...opts,
+    });
+    child.stdout?.on("data", (d) => {
+      stdout += d.toString();
+    });
+    child.stderr?.on("data", (d) => {
+      stderr += d.toString();
+    });
+    child.on("error", (err) => {
+      resolveResult({ status: -1, stdout, stderr: err?.message || String(err) });
+    });
+    child.on("close", (code) => {
+      resolveResult({ status: code ?? -1, stdout, stderr });
+    });
+  });
+}
+
+async function extractZipEntriesAsync(zipPath, dest) {
   const zip = new AdmZip(zipPath);
-  for (const entry of zip.getEntries()) {
+  const entries = zip.getEntries();
+  const total = entries.length;
+  let count = 0;
+  for (const entry of entries) {
     const rel = entry.entryName.replace(/\\/g, "/");
     if (!rel || rel.includes("..")) continue;
     if (shouldSkipZipEntry(rel) || shouldPreserveOpenWaSession(rel, dest)) {
@@ -262,25 +288,61 @@ function extractZipEntries(zipPath, dest) {
     }
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, entry.getData());
+    count++;
+    if (count % 250 === 0) {
+      const pct = Math.round((count / total) * 100);
+      writeStartupStatus("unpack", `Unpacking local app (${pct}%)…`);
+      await delay(5); // Yield to event loop to keep splash screen responsive
+    }
   }
 }
 
-function extractZip(zipPath, dest) {
+async function extractZipAsync(zipPath, dest) {
   mkdirSync(dest, { recursive: true });
   if (process.platform === "win32") {
-    const tar = spawnSync("tar", ["-xf", zipPath, "-C", dest], {
-      windowsHide: true,
-      encoding: "utf8",
-    });
+    // 1. Try tar
+    const tar = await runProcessAsync("tar", ["-xf", zipPath, "-C", dest]);
     if (tar.status === 0) return;
     noteUnpack(
       `tar exit ${tar.status} for ${zipPath}\n${tar.stderr || tar.stdout || ""}`
     );
+
+    // 2. Try PowerShell .NET ZipFile (fast, native)
+    const psCmd = `[System.IO.Compression.ZipFile]::ExtractToDirectory('${zipPath.replace(/'/g, "''")}', '${dest.replace(/'/g, "''")}')`;
+    const ps = await runProcessAsync("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      psCmd,
+    ]);
+    if (ps.status === 0) return;
+    noteUnpack(
+      `PowerShell ZipFile exit ${ps.status} for ${zipPath}\n${ps.stderr || ps.stdout || ""}`
+    );
+
+    // 3. Try Expand-Archive
+    const eaCmd = `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${dest.replace(/'/g, "''")}' -Force`;
+    const ea = await runProcessAsync("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      eaCmd,
+    ]);
+    if (ea.status === 0) return;
+    noteUnpack(
+      `PowerShell Expand-Archive exit ${ea.status} for ${zipPath}\n${ea.stderr || ea.stdout || ""}`
+    );
   }
-  extractZipEntries(zipPath, dest);
+
+  // 4. Fallback to JS AdmZip with periodic UI yields
+  await extractZipEntriesAsync(zipPath, dest);
 }
 
-function extractAppPayload(zipPath, dest) {
+async function extractAppPayloadAsync(zipPath, dest) {
   mkdirSync(dest, { recursive: true });
   const sessions = join(dest, "app", "openwa", "data", "sessions");
   const sessionBackup = join(dest, "data", ".session-backup");
@@ -290,18 +352,52 @@ function extractAppPayload(zipPath, dest) {
   }
 
   if (process.platform === "win32") {
-    const tar = spawnSync("tar", ["-xf", zipPath, "-C", dest], {
-      windowsHide: true,
-      encoding: "utf8",
-    });
-    if (tar.status === 0 && appPayloadComplete(dest)) {
+    // 1. Try tar
+    const tar = await runProcessAsync("tar", ["-xf", zipPath, "-C", dest]);
+    if (appPayloadComplete(dest)) {
       rmSync(sessionBackup, { recursive: true, force: true });
       return;
     }
     noteUnpack(
-      `App tar extract incomplete (exit ${tar.status}). Falling back to full unpack.\n${
+      `App tar extract incomplete (exit ${tar.status}). Trying PowerShell.\n${
         tar.stderr || tar.stdout || ""
       }`
+    );
+
+    // 2. Try PowerShell .NET ZipFile
+    const psCmd = `[System.IO.Compression.ZipFile]::ExtractToDirectory('${zipPath.replace(/'/g, "''")}', '${dest.replace(/'/g, "''")}')`;
+    const ps = await runProcessAsync("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      psCmd,
+    ]);
+    if (appPayloadComplete(dest)) {
+      rmSync(sessionBackup, { recursive: true, force: true });
+      return;
+    }
+    noteUnpack(
+      `App PowerShell ZipFile exit ${ps.status}.\n${ps.stderr || ps.stdout || ""}`
+    );
+
+    // 3. Try Expand-Archive
+    const eaCmd = `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${dest.replace(/'/g, "''")}' -Force`;
+    const ea = await runProcessAsync("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      eaCmd,
+    ]);
+    if (appPayloadComplete(dest)) {
+      rmSync(sessionBackup, { recursive: true, force: true });
+      return;
+    }
+    noteUnpack(
+      `App Expand-Archive exit ${ea.status}.\n${ea.stderr || ea.stdout || ""}`
     );
   }
 
@@ -310,10 +406,9 @@ function extractAppPayload(zipPath, dest) {
     return;
   }
 
-  // A partial tar extract leaves launch-services.mjs without node_modules.
-  // Replace app/ so the database module is written as real files.
+  // A partial extract leaves launch-services.mjs without node_modules.
   rmSync(join(dest, "app"), { recursive: true, force: true });
-  extractZipEntries(zipPath, dest);
+  await extractZipEntriesAsync(zipPath, dest);
   if (existsSync(sessionBackup)) {
     mkdirSync(dirname(sessions), { recursive: true });
     cpSync(sessionBackup, sessions, { recursive: true });
@@ -395,14 +490,14 @@ async function ensureBundledRuntime() {
   if (nodeZip && needNode) {
     writeStartupStatus("unpack", "Installing portable Node runtime…");
     rmSync(join(dir, "runtime"), { recursive: true, force: true });
-    await extractZip(nodeZip, join(dir, "runtime"));
+    await extractZipAsync(nodeZip, join(dir, "runtime"));
   }
 
   const needApp =
     !appPayloadComplete(dir) || shaChanged(manifest, installed, "appSha256");
   if (appZip && needApp) {
-    writeStartupStatus("unpack", "Unpacking local app…");
-    await extractAppPayload(appZip, dir);
+    writeStartupStatus("unpack", "Unpacking local app (first launch)…");
+    await extractAppPayloadAsync(appZip, dir);
   }
 
   if (appZip && !appPayloadComplete(dir)) {
@@ -415,6 +510,7 @@ async function ensureBundledRuntime() {
 
   writeInstalledMarker(dir, manifest);
 }
+
 
 function nodeBin() {
   const dir = exeDir();
@@ -571,7 +667,7 @@ function killChildTree(child) {
   const pid = child.pid;
   if (process.platform === "win32" && pid) {
     try {
-      spawn("taskkill", ["/PID", String(pid), "/T", "/F"], {
+      spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
         stdio: "ignore",
         windowsHide: true,
       });
@@ -598,11 +694,12 @@ function stopViaScript(root) {
   const pathExtra = pathWithBundledNode();
   if (pathExtra) env.PATH = pathExtra;
   try {
-    spawn(nodeBin(), [script], {
+    spawnSync(nodeBin(), [script], {
       env,
       stdio: "ignore",
       windowsHide: true,
-    }).unref?.();
+      timeout: 3500,
+    });
   } catch {
     /* ignore */
   }
@@ -667,8 +764,9 @@ async function startServicesInner() {
     console.error("[SchoolSMS] launcher error:", err);
   });
 
-  await waitHttpOk(BACKEND_HEALTH, 180, logPath);
-  await waitHttpOk(FRONTEND_URL, 180, logPath);
+  // Up to 180s (360 * 500ms) for low-spec dual-core school PCs running initial SQLite schema push
+  await waitHttpOk(BACKEND_HEALTH, 360, logPath);
+  await waitHttpOk(FRONTEND_URL, 360, logPath);
 
   writeStartupStatus("ready", "Opening SchoolSMS…");
 }
