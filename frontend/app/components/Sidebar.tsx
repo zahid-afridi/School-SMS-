@@ -182,6 +182,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       children: [
         { name: "Fees Overview", href: "/dashboard/fees" },
         { name: "Collect Fees", href: "/dashboard/fees/collect" },
+        { name: "Student Fee History", href: "/dashboard/fees/ledger" },
         { name: "Generate Invoices", href: "/dashboard/fees/generate" },
         { name: "Monthly Dues", href: "/dashboard/fees/dues" },
         { name: "Defaulters", href: "/dashboard/fees/defaulters" },

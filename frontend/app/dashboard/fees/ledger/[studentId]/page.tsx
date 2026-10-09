@@ -89,12 +89,28 @@ export default function StudentFeeLedgerPage() {
   return (
     <div className="w-full min-w-0">
       <div className="max-w-5xl mx-auto">
-        <Link
-          href="/dashboard/fees/defaulters"
-          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 mb-6"
-        >
-          <FaArrowLeft size={12} /> Back to Defaulters
-        </Link>
+        <div className="flex items-center gap-4 mb-6 text-sm text-slate-500">
+          <Link
+            href="/dashboard/fees/ledger"
+            className="inline-flex items-center gap-1.5 hover:text-blue-600 transition font-medium"
+          >
+            <FaArrowLeft size={12} /> Search Another Student
+          </Link>
+          <span className="text-slate-300">·</span>
+          <Link
+            href="/dashboard/fees/collect"
+            className="hover:text-blue-600 transition"
+          >
+            Collect Fees
+          </Link>
+          <span className="text-slate-300">·</span>
+          <Link
+            href="/dashboard/fees/defaulters"
+            className="hover:text-slate-800 transition"
+          >
+            Defaulters
+          </Link>
+        </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm mb-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

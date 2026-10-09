@@ -5,7 +5,10 @@ import toast from "react-hot-toast";
 import {
   FaBriefcase,
   FaCamera,
+  FaCheckCircle,
+  FaCopy,
   FaGraduationCap,
+  FaTimes,
   FaUserTie,
 } from "react-icons/fa";
 
@@ -13,6 +16,7 @@ import { useRegisterTeacherMutation } from "@/redux/features/teachers/teacherApi
 import {
   CREATABLE_DESIGNATIONS,
   DESIGNATION_LABELS,
+  type EmployeeDesignation,
 } from "@/redux/features/teachers/teacherTypes";
 
 const BLOOD_GROUPS = [
@@ -63,6 +67,12 @@ const inputClass =
 export default function EmployeeForm() {
   const [teacher, setTeacher] = useState(EMPTY_FORM);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [successStaff, setSuccessStaff] = useState<{
+    name: string;
+    role: string;
+    username: string;
+    password: string;
+  } | null>(null);
 
   const [registerTeacher, { isLoading }] = useRegisterTeacherMutation();
 
@@ -112,6 +122,10 @@ export default function EmployeeForm() {
   const validateForm = (): string | null => {
     if (!teacher.fullName.trim()) {
       return "Full name is required";
+    }
+
+    if (!teacher.cnic.trim()) {
+      return "CNIC / National ID is required";
     }
 
     if (!teacher.designation) {
@@ -184,30 +198,51 @@ export default function EmployeeForm() {
       formData.append("photo", teacher.photo);
     }
 
+    const roleLabel =
+      teacher.designation === "TEACHER"
+        ? "Teacher"
+        : (DESIGNATION_LABELS[teacher.designation as EmployeeDesignation] || "Employee");
+    const submittedName = teacher.fullName.trim();
+
     try {
       const res = await registerTeacher(formData).unwrap();
 
       const credentials = res.data?.credentials;
 
-      if (credentials) {
+      if (credentials?.username && credentials?.password) {
         toast.success(
-          `${res.message}. Login: ${credentials.username} / ${credentials.password}`
+          `${roleLabel} added successfully! Login: ${credentials.username} / ${credentials.password}`,
+          { duration: 8000 }
         );
+
+        setSuccessStaff({
+          name: submittedName,
+          role: roleLabel,
+          username: credentials.username,
+          password: credentials.password,
+        });
       } else {
-        toast.success(res.message || "Employee registered successfully");
+        toast.success(`${roleLabel} added successfully!`, { duration: 5000 });
       }
 
       setTeacher(EMPTY_FORM);
       setPhotoPreview(null);
     } catch (err: unknown) {
+      const errData = err as {
+        data?: {
+          message?: string;
+          errors?: string[];
+        };
+        message?: string;
+      };
+
       const errorMessage =
-        (
-          err as {
-            data?: {
-              message?: string;
-            };
-          }
-        )?.data?.message ?? "Something went wrong";
+        errData?.data?.message ||
+        (Array.isArray(errData?.data?.errors)
+          ? errData.data.errors.join(", ")
+          : null) ||
+        errData?.message ||
+        "Failed to register employee";
 
       toast.error(errorMessage);
     }
@@ -233,6 +268,53 @@ export default function EmployeeForm() {
             already set at signup.
           </p>
         </div>
+
+        {/* Success Banner with Credentials */}
+        {successStaff && (
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 sm:p-5 shadow-sm text-emerald-950 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 text-lg">
+                <FaCheckCircle className="text-xl text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-emerald-900">
+                  {successStaff.role} Added Successfully!
+                </h3>
+                <p className="text-xs sm:text-sm text-emerald-700 mt-0.5">
+                  <span className="font-semibold">{successStaff.name}</span> has been registered. Share their login details:
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-mono bg-white/90 border border-emerald-200 px-3 py-1.5 rounded-lg text-slate-800">
+                  <span>Username: <strong className="text-blue-700 font-semibold">{successStaff.username}</strong></span>
+                  <span className="text-slate-300">|</span>
+                  <span>Password: <strong className="text-blue-700 font-semibold">{successStaff.password}</strong></span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `Role: ${successStaff.role}\nName: ${successStaff.name}\nUsername: ${successStaff.username}\nPassword: ${successStaff.password}`
+                  );
+                  toast.success("Credentials copied to clipboard!");
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm"
+              >
+                <FaCopy className="text-xs" /> Copy Login Info
+              </button>
+              <button
+                type="button"
+                onClick={() => setSuccessStaff(null)}
+                className="p-1.5 text-xs font-medium rounded-lg text-emerald-700 hover:bg-emerald-100 transition"
+                title="Dismiss"
+                aria-label="Dismiss"
+              >
+                <FaTimes className="text-sm" />
+              </button>
+            </div>
+          </div>
+        )}
 
         <form
           className="space-y-6"
@@ -353,11 +435,12 @@ export default function EmployeeForm() {
                 />
 
                 <Field
-                  label="CNIC / National ID"
+                  label="CNIC / National ID *"
                   name="cnic"
                   value={teacher.cnic}
                   onChange={handleChange}
                   placeholder="xxxxx-xxxxxxx-x"
+                  required
                 />
 
                 <Field
@@ -573,6 +656,7 @@ function Field({
   onChange,
   type = "text",
   placeholder,
+  required = false,
 }: {
   label: string;
   name: string;
@@ -584,6 +668,7 @@ function Field({
   ) => void;
   type?: string;
   placeholder?: string;
+  required?: boolean;
 }) {
   return (
     <div>
@@ -597,6 +682,7 @@ function Field({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
+        required={required}
         className={inputClass}
       />
     </div>

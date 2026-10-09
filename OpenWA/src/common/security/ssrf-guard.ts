@@ -1,3 +1,14 @@
+// Polyfill markAsUncloneable for Node 20 compatibility with undici
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const workerThreads = require('node:worker_threads');
+  if (workerThreads && typeof workerThreads.markAsUncloneable !== 'function') {
+    workerThreads.markAsUncloneable = (val: unknown) => val;
+  }
+} catch {
+  // ignore
+}
+
 import { isIPv4, isIPv6, type LookupFunction } from 'net';
 import { lookup } from 'dns/promises';
 import { type LookupAddress, type LookupOptions } from 'dns';

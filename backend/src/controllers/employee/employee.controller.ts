@@ -103,7 +103,7 @@ export const registerEmployee = async (req: Request, res: Response) => {
     address,
   } = req.body;
 
-  validateRequired(req.body, ["name", "designation", "joiningDate", "salary"]);
+  validateRequired(req.body, ["name", "designation", "joiningDate", "salary", "nationalId"]);
   validateEnum(designation, EMPLOYEE_DESIGNATIONS, ApiMessages.INVALID_ROLE);
 
   if (gender) {
@@ -171,9 +171,14 @@ export const registerEmployee = async (req: Request, res: Response) => {
     return { employee, user };
   });
 
+  const successMessage =
+    designation === "TEACHER"
+      ? "Teacher added successfully"
+      : ApiMessages.EMPLOYEE_REGISTERED;
+
   return ApiResponse.success(res, {
     statusCode: HttpStatus.CREATED,
-    message: ApiMessages.EMPLOYEE_REGISTERED,
+    message: successMessage,
     data: {
       employee: result.employee,
       user: result.user,

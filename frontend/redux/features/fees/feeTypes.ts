@@ -223,6 +223,10 @@ export interface StudentFeePreview {
     status: string;
     totalAmount: number;
     paidAmount: number;
+    billingMonth: number;
+    billingYear: number;
+    academicYear?: string;
+    dueDate?: string | null;
   }>;
   outstandingBalance: number;
   advanceBalance?: number;
