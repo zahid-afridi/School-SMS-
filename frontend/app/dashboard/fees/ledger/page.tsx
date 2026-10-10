@@ -21,11 +21,16 @@ import {
 } from "react-icons/fa";
 import {
   useGetStudentFeeLedgerQuery,
+  useLazyGetFeeInvoiceChallanQuery,
   useLazyGetFeePaymentReceiptQuery,
   useVoidFeePaymentMutation,
 } from "@/redux/features/fees/feeApi";
-import type { FeeReceiptData } from "@/redux/features/fees/feeTypes";
+import type {
+  FeeChallanData,
+  FeeReceiptData,
+} from "@/redux/features/fees/feeTypes";
 import FeeReceiptModal from "../components/FeeReceiptModal";
+import InvoiceChallanModal from "../components/InvoiceChallanModal";
 import StudentFeePicker from "../components/StudentFeePicker";
 import { resolveUploadUrl } from "@/lib/apiBase";
 
@@ -66,9 +71,21 @@ function StudentFeeHistoryInner() {
   );
 
   const [activeReceipt, setActiveReceipt] = useState<FeeReceiptData | null>(null);
+  const [activeChallan, setActiveChallan] = useState<FeeChallanData | null>(null);
   const [getReceipt, { isFetching: loadingReceipt }] =
     useLazyGetFeePaymentReceiptQuery();
+  const [getChallan, { isFetching: loadingChallan }] =
+    useLazyGetFeeInvoiceChallanQuery();
   const [voidPayment, { isLoading: voiding }] = useVoidFeePaymentMutation();
+
+  const handlePrintChallan = async (invoiceId: string) => {
+    try {
+      const challanData = await getChallan(invoiceId).unwrap();
+      setActiveChallan(challanData);
+    } catch {
+      toast.error("Failed to load invoice challan");
+    }
+  };
 
   const handleSelectStudent = (id: string) => {
     setStudentId(id);
@@ -372,6 +389,25 @@ function StudentFeeHistoryInner() {
                           >
                             Due: {money(m.balanceAmount)}
                           </span>
+                          <div className="print:hidden flex items-center gap-2 mt-2 sm:justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handlePrintChallan(m.id)}
+                              disabled={loadingChallan}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
+                              title="Print Monthly Challan"
+                            >
+                              <FaPrint size={10} /> Challan
+                            </button>
+                            {m.balanceAmount > 0 && (
+                              <Link
+                                href={`/dashboard/fees/collect?studentId=${studentId}&invoiceId=${m.id}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
+                              >
+                                Pay
+                              </Link>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -519,6 +555,13 @@ function StudentFeeHistoryInner() {
       <FeeReceiptModal
         receipt={activeReceipt}
         onClose={() => setActiveReceipt(null)}
+      />
+
+      {/* Official Printable Challan Modal */}
+      <InvoiceChallanModal
+        challan={activeChallan}
+        challans={null}
+        onClose={() => setActiveChallan(null)}
       />
     </div>
   );

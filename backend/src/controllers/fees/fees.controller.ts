@@ -370,3 +370,134 @@ export const getFeeParticulars = async (req: Request, res: Response) => {
     data: particulars,
   });
 };
+
+export const createFeeParticular = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const body = req.body ?? {};
+  validateRequired(body, ["label"]);
+
+  const label = String(body.label).trim();
+  if (!label) {
+    throw new AppError("Particular label is required", HttpStatus.BAD_REQUEST);
+  }
+
+  let key =
+    typeof body.key === "string" && body.key.trim()
+      ? body.key.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_")
+      : label.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+
+  const existingKey = await getPrisma().feeParticular.findFirst({
+    where: { schoolId, key },
+  });
+  if (existingKey) {
+    key = `${key}_${Date.now().toString().slice(-4)}`;
+  }
+
+  const sortOrder = Number.isInteger(Number(body.sortOrder))
+    ? Number(body.sortOrder)
+    : 50;
+  const valueType = body.valueType === "FIXED" ? "FIXED" : "EDITABLE";
+
+  const particular = await getPrisma().feeParticular.create({
+    data: {
+      schoolId,
+      key,
+      label,
+      sortOrder,
+      valueType,
+      isSystem: false,
+      isActive: true,
+    },
+  });
+
+  return ApiResponse.success(res, {
+    statusCode: HttpStatus.CREATED,
+    message: "Fee particular created successfully",
+    data: particular,
+  });
+};
+
+export const updateFeeParticular = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+  const body = req.body ?? {};
+
+  const existing = await getPrisma().feeParticular.findFirst({
+    where: { id, schoolId },
+  });
+  if (!existing) {
+    throw new AppError("Fee particular not found", HttpStatus.NOT_FOUND);
+  }
+
+  const label =
+    typeof body.label === "string" && body.label.trim()
+      ? body.label.trim()
+      : existing.label;
+  const sortOrder =
+    body.sortOrder !== undefined && Number.isInteger(Number(body.sortOrder))
+      ? Number(body.sortOrder)
+      : existing.sortOrder;
+  const isActive =
+    typeof body.isActive === "boolean" ? body.isActive : existing.isActive;
+
+  const updated = await getPrisma().feeParticular.update({
+    where: { id },
+    data: {
+      label,
+      sortOrder,
+      isActive,
+    },
+  });
+
+  return ApiResponse.success(res, {
+    message: "Fee particular updated successfully",
+    data: updated,
+  });
+};
+
+export const deleteFeeParticular = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+
+  const existing = await getPrisma().feeParticular.findFirst({
+    where: { id, schoolId },
+    include: {
+      _count: {
+        select: {
+          items: true,
+          invoiceItems: true,
+        },
+      },
+    },
+  });
+
+  if (!existing) {
+    throw new AppError("Fee particular not found", HttpStatus.NOT_FOUND);
+  }
+
+  if (existing.isSystem) {
+    throw new AppError(
+      "System fee particulars cannot be deleted",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  if (existing._count.items > 0 || existing._count.invoiceItems > 0) {
+    await getPrisma().feeParticular.update({
+      where: { id },
+      data: { isActive: false },
+    });
+    return ApiResponse.success(res, {
+      message: "Fee particular has transaction history; deactivated instead",
+    });
+  }
+
+  await getPrisma().feeParticular.delete({
+    where: { id },
+  });
+
+  return ApiResponse.success(res, {
+    message: "Fee particular deleted successfully",
+  });
+};
+

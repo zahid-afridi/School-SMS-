@@ -12,6 +12,8 @@ import type {
   StudentFeeLedger,
   StudentFeePreview,
   FeeReceiptData,
+  FeeParticularItem,
+  FeeChallanData,
 } from "./feeTypes";
 
 function toQuery(params: Record<string, string | number | undefined | null>) {
@@ -98,6 +100,8 @@ export const feeApi = rootApi.injectEndpoints({
         toYear?: number;
         academicYear?: string;
         classId?: string;
+        sectionId?: string;
+        dueDate?: string;
         studentId?: string;
       }
     >({
@@ -157,9 +161,58 @@ export const feeApi = rootApi.injectEndpoints({
       providesTags: ["Fees"],
     }),
 
+    getFeeParticulars: builder.query<FeeParticularItem[], void>({
+      query: () => "/fees/particulars",
+      transformResponse: (res: ApiData<FeeParticularItem[]>) => res.data,
+      providesTags: ["Fees"],
+    }),
+
+    createFeeParticular: builder.mutation<
+      ApiData<FeeParticularItem>,
+      {
+        label: string;
+        key?: string;
+        sortOrder?: number;
+        valueType?: "EDITABLE" | "FIXED";
+      }
+    >({
+      query: (body) => ({
+        url: "/fees/particulars",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Fees"],
+    }),
+
+    updateFeeParticular: builder.mutation<
+      ApiData<FeeParticularItem>,
+      { id: string; label?: string; sortOrder?: number; isActive?: boolean }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/fees/particulars/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Fees"],
+    }),
+
+    deleteFeeParticular: builder.mutation<
+      ApiData<{ message: string }>,
+      { id: string } | string
+    >({
+      query: (arg) => {
+        const id = typeof arg === "string" ? arg : arg.id;
+        return {
+          url: `/fees/particulars/${id}`,
+          method: "DELETE",
+        };
+      },
+      invalidatesTags: ["Fees"],
+    }),
+
     getFeeCollectionReport: builder.query<
       CollectionReport,
-      { from?: string; to?: string } | void
+      { from?: string; to?: string; classId?: string } | void
     >({
       query: (params) => `/fees/reports/collection${toQuery(params ?? {})}`,
       transformResponse: (res: ApiData<CollectionReport>) => res.data,
@@ -174,6 +227,82 @@ export const feeApi = rootApi.injectEndpoints({
         url: `/fees/invoices/${id}/cancel`,
         method: "POST",
         body: remarks ? { remarks } : {},
+      }),
+      invalidatesTags: ["Fees"],
+    }),
+
+    getFeeInvoiceChallan: builder.query<FeeChallanData, string>({
+      query: (id) => `/fees/invoices/${id}/challan`,
+      transformResponse: (res: ApiData<FeeChallanData>) => res.data,
+      providesTags: (_r, _e, id) => [{ type: "Fees", id }],
+    }),
+
+    getBulkInvoiceChallans: builder.mutation<
+      FeeChallanData[],
+      {
+        invoiceIds?: string[];
+        classId?: string;
+        sectionId?: string;
+        billingMonth?: number;
+        billingYear?: number;
+        status?: string;
+        search?: string;
+      }
+    >({
+      query: (body) => ({
+        url: "/fees/invoices/bulk-challan",
+        method: "POST",
+        body,
+      }),
+      transformResponse: (
+        res: ApiData<{ count: number; challans: FeeChallanData[] }>
+      ) => res.data.challans,
+    }),
+
+    applyInvoiceLateFine: builder.mutation<
+      ApiData<FeeInvoice>,
+      { id: string; amount?: number; reason?: string }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/fees/invoices/${id}/apply-fine`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Fees"],
+    }),
+
+    applyBulkLateFines: builder.mutation<
+      ApiData<{ appliedCount: number }>,
+      {
+        amount?: number;
+        billingMonth?: number;
+        billingYear?: number;
+        classId?: string;
+        reason?: string;
+      }
+    >({
+      query: (body) => ({
+        url: "/fees/invoices/apply-late-fines",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Fees"],
+    }),
+
+    adjustInvoice: builder.mutation<
+      ApiData<FeeInvoice>,
+      {
+        id: string;
+        type: "DISCOUNT" | "CHARGE";
+        amount: number;
+        label?: string;
+        reason: string;
+      }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/fees/invoices/${id}/adjust`,
+        method: "POST",
+        body,
       }),
       invalidatesTags: ["Fees"],
     }),
@@ -214,17 +343,33 @@ export const feeApi = rootApi.injectEndpoints({
 export const {
   useGetFeeStructureQuery,
   useSaveFeeStructureMutation,
+  useGetFeeParticularsQuery,
+  useCreateFeeParticularMutation,
+  useUpdateFeeParticularMutation,
+  useDeleteFeeParticularMutation,
   useGetFeesDashboardQuery,
   useGetFeeInvoicesQuery,
+  useLazyGetFeeInvoicesQuery,
   useGenerateFeeInvoicesMutation,
   useCollectFeePaymentMutation,
   useGetFeeDefaultersQuery,
+  useLazyGetFeeDefaultersQuery,
   useGetStudentFeeLedgerQuery,
+  useLazyGetStudentFeeLedgerQuery,
+  usePreviewStudentFeeQuery,
   useLazyPreviewStudentFeeQuery,
   useGetFeeCollectionReportQuery,
+  useLazyGetFeeCollectionReportQuery,
   useCancelFeeInvoiceMutation,
+  useGetFeeInvoiceChallanQuery,
+  useLazyGetFeeInvoiceChallanQuery,
+  useGetBulkInvoiceChallansMutation,
+  useApplyInvoiceLateFineMutation,
+  useApplyBulkLateFinesMutation,
+  useAdjustInvoiceMutation,
   useGetFeePaymentReceiptQuery,
   useLazyGetFeePaymentReceiptQuery,
   useVoidFeePaymentMutation,
   useWaiveInvoiceFineMutation,
 } = feeApi;
+

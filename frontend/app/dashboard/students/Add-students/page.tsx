@@ -23,6 +23,13 @@ import type { ParentSearchResult } from "@/redux/features/students/studentTypes"
 
 type ParentMode = "new" | "existing";
 
+function getCurrentAcademicYear() {
+  const d = new Date();
+  const m = d.getMonth() + 1;
+  const y = d.getFullYear();
+  return m >= 4 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+}
+
 const EMPTY_FORM = {
   registrationNo: "",
   name: "",
@@ -48,7 +55,7 @@ const EMPTY_FORM = {
   additionalNote: "",
   classId: "",
   sectionId: "",
-  academicYear: "2025-2026",
+  academicYear: getCurrentAcademicYear(),
   rollNo: "",
   feeDiscount: "0",
   fatherName: "",

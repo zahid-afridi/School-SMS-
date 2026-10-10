@@ -13,6 +13,16 @@ export type FeePaymentMethod =
   | "ONLINE"
   | "OTHER";
 
+export interface FeeParticularItem {
+  id: string;
+  key: string;
+  label: string;
+  sortOrder: number;
+  valueType: FeeValueType;
+  isSystem: boolean;
+  isActive: boolean;
+}
+
 export interface FeeStructureItem {
   particularId: string;
   key: string;
@@ -58,6 +68,7 @@ export interface FeeInvoiceItem {
 export interface FeeInvoice {
   id: string;
   invoiceNo: string;
+  studentId?: string;
   academicYear: string;
   billingMonth: number;
   billingYear: number;
@@ -67,6 +78,9 @@ export interface FeeInvoice {
   subtotal: number;
   discountAmount: number;
   fineAmount: number;
+  fineWaived?: boolean;
+  fineWaivedAmount?: number;
+  fineWaivedReason?: string | null;
   totalAmount: number;
   paidAmount: number;
   balanceAmount: number;
@@ -88,9 +102,58 @@ export interface FeeInvoice {
   items?: FeeInvoiceItem[];
 }
 
+export interface FeeChallanData {
+  id: string;
+  invoiceNo: string;
+  academicYear: string;
+  billingMonth: number;
+  billingYear: number;
+  monthLabel: string;
+  status: FeeInvoiceStatus;
+  dueDate?: string | null;
+  generatedAt?: string | null;
+  subtotal: number;
+  discountAmount: number;
+  fineAmount: number;
+  fineWaived: boolean;
+  fineWaivedAmount?: number;
+  fineWaivedReason?: string | null;
+  totalAmount: number;
+  paidAmount: number;
+  balanceAmount: number;
+  previousArrears: number;
+  netPayable: number;
+  remarks?: string | null;
+  school: {
+    id: string;
+    name: string;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    logoUrl?: string | null;
+  };
+  student: {
+    id: string;
+    name: string;
+    registrationNo: string;
+    photoUrl?: string | null;
+    contactPhone?: string | null;
+    fatherName?: string | null;
+  };
+  enrollment: {
+    className: string;
+    sectionName?: string | null;
+    rollNo?: string | null;
+    academicYear: string;
+  };
+  items: FeeInvoiceItem[];
+  allocations?: any[];
+}
+
 export interface FeePayment {
   id: string;
   receiptNo: string;
+  studentId?: string;
   amount: number;
   method: FeePaymentMethod;
   status?: "COMPLETED" | "VOIDED";
@@ -99,7 +162,15 @@ export interface FeePayment {
   remarks?: string | null;
   voidedAt?: string | null;
   voidReason?: string | null;
-  student?: { id: string; name: string; registrationNo: string };
+  student?: {
+    id: string;
+    name: string;
+    registrationNo: string;
+    enrollments?: Array<{
+      class?: { className?: string } | null;
+      section?: { sectionName?: string } | null;
+    }>;
+  };
   allocations?: Array<{
     id: string;
     amount: number;
@@ -121,6 +192,12 @@ export interface FeesDashboardData {
   totalCollected: number;
   totalOutstanding: number;
   unpaidInvoiceCount: number;
+  paidInvoiceCount?: number;
+  partialInvoiceCount?: number;
+  overdueInvoices?: {
+    count: number;
+    amount: number;
+  };
   defaulterCount: number;
   thisMonth: {
     label: string;
@@ -130,6 +207,18 @@ export interface FeesDashboardData {
     invoiceCount: number;
   };
   today: { collected: number; paymentCount: number };
+  recentPayments?: Array<{
+    id: string;
+    studentId?: string;
+    receiptNo: string;
+    amount: number;
+    method: string;
+    status: string;
+    paidAt: string;
+    studentName: string;
+    registrationNo: string;
+    className: string;
+  }>;
 }
 
 export interface FeeDefaulter {
@@ -238,6 +327,18 @@ export interface CollectionReport {
   totalCollected: number;
   paymentCount: number;
   byMethod: Record<string, number>;
+  classSummary?: Array<{
+    classId: string;
+    className: string;
+    invoiceCount: number;
+    totalBilled: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    billed?: number;
+    collected?: number;
+    balance?: number;
+    rate?: number;
+  }>;
   payments: FeePayment[];
 }
 

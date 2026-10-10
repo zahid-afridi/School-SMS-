@@ -8,6 +8,8 @@ import { AppError } from "../../utils/AppError.js";
 import { hashPassword } from "../../utils/Password.js";
 import { validateEnum, validateRequired } from "../../utils/validate.js";
 
+import { autoGenerateInvoicesForNewStudent } from "../fees/feeBilling.controller.js";
+
 const GENDERS = ["MALE", "FEMALE", "OTHER"] as const;
 type Gender = (typeof GENDERS)[number];
 
@@ -460,6 +462,20 @@ export const AddStudent = async (req: Request, res: Response) => {
 
     return { student, enrollment, parents: linkedParents, user };
   });
+
+  // Automatically generate admission invoice & active billing periods for the new student
+  try {
+    await autoGenerateInvoicesForNewStudent({
+      schoolId,
+      studentId: result.student.id,
+      enrollmentId: result.enrollment.id,
+      classId,
+      admissionDate: profile.admissionDate,
+      academicYear: result.enrollment.academicYear,
+    });
+  } catch (err) {
+    console.warn("Auto-generating fee invoices for new student failed:", err);
+  }
 
   return ApiResponse.success(res, {
     statusCode: HttpStatus.CREATED,

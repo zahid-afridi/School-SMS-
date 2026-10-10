@@ -21,11 +21,13 @@ import {
   FaSlidersH,
   FaCheck,
   FaSave,
+  FaSearch,
 } from "react-icons/fa";
 import {
   useCollectFeePaymentMutation,
   useGenerateFeeInvoicesMutation,
   useGetFeeStructureQuery,
+  useLazyGetFeeInvoicesQuery,
   useLazyGetFeePaymentReceiptQuery,
   useLazyPreviewStudentFeeQuery,
   useSaveFeeStructureMutation,
@@ -35,6 +37,7 @@ import type {
   StudentFeePreview,
 } from "@/redux/features/fees/feeTypes";
 import FeeReceiptModal from "../components/FeeReceiptModal";
+import InvoiceChallanModal from "../components/InvoiceChallanModal";
 import StudentFeePicker from "../components/StudentFeePicker";
 
 const METHODS = [
@@ -96,6 +99,11 @@ function CollectFeesInner() {
   const [preview, setPreview] = useState<StudentFeePreview | null>(null);
   const [activeReceipt, setActiveReceipt] = useState<FeeReceiptData | null>(null);
   const [showParticularsModal, setShowParticularsModal] = useState(false);
+  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().split("T")[0]);
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [challanInvoiceId, setChallanInvoiceId] = useState<string | null>(null);
+  const [reprintReceiptQuery, setReprintReceiptQuery] = useState("");
+  const [showReprintModal, setShowReprintModal] = useState(false);
 
   const [previewFee, { isFetching: loadingPreview }] =
     useLazyPreviewStudentFeeQuery();
@@ -104,6 +112,8 @@ function CollectFeesInner() {
   const [collect, { isLoading: collecting }] = useCollectFeePaymentMutation();
   const [generateInvoice, { isLoading: generatingInvoice }] =
     useGenerateFeeInvoicesMutation();
+  const [searchInvoices, { isFetching: searchingInvoices }] =
+    useLazyGetFeeInvoicesQuery();
 
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
@@ -267,6 +277,51 @@ function CollectFeesInner() {
     }
   };
 
+  const handleLookupInvoice = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = invoiceSearchQuery.trim();
+    if (!query) {
+      toast.error("Please enter an invoice number to search");
+      return;
+    }
+    try {
+      const results = await searchInvoices({ search: query }).unwrap();
+      if (!results || results.length === 0) {
+        toast.error(`No invoice found matching "${query}"`);
+        return;
+      }
+      const matched = results[0];
+      const targetStudentId = matched.student?.id ?? matched.studentId;
+      if (targetStudentId) {
+        await loadStudent(targetStudentId);
+      }
+      setSelectedInvoices([matched.id]);
+      setAmount(String(matched.balanceAmount));
+      toast.success(
+        `Loaded invoice #${matched.invoiceNo} for ${matched.student?.name ?? "Student"}`
+      );
+    } catch {
+      toast.error("Failed to lookup invoice");
+    }
+  };
+
+  const handleReprintReceipt = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = reprintReceiptQuery.trim();
+    if (!query) {
+      toast.error("Please enter a receipt number");
+      return;
+    }
+    try {
+      const receiptData = await getReceipt(query).unwrap();
+      setActiveReceipt(receiptData);
+      setShowReprintModal(false);
+      setReprintReceiptQuery("");
+    } catch {
+      toast.error(`Receipt "${query}" not found`);
+    }
+  };
+
   const handleCollect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentId) {
@@ -278,12 +333,27 @@ function CollectFeesInner() {
       return;
     }
 
+    // If current month invoice is missing and no open invoices exist, auto-generate it first
+    if (!hasCurrentMonthInvoice && (!preview?.openInvoices || preview.openInvoices.length === 0)) {
+      try {
+        await generateInvoice({
+          mode: "MONTH",
+          billingMonth: currentMonth,
+          billingYear: currentYear,
+          studentId,
+        }).unwrap();
+      } catch {
+        // Continue with collection even if auto-generate fails
+      }
+    }
+
     try {
       const res = await collect({
         studentId,
         amount: Number(amount),
         method,
         invoiceIds: selectedInvoices.length ? selectedInvoices : undefined,
+        paidAt: paidAt ? new Date(paidAt).toISOString() : undefined,
         reference: reference.trim() || undefined,
         remarks: remarks.trim() || undefined,
       }).unwrap();
@@ -342,6 +412,41 @@ function CollectFeesInner() {
               <FaHistory /> Complete Fee History
             </Link>
           )}
+        </div>
+
+        {/* Quick Search bar: Invoice # Lookup & Reprint Receipt */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+          <form
+            onSubmit={handleLookupInvoice}
+            className="flex-1 flex items-center gap-2 max-w-lg"
+          >
+            <div className="relative flex-1">
+              <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+              <input
+                type="text"
+                value={invoiceSearchQuery}
+                onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                placeholder="Scan / Type Invoice # (e.g. INV-2026-0001)..."
+                className="w-full h-9.5 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={searchingInvoices || !invoiceSearchQuery.trim()}
+              className="h-9.5 px-3.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition shrink-0"
+            >
+              {searchingInvoices ? "Searching..." : "Find Invoice"}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => setShowReprintModal(true)}
+            className="h-9.5 px-3.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-blue-600 text-xs font-semibold transition shrink-0 flex items-center justify-center gap-1.5 shadow-2xs"
+          >
+            <FaReceipt size={12} className="text-blue-600" />
+            Reprint Any Receipt
+          </button>
         </div>
 
         {/* Top: Rich Student Picker */}
@@ -521,8 +626,8 @@ function CollectFeesInner() {
                 </div>
               )}
 
-              {/* Amount Received & Payment Method */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Amount Received, Payment Method & Payment Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                     Receiving Fee (PKR) *
@@ -570,6 +675,18 @@ function CollectFeesInner() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Payment Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={paidAt}
+                    onChange={(e) => setPaidAt(e.target.value)}
+                    className="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
                 </div>
               </div>
 
@@ -689,19 +806,47 @@ function CollectFeesInner() {
                 </p>
               </div>
             ) : preview.openInvoices.length === 0 ? (
-              <div className="space-y-4 my-auto py-8">
-                <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-900 text-center space-y-2">
-                  <div className="h-10 w-10 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-lg">
-                    ✓
+              <div className="space-y-4 my-auto py-6">
+                {!hasCurrentMonthInvoice ? (
+                  <div className="p-5 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-center space-y-3">
+                    <div className="h-10 w-10 mx-auto rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-lg">
+                      <FaFileInvoiceDollar size={18} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-base text-amber-900">
+                        No Bill for {currentMonthName} {currentYear}
+                      </h3>
+                      <p className="text-xs text-amber-700 leading-relaxed mt-1">
+                        This student has not been billed for {currentMonthName} yet.
+                        Click below to generate their monthly voucher and collect fees.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGenerateCurrentMonth}
+                      disabled={generatingInvoice}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 text-white font-semibold text-xs hover:bg-amber-700 transition shadow-xs"
+                    >
+                      <FaPlusCircle size={12} />{" "}
+                      {generatingInvoice
+                        ? "Generating..."
+                        : `Generate ${currentMonthName} Bill Now`}
+                    </button>
                   </div>
-                  <h3 className="font-bold text-base text-emerald-900">
-                    All Dues Cleared!
-                  </h3>
-                  <p className="text-xs text-emerald-700 leading-relaxed">
-                    This student has zero outstanding invoices. Any payment
-                    recorded now will be credited to their Advance Wallet.
-                  </p>
-                </div>
+                ) : (
+                  <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-900 text-center space-y-2">
+                    <div className="h-10 w-10 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-lg">
+                      ✓
+                    </div>
+                    <h3 className="font-bold text-base text-emerald-900">
+                      All Dues Cleared!
+                    </h3>
+                    <p className="text-xs text-emerald-700 leading-relaxed">
+                      This student has zero outstanding invoices. Any payment
+                      recorded now will be credited to their Advance Wallet.
+                    </p>
+                  </div>
+                )}
                 <Link
                   href={`/dashboard/fees/ledger/${studentId}`}
                   className="block text-center text-xs font-semibold text-blue-600 hover:underline"
@@ -811,13 +956,27 @@ function CollectFeesInner() {
                           </div>
 
                           <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100/80">
-                            <span className="text-[11px] text-slate-500">
-                              {inv.paidAmount > 0 ? (
-                                <span>Paid: {money(inv.paidAmount)}</span>
-                              ) : (
-                                <span>Total: {money(inv.totalAmount)}</span>
-                              )}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-slate-500">
+                                {inv.paidAmount > 0 ? (
+                                  <span>Paid: {money(inv.paidAmount)}</span>
+                                ) : (
+                                  <span>Total: {money(inv.totalAmount)}</span>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  setChallanInvoiceId(inv.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition"
+                                title="Print official Challan"
+                              >
+                                <FaPrint size={8} /> Challan
+                              </button>
+                            </div>
                             <span className="font-bold text-rose-600 text-xs">
                               Due: {money(inv.balanceAmount)}
                             </span>
@@ -862,6 +1021,63 @@ function CollectFeesInner() {
         receipt={activeReceipt}
         onClose={() => setActiveReceipt(null)}
       />
+
+      {/* Printable Challan Modal */}
+      <InvoiceChallanModal
+        invoiceId={challanInvoiceId}
+        onClose={() => setChallanInvoiceId(null)}
+      />
+
+      {/* Reprint Receipt Quick Search Dialog */}
+      {showReprintModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <FaReceipt className="text-blue-600" /> Reprint Payment Receipt
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowReprintModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <form onSubmit={handleReprintReceipt} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Receipt Number or Payment ID
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={reprintReceiptQuery}
+                  onChange={(e) => setReprintReceiptQuery(e.target.value)}
+                  placeholder="e.g. REC-2026-0001"
+                  className="w-full h-11 rounded-xl border border-slate-200 px-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReprintModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingReceipt || !reprintReceiptQuery.trim()}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition flex items-center gap-1.5"
+                >
+                  {loadingReceipt ? "Finding..." : "Find & Print Receipt"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

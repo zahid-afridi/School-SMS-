@@ -332,6 +332,11 @@ const invoiceInclude = {
       registrationNo: true,
       photoUrl: true,
       contactPhone: true,
+      parents: {
+        where: { isPrimaryGuardian: true },
+        take: 1,
+        include: { parent: true },
+      },
     },
   },
   enrollment: {
@@ -344,6 +349,71 @@ const invoiceInclude = {
     },
   },
 } as const;
+
+function formatChallanData(params: {
+  invoice: any;
+  school: {
+    id: string;
+    name: string;
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+    logoUrl: string | null;
+  };
+  priorBalance: number;
+}) {
+  const { invoice, school, priorBalance } = params;
+  const primaryParent = invoice.student?.parents?.[0]?.parent ?? null;
+  const netPayable = roundMoney(invoice.balanceAmount + priorBalance);
+  return {
+    id: invoice.id,
+    invoiceNo: invoice.invoiceNo,
+    academicYear: invoice.academicYear,
+    billingMonth: invoice.billingMonth,
+    billingYear: invoice.billingYear,
+    monthLabel: `${MONTH_NAMES[invoice.billingMonth - 1]} ${invoice.billingYear}`,
+    status: invoice.status,
+    dueDate: invoice.dueDate,
+    generatedAt: invoice.generatedAt,
+    subtotal: invoice.subtotal,
+    discountAmount: invoice.discountAmount,
+    fineAmount: invoice.fineAmount,
+    fineWaived: invoice.fineWaived,
+    fineWaivedAmount: invoice.fineWaivedAmount,
+    fineWaivedReason: invoice.fineWaivedReason,
+    totalAmount: invoice.totalAmount,
+    paidAmount: invoice.paidAmount,
+    balanceAmount: invoice.balanceAmount,
+    previousArrears: priorBalance,
+    netPayable,
+    remarks: invoice.remarks,
+    school: {
+      id: school.id,
+      name: school.name,
+      address: school.address,
+      phone: school.phone,
+      email: school.email,
+      logoUrl: school.logoUrl,
+    },
+    student: {
+      id: invoice.student.id,
+      name: invoice.student.name,
+      registrationNo: invoice.student.registrationNo,
+      photoUrl: invoice.student.photoUrl,
+      contactPhone:
+        invoice.student.contactPhone || primaryParent?.mobileNo || null,
+      fatherName: primaryParent?.name || null,
+    },
+    enrollment: {
+      className: invoice.enrollment?.class?.className ?? "—",
+      sectionName: invoice.enrollment?.section?.sectionName ?? "",
+      rollNo: invoice.enrollment?.rollNo ?? "—",
+      academicYear: invoice.enrollment?.academicYear ?? invoice.academicYear,
+    },
+    items: invoice.items ?? [],
+    allocations: invoice.allocations ?? [],
+  };
+}
 
 const ONE_TIME_FEE_KEYS = new Set(["ADMISSION_FEE", "REGISTRATION_FEE"]);
 
@@ -447,6 +517,182 @@ async function alreadyChargedOneTimeKeys(schoolId: string, studentId: string) {
   return new Set(items.map((i) => i.key).filter(Boolean) as string[]);
 }
 
+/**
+ * Automatically creates fee invoice(s) for a student upon enrollment or when initial bills are missing.
+ * Generates the admission month invoice (with one-time fees like Admission Fee + Tuition)
+ * plus any future months in the current period that were already generated for other students in the class/school.
+ */
+export async function autoGenerateInvoicesForNewStudent(params: {
+  schoolId: string;
+  studentId: string;
+  enrollmentId: string;
+  classId: string;
+  admissionDate?: Date | string | null;
+  academicYear?: string | null;
+}): Promise<number> {
+  const { schoolId, studentId, enrollmentId, classId, admissionDate, academicYear } = params;
+  try {
+    const adm = admissionDate ? new Date(admissionDate) : new Date();
+    const admMonth = Number.isNaN(adm.getTime()) ? new Date().getMonth() + 1 : adm.getMonth() + 1;
+    const admYear = Number.isNaN(adm.getTime()) ? new Date().getFullYear() : adm.getFullYear();
+
+    // Look for all billing periods that have ALREADY been generated for other students in this class
+    // on or after the student's admission date
+    const classInvoices = await getPrisma().feeInvoice.findMany({
+      where: {
+        schoolId,
+        enrollment: { classId },
+        status: { not: "CANCELLED" },
+        OR: [
+          { billingYear: { gt: admYear } },
+          { billingYear: admYear, billingMonth: { gte: admMonth } },
+        ],
+      },
+      select: {
+        billingMonth: true,
+        billingYear: true,
+        academicYear: true,
+      },
+      distinct: ["billingMonth", "billingYear"],
+      orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }],
+    });
+
+    let periodsToGenerate = [...classInvoices];
+    if (periodsToGenerate.length === 0) {
+      const schoolInvoices = await getPrisma().feeInvoice.findMany({
+        where: {
+          schoolId,
+          status: { not: "CANCELLED" },
+          OR: [
+            { billingYear: { gt: admYear } },
+            { billingYear: admYear, billingMonth: { gte: admMonth } },
+          ],
+        },
+        select: {
+          billingMonth: true,
+          billingYear: true,
+          academicYear: true,
+        },
+        distinct: ["billingMonth", "billingYear"],
+        orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }],
+      });
+      periodsToGenerate = [...schoolInvoices];
+    }
+
+    // Always ensure the admission month itself is included
+    const hasAdmissionMonth = periodsToGenerate.some(
+      (p) => p.billingMonth === admMonth && p.billingYear === admYear
+    );
+
+    if (!hasAdmissionMonth) {
+      periodsToGenerate.unshift({
+        billingMonth: admMonth,
+        billingYear: admYear,
+        academicYear: academicYear || defaultAcademicYear(admMonth, admYear),
+      });
+    }
+
+    // Sort periods chronologically
+    periodsToGenerate.sort((a, b) => {
+      if (a.billingYear !== b.billingYear) return a.billingYear - b.billingYear;
+      return a.billingMonth - b.billingMonth;
+    });
+
+    let createdCount = 0;
+    const chargedOneTime = await alreadyChargedOneTimeKeys(schoolId, studentId);
+
+    for (const period of periodsToGenerate) {
+      const pAcademicYear =
+        period.academicYear ||
+        academicYear ||
+        defaultAcademicYear(period.billingMonth, period.billingYear);
+
+      const existing = await getPrisma().feeInvoice.findFirst({
+        where: {
+          schoolId,
+          studentId,
+          billingMonth: period.billingMonth,
+          billingYear: period.billingYear,
+          status: { not: "CANCELLED" },
+        },
+        select: { id: true },
+      });
+      if (existing) continue;
+
+      const resolved = await resolveStudentCharges(schoolId, studentId, {
+        includePreviousBalance: false,
+      });
+
+      let lines = resolved.lines.filter((l) => l.key !== "PREVIOUS_BALANCE");
+      lines = lines.filter(
+        (l) =>
+          !l.key ||
+          !ONE_TIME_FEE_KEYS.has(l.key) ||
+          !chargedOneTime.has(l.key)
+      );
+      lines = lines.filter(
+        (l) => l.isDiscount || l.key === "MONTHLY_TUITION" || l.amount > 0
+      );
+
+      const { subtotal, discountAmount, fineAmount, totalAmount } =
+        totalsFromLines(lines);
+
+      if (totalAmount <= 0 && lines.every((l) => l.amount <= 0)) {
+        continue;
+      }
+
+      const invoiceNo = await nextInvoiceNo(
+        schoolId,
+        period.billingYear,
+        period.billingMonth
+      );
+      const dueDate = new Date(period.billingYear, period.billingMonth - 1, 10);
+
+      await getPrisma().feeInvoice.create({
+        data: {
+          invoiceNo,
+          academicYear: pAcademicYear,
+          billingMonth: period.billingMonth,
+          billingYear: period.billingYear,
+          status: totalAmount <= 0 ? "PAID" : "UNPAID",
+          dueDate,
+          subtotal,
+          discountAmount,
+          fineAmount,
+          totalAmount,
+          paidAmount: 0,
+          balanceAmount: totalAmount,
+          schoolId,
+          studentId,
+          enrollmentId,
+          items: {
+            create: lines.map((line) => ({
+              label: line.label,
+              key: line.key,
+              amount: line.amount,
+              sortOrder: line.sortOrder,
+              isDiscount: line.isDiscount,
+              feeParticularId: line.feeParticularId,
+            })),
+          },
+        },
+      });
+
+      createdCount += 1;
+      for (const line of lines) {
+        if (line.key && ONE_TIME_FEE_KEYS.has(line.key)) {
+          chargedOneTime.add(line.key);
+        }
+      }
+    }
+
+    return createdCount;
+  } catch (err) {
+    console.error("autoGenerateInvoicesForNewStudent error:", err);
+    return 0;
+  }
+}
+
 /** POST /fees/invoices/generate */
 export const generateFeeInvoices = async (req: Request, res: Response) => {
   const schoolId = requireSchoolId(req);
@@ -464,6 +710,10 @@ export const generateFeeInvoices = async (req: Request, res: Response) => {
   const periods = buildPeriodList(body);
   const classId =
     typeof body.classId === "string" && body.classId ? body.classId : null;
+  const sectionId =
+    typeof body.sectionId === "string" && body.sectionId
+      ? body.sectionId
+      : null;
   const studentId =
     typeof body.studentId === "string" && body.studentId
       ? body.studentId
@@ -478,10 +728,11 @@ export const generateFeeInvoices = async (req: Request, res: Response) => {
         some: {
           isCurrent: true,
           ...(classId ? { classId } : {}),
+          ...(sectionId ? { sectionId } : {}),
         },
       },
     },
-    select: { id: true },
+    select: { id: true, admissionDate: true },
   });
 
   if (students.length === 0) {
@@ -507,14 +758,29 @@ export const generateFeeInvoices = async (req: Request, res: Response) => {
         : new Date(billingYear, billingMonth - 1, 10);
 
     for (const s of students) {
-      const existing = await getPrisma().feeInvoice.findUnique({
+      // Respect student admission date: do not bill periods before the student joined the school
+      if (s.admissionDate) {
+        const adm = new Date(s.admissionDate);
+        if (!Number.isNaN(adm.getTime())) {
+          const admYear = adm.getFullYear();
+          const admMonth = adm.getMonth() + 1;
+          if (
+            billingYear < admYear ||
+            (billingYear === admYear && billingMonth < admMonth)
+          ) {
+            skippedExisting += 1;
+            continue;
+          }
+        }
+      }
+
+      const existing = await getPrisma().feeInvoice.findFirst({
         where: {
-          studentId_academicYear_billingMonth_billingYear: {
-            studentId: s.id,
-            academicYear,
-            billingMonth,
-            billingYear,
-          },
+          schoolId,
+          studentId: s.id,
+          billingMonth,
+          billingYear,
+          status: { not: "CANCELLED" },
         },
         select: { id: true },
       });
@@ -725,6 +991,503 @@ export const getFeeInvoiceById = async (req: Request, res: Response) => {
   });
 };
 
+/** GET /fees/invoices/:id/challan */
+export const getFeeInvoiceChallan = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+
+  const [invoice, school] = await Promise.all([
+    getPrisma().feeInvoice.findFirst({
+      where: { id, schoolId },
+      include: {
+        ...invoiceInclude,
+        allocations: {
+          include: {
+            payment: {
+              select: {
+                id: true,
+                receiptNo: true,
+                amount: true,
+                method: true,
+                paidAt: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    getPrisma().school.findUnique({
+      where: { id: schoolId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        email: true,
+        logoUrl: true,
+      },
+    }),
+  ]);
+
+  if (!invoice || !school) {
+    throw new AppError("Invoice not found", HttpStatus.NOT_FOUND);
+  }
+
+  // Calculate prior unpaid balance strictly before this invoice's billing period
+  const priorAgg = await getPrisma().feeInvoice.aggregate({
+    where: {
+      schoolId,
+      studentId: invoice.studentId,
+      status: { in: ["UNPAID", "PARTIAL"] },
+      NOT: { id: invoice.id },
+      OR: [
+        { billingYear: { lt: invoice.billingYear } },
+        {
+          billingYear: invoice.billingYear,
+          billingMonth: { lt: invoice.billingMonth },
+        },
+      ],
+    },
+    _sum: { balanceAmount: true },
+  });
+
+  const previousArrears = roundMoney(priorAgg._sum.balanceAmount ?? 0);
+  const challanData = formatChallanData({
+    invoice,
+    school,
+    priorBalance: previousArrears,
+  });
+
+  return ApiResponse.success(res, {
+    message: ApiMessages.SUCCESS,
+    data: challanData,
+  });
+};
+
+/** POST /fees/invoices/bulk-challan */
+export const getBulkInvoiceChallans = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const body = req.body ?? {};
+  const {
+    invoiceIds,
+    classId,
+    sectionId,
+    billingMonth,
+    billingYear,
+    status,
+    search,
+  } = body;
+
+  const school = await getPrisma().school.findUnique({
+    where: { id: schoolId },
+    select: {
+      id: true,
+      name: true,
+      address: true,
+      phone: true,
+      email: true,
+      logoUrl: true,
+    },
+  });
+
+  if (!school) {
+    throw new AppError("School not found", HttpStatus.NOT_FOUND);
+  }
+
+  const ids =
+    Array.isArray(invoiceIds) && invoiceIds.length > 0
+      ? invoiceIds.map(String)
+      : null;
+
+  const invoices = await getPrisma().feeInvoice.findMany({
+    where: {
+      schoolId,
+      ...(ids ? { id: { in: ids } } : {}),
+      ...(typeof classId === "string" && classId
+        ? { enrollment: { classId } }
+        : {}),
+      ...(typeof sectionId === "string" && sectionId
+        ? { enrollment: { sectionId } }
+        : {}),
+      ...(billingMonth ? { billingMonth: Number(billingMonth) } : {}),
+      ...(billingYear ? { billingYear: Number(billingYear) } : {}),
+      ...(typeof search === "string" && search.trim()
+        ? {
+            OR: [
+              { invoiceNo: { contains: search.trim() } },
+              { student: { name: { contains: search.trim() } } },
+              { student: { registrationNo: { contains: search.trim() } } },
+            ],
+          }
+        : {}),
+      ...(typeof status === "string" && status
+        ? status.toUpperCase() === "OPEN" ||
+          status.toUpperCase() === "UNPAID_PARTIAL"
+          ? {
+              status: { in: ["UNPAID", "PARTIAL"] as const },
+              balanceAmount: { gt: 0 },
+            }
+          : status.toUpperCase() === "ALL"
+            ? {}
+            : {
+                status: status.toUpperCase() as
+                  | "UNPAID"
+                  | "PARTIAL"
+                  | "PAID"
+                  | "WAIVED"
+                  | "CANCELLED",
+              }
+        : { status: { not: "CANCELLED" } }),
+    },
+    include: {
+      ...invoiceInclude,
+      allocations: {
+        include: {
+          payment: {
+            select: {
+              id: true,
+              receiptNo: true,
+              amount: true,
+              method: true,
+              paidAt: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [
+      { enrollment: { class: { className: "asc" } } },
+      { enrollment: { rollNo: "asc" } },
+      { student: { name: "asc" } },
+    ],
+    take: 500,
+  });
+
+  const studentIds = [...new Set(invoices.map((i) => i.studentId))];
+  const priorInvoices = await getPrisma().feeInvoice.findMany({
+    where: {
+      schoolId,
+      studentId: { in: studentIds },
+      status: { in: ["UNPAID", "PARTIAL"] },
+    },
+    select: {
+      id: true,
+      studentId: true,
+      billingYear: true,
+      billingMonth: true,
+      balanceAmount: true,
+    },
+  });
+
+  const challans = invoices.map((inv) => {
+    const arrears = priorInvoices
+      .filter(
+        (p) =>
+          p.studentId === inv.studentId &&
+          p.id !== inv.id &&
+          (p.billingYear < inv.billingYear ||
+            (p.billingYear === inv.billingYear &&
+              p.billingMonth < inv.billingMonth))
+      )
+      .reduce((sum, p) => sum + p.balanceAmount, 0);
+
+    return formatChallanData({
+      invoice: inv,
+      school,
+      priorBalance: roundMoney(arrears),
+    });
+  });
+
+  return ApiResponse.success(res, {
+    message: ApiMessages.SUCCESS,
+    data: {
+      count: challans.length,
+      challans,
+    },
+  });
+};
+
+/** POST /fees/invoices/:id/apply-fine */
+export const applyInvoiceLateFine = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+  const body = req.body ?? {};
+  const fine = parsePositiveAmount(body.amount ?? 100, "fine amount");
+  const reason =
+    typeof body.reason === "string" && body.reason.trim()
+      ? body.reason.trim()
+      : "Late payment fine";
+
+  const invoice = await getPrisma().feeInvoice.findFirst({
+    where: { id, schoolId },
+    include: { items: true },
+  });
+
+  if (!invoice) {
+    throw new AppError("Invoice not found", HttpStatus.NOT_FOUND);
+  }
+
+  if (invoice.status === "CANCELLED" || invoice.status === "PAID") {
+    throw new AppError(
+      "Cannot apply fine to a paid or cancelled invoice",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  if (invoice.fineAmount > 0) {
+    throw new AppError(
+      "Fine has already been applied to this invoice",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  if (invoice.fineWaived) {
+    throw new AppError(
+      "Fine on this invoice was previously waived",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  const updated = await getPrisma().$transaction(async (tx) => {
+    const fineParticular = await tx.feeParticular.findFirst({
+      where: { schoolId, key: "FINE" },
+    });
+
+    await tx.feeInvoiceItem.create({
+      data: {
+        invoiceId: invoice.id,
+        label: `Late Fine (${reason})`,
+        key: "FINE",
+        amount: fine,
+        sortOrder: 88,
+        isDiscount: false,
+        feeParticularId: fineParticular?.id ?? null,
+      },
+    });
+
+    const newSubtotal = roundMoney(invoice.subtotal + fine);
+    const newTotal = roundMoney(invoice.totalAmount + fine);
+    const newBalance = roundMoney(invoice.balanceAmount + fine);
+    const newStatus = invoiceStatus(newTotal, invoice.paidAmount);
+
+    return tx.feeInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        subtotal: newSubtotal,
+        fineAmount: fine,
+        totalAmount: newTotal,
+        balanceAmount: newBalance,
+        status: newStatus,
+      },
+      include: invoiceInclude,
+    });
+  });
+
+  return ApiResponse.success(res, {
+    message: `Late fine of PKR ${fine} applied successfully`,
+    data: {
+      ...updated,
+      monthLabel: `${MONTH_NAMES[updated.billingMonth - 1]} ${updated.billingYear}`,
+    },
+  });
+};
+
+/** POST /fees/invoices/apply-late-fines (bulk) */
+export const applyBulkLateFines = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const body = req.body ?? {};
+  const fine = parsePositiveAmount(body.amount ?? 100, "fine amount");
+  const billingMonth = body.billingMonth
+    ? Number(body.billingMonth)
+    : undefined;
+  const billingYear = body.billingYear ? Number(body.billingYear) : undefined;
+  const classId =
+    typeof body.classId === "string" && body.classId
+      ? body.classId
+      : undefined;
+  const reason =
+    typeof body.reason === "string" && body.reason.trim()
+      ? body.reason.trim()
+      : "Late payment fine";
+
+  const now = new Date();
+  const overdueInvoices = await getPrisma().feeInvoice.findMany({
+    where: {
+      schoolId,
+      status: { in: ["UNPAID", "PARTIAL"] },
+      fineAmount: 0,
+      fineWaived: false,
+      dueDate: { lt: now },
+      ...(billingMonth ? { billingMonth } : {}),
+      ...(billingYear ? { billingYear } : {}),
+      ...(classId ? { enrollment: { classId } } : {}),
+    },
+    select: { id: true },
+  });
+
+  if (overdueInvoices.length === 0) {
+    return ApiResponse.success(res, {
+      message: "No eligible overdue invoices without fine found",
+      data: { appliedCount: 0 },
+    });
+  }
+
+  const fineParticular = await getPrisma().feeParticular.findFirst({
+    where: { schoolId, key: "FINE" },
+  });
+
+  let appliedCount = 0;
+  for (const inv of overdueInvoices) {
+    try {
+      await getPrisma().$transaction(async (tx) => {
+        const fullInv = await tx.feeInvoice.findUniqueOrThrow({
+          where: { id: inv.id },
+        });
+        if (fullInv.fineAmount > 0 || fullInv.fineWaived) return;
+
+        await tx.feeInvoiceItem.create({
+          data: {
+            invoiceId: inv.id,
+            label: `Late Fine (${reason})`,
+            key: "FINE",
+            amount: fine,
+            sortOrder: 88,
+            isDiscount: false,
+            feeParticularId: fineParticular?.id ?? null,
+          },
+        });
+
+        const newSubtotal = roundMoney(fullInv.subtotal + fine);
+        const newTotal = roundMoney(fullInv.totalAmount + fine);
+        const newBalance = roundMoney(fullInv.balanceAmount + fine);
+        const newStatus = invoiceStatus(newTotal, fullInv.paidAmount);
+
+        await tx.feeInvoice.update({
+          where: { id: inv.id },
+          data: {
+            subtotal: newSubtotal,
+            fineAmount: fine,
+            totalAmount: newTotal,
+            balanceAmount: newBalance,
+            status: newStatus,
+          },
+        });
+      });
+      appliedCount += 1;
+    } catch {
+      // Continue next
+    }
+  }
+
+  return ApiResponse.success(res, {
+    message: `Late fine of PKR ${fine} applied to ${appliedCount} overdue invoice(s)`,
+    data: { appliedCount },
+  });
+};
+
+/** POST /fees/invoices/:id/adjust — manual discount or fee adjustment */
+export const adjustInvoice = async (req: Request, res: Response) => {
+  const schoolId = requireSchoolId(req);
+  const { id } = req.params as { id: string };
+  const body = req.body ?? {};
+  validateRequired(body, ["type", "amount", "reason"]);
+
+  const type = String(body.type).toUpperCase();
+  if (type !== "DISCOUNT" && type !== "CHARGE") {
+    throw new AppError(
+      "type must be DISCOUNT or CHARGE",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+  const amount = parsePositiveAmount(body.amount);
+  const label =
+    typeof body.label === "string" && body.label.trim()
+      ? body.label.trim()
+      : type === "DISCOUNT"
+        ? "Special Waiver / Concession"
+        : "Adjustment Charge";
+  const reason = String(body.reason).trim();
+
+  const invoice = await getPrisma().feeInvoice.findFirst({
+    where: { id, schoolId },
+  });
+  if (!invoice) throw new AppError("Invoice not found", HttpStatus.NOT_FOUND);
+  if (invoice.status === "CANCELLED" || invoice.status === "PAID") {
+    throw new AppError(
+      "Cannot adjust paid or cancelled invoice",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  const updated = await getPrisma().$transaction(async (tx) => {
+    if (type === "DISCOUNT") {
+      await tx.feeInvoiceItem.create({
+        data: {
+          invoiceId: invoice.id,
+          label: `${label} (${reason})`,
+          key: "MANUAL_DISCOUNT",
+          amount,
+          sortOrder: 95,
+          isDiscount: true,
+        },
+      });
+
+      const newDiscount = roundMoney(invoice.discountAmount + amount);
+      const newTotal = roundMoney(Math.max(0, invoice.subtotal - newDiscount));
+      const newBalance = roundMoney(Math.max(0, newTotal - invoice.paidAmount));
+      const newStatus = invoiceStatus(newTotal, invoice.paidAmount);
+
+      return tx.feeInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          discountAmount: newDiscount,
+          totalAmount: newTotal,
+          balanceAmount: newBalance,
+          status: newStatus,
+        },
+        include: invoiceInclude,
+      });
+    } else {
+      await tx.feeInvoiceItem.create({
+        data: {
+          invoiceId: invoice.id,
+          label: `${label} (${reason})`,
+          key: "ADJUSTMENT",
+          amount,
+          sortOrder: 50,
+          isDiscount: false,
+        },
+      });
+
+      const newSubtotal = roundMoney(invoice.subtotal + amount);
+      const newTotal = roundMoney(
+        Math.max(0, newSubtotal - invoice.discountAmount)
+      );
+      const newBalance = roundMoney(Math.max(0, newTotal - invoice.paidAmount));
+      const newStatus = invoiceStatus(newTotal, invoice.paidAmount);
+
+      return tx.feeInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          subtotal: newSubtotal,
+          totalAmount: newTotal,
+          balanceAmount: newBalance,
+          status: newStatus,
+        },
+        include: invoiceInclude,
+      });
+    }
+  });
+
+  return ApiResponse.success(res, {
+    message: "Invoice adjusted successfully",
+    data: {
+      ...updated,
+      monthLabel: `${MONTH_NAMES[updated.billingMonth - 1]} ${updated.billingYear}`,
+    },
+  });
+};
+
 /** POST /fees/collect */
 export const collectFeePayment = async (req: Request, res: Response) => {
   const schoolId = requireSchoolId(req);
@@ -755,7 +1518,7 @@ export const collectFeePayment = async (req: Request, res: Response) => {
       ? [String(body.invoiceId)]
       : [];
 
-  const openInvoices = await getPrisma().feeInvoice.findMany({
+  let openInvoices = await getPrisma().feeInvoice.findMany({
     where: {
       schoolId,
       studentId,
@@ -764,6 +1527,34 @@ export const collectFeePayment = async (req: Request, res: Response) => {
     },
     orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }, { createdAt: "asc" }],
   });
+
+  // If no open invoices exist, auto-generate current month / admission bill so payment settles it directly
+  if (openInvoices.length === 0) {
+    const studentWithEnrollment = await getPrisma().student.findFirst({
+      where: { id: studentId, schoolId },
+      include: { enrollments: { where: { isCurrent: true }, take: 1 } },
+    });
+    const currentEnrollment = studentWithEnrollment?.enrollments[0];
+    if (currentEnrollment) {
+      await autoGenerateInvoicesForNewStudent({
+        schoolId,
+        studentId,
+        enrollmentId: currentEnrollment.id,
+        classId: currentEnrollment.classId,
+        admissionDate: studentWithEnrollment.admissionDate,
+        academicYear: currentEnrollment.academicYear,
+      });
+
+      openInvoices = await getPrisma().feeInvoice.findMany({
+        where: {
+          schoolId,
+          studentId,
+          status: { in: ["UNPAID", "PARTIAL"] },
+        },
+        orderBy: [{ billingYear: "asc" }, { billingMonth: "asc" }, { createdAt: "asc" }],
+      });
+    }
+  }
 
   const receiptNo = await nextReceiptNo(schoolId, paidAt);
 
@@ -1094,55 +1885,100 @@ export const getFeesDashboard = async (req: Request, res: Response) => {
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
 
-  const [billedAgg, paidAgg, unpaidAgg, monthInvoices, todayPayments, defaulterGroups] =
-    await Promise.all([
-      getPrisma().feeInvoice.aggregate({
-        where: { schoolId, status: { not: "CANCELLED" } },
-        _sum: { totalAmount: true },
-      }),
-      getPrisma().feePayment.aggregate({
-        where: { schoolId, status: { not: "VOIDED" } },
-        _sum: { amount: true },
-      }),
-      getPrisma().feeInvoice.aggregate({
-        where: {
-          schoolId,
-          status: { in: ["UNPAID", "PARTIAL"] },
+  const [
+    billedAgg,
+    paidAgg,
+    unpaidAgg,
+    overdueAgg,
+    paidInvoiceCount,
+    partialInvoiceCount,
+    monthInvoices,
+    todayPayments,
+    defaulterGroups,
+    recentPayments,
+  ] = await Promise.all([
+    getPrisma().feeInvoice.aggregate({
+      where: { schoolId, status: { not: "CANCELLED" } },
+      _sum: { totalAmount: true },
+    }),
+    getPrisma().feePayment.aggregate({
+      where: { schoolId, status: { not: "VOIDED" } },
+      _sum: { amount: true },
+    }),
+    getPrisma().feeInvoice.aggregate({
+      where: {
+        schoolId,
+        status: { in: ["UNPAID", "PARTIAL"] },
+      },
+      _sum: { balanceAmount: true },
+      _count: true,
+    }),
+    getPrisma().feeInvoice.aggregate({
+      where: {
+        schoolId,
+        status: { in: ["UNPAID", "PARTIAL"] },
+        balanceAmount: { gt: 0 },
+        dueDate: { lt: now },
+      },
+      _sum: { balanceAmount: true },
+      _count: true,
+    }),
+    getPrisma().feeInvoice.count({
+      where: { schoolId, status: "PAID" },
+    }),
+    getPrisma().feeInvoice.count({
+      where: { schoolId, status: "PARTIAL" },
+    }),
+    getPrisma().feeInvoice.aggregate({
+      where: {
+        schoolId,
+        billingMonth: month,
+        billingYear: year,
+        status: { not: "CANCELLED" },
+      },
+      _sum: { totalAmount: true, paidAmount: true, balanceAmount: true },
+      _count: true,
+    }),
+    getPrisma().feePayment.aggregate({
+      where: {
+        schoolId,
+        status: { not: "VOIDED" },
+        paidAt: {
+          gte: new Date(year, month - 1, now.getDate()),
+          lt: new Date(year, month - 1, now.getDate() + 1),
         },
-        _sum: { balanceAmount: true },
-        _count: true,
-      }),
-      getPrisma().feeInvoice.aggregate({
-        where: {
-          schoolId,
-          billingMonth: month,
-          billingYear: year,
-          status: { not: "CANCELLED" },
-        },
-        _sum: { totalAmount: true, paidAmount: true, balanceAmount: true },
-        _count: true,
-      }),
-      getPrisma().feePayment.aggregate({
-        where: {
-          schoolId,
-          status: { not: "VOIDED" },
-          paidAt: {
-            gte: new Date(year, month - 1, now.getDate()),
-            lt: new Date(year, month - 1, now.getDate() + 1),
+      },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    getPrisma().feeInvoice.groupBy({
+      by: ["studentId"],
+      where: {
+        schoolId,
+        status: { in: ["UNPAID", "PARTIAL"] },
+        balanceAmount: { gt: 0 },
+      },
+    }),
+    getPrisma().feePayment.findMany({
+      where: { schoolId },
+      include: {
+        student: {
+          select: {
+            id: true,
+            name: true,
+            registrationNo: true,
+            enrollments: {
+              where: { isCurrent: true },
+              take: 1,
+              select: { class: { select: { className: true } } },
+            },
           },
         },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      getPrisma().feeInvoice.groupBy({
-        by: ["studentId"],
-        where: {
-          schoolId,
-          status: { in: ["UNPAID", "PARTIAL"] },
-          balanceAmount: { gt: 0 },
-        },
-      }),
-    ]);
+      },
+      orderBy: { paidAt: "desc" },
+      take: 8,
+    }),
+  ]);
 
   return ApiResponse.success(res, {
     message: ApiMessages.SUCCESS,
@@ -1151,6 +1987,12 @@ export const getFeesDashboard = async (req: Request, res: Response) => {
       totalCollected: roundMoney(paidAgg._sum.amount ?? 0),
       totalOutstanding: roundMoney(unpaidAgg._sum.balanceAmount ?? 0),
       unpaidInvoiceCount: unpaidAgg._count,
+      paidInvoiceCount,
+      partialInvoiceCount,
+      overdueInvoices: {
+        count: overdueAgg._count,
+        amount: roundMoney(overdueAgg._sum.balanceAmount ?? 0),
+      },
       defaulterCount: defaulterGroups.length,
       thisMonth: {
         label: `${MONTH_NAMES[month - 1]} ${year}`,
@@ -1163,6 +2005,18 @@ export const getFeesDashboard = async (req: Request, res: Response) => {
         collected: roundMoney(todayPayments._sum.amount ?? 0),
         paymentCount: todayPayments._count,
       },
+      recentPayments: recentPayments.map((p) => ({
+        id: p.id,
+        studentId: p.studentId,
+        receiptNo: p.receiptNo,
+        amount: p.amount,
+        method: p.method,
+        status: p.status,
+        paidAt: p.paidAt,
+        studentName: p.student?.name ?? "—",
+        registrationNo: p.student?.registrationNo ?? "—",
+        className: p.student?.enrollments?.[0]?.class?.className ?? "—",
+      })),
     },
   });
 };
@@ -1182,14 +2036,37 @@ export const getFeeCollectionReport = async (req: Request, res: Response) => {
   const end = new Date(to);
   end.setHours(23, 59, 59, 999);
 
+  const classId =
+    typeof req.query.classId === "string" && req.query.classId
+      ? req.query.classId
+      : null;
+
   const payments = await getPrisma().feePayment.findMany({
     where: {
       schoolId,
       paidAt: { gte: from, lte: end },
+      ...(classId
+        ? {
+            student: {
+              enrollments: {
+                some: { classId, isCurrent: true },
+              },
+            },
+          }
+        : {}),
     },
     include: {
       student: {
-        select: { id: true, name: true, registrationNo: true },
+        select: {
+          id: true,
+          name: true,
+          registrationNo: true,
+          enrollments: {
+            where: { isCurrent: true },
+            take: 1,
+            select: { class: { select: { className: true } } },
+          },
+        },
       },
       allocations: {
         include: {
@@ -1212,14 +2089,47 @@ export const getFeeCollectionReport = async (req: Request, res: Response) => {
     byMethod[p.method] = roundMoney((byMethod[p.method] ?? 0) + p.amount);
   }
 
+  // Class-wise fee status
+  const classes = await getPrisma().class.findMany({
+    where: { schoolId },
+    select: { id: true, className: true },
+    orderBy: { className: "asc" },
+  });
+
+  const classSummary = await Promise.all(
+    classes.map(async (c) => {
+      const classInvoices = await getPrisma().feeInvoice.aggregate({
+        where: {
+          schoolId,
+          enrollment: { classId: c.id },
+          status: { not: "CANCELLED" },
+        },
+        _sum: { totalAmount: true, paidAmount: true, balanceAmount: true },
+        _count: true,
+      });
+
+      return {
+        classId: c.id,
+        className: c.className,
+        invoiceCount: classInvoices._count,
+        totalBilled: roundMoney(classInvoices._sum.totalAmount ?? 0),
+        totalCollected: roundMoney(classInvoices._sum.paidAmount ?? 0),
+        totalOutstanding: roundMoney(classInvoices._sum.balanceAmount ?? 0),
+      };
+    })
+  );
+
   return ApiResponse.success(res, {
     message: ApiMessages.SUCCESS,
     data: {
       from,
       to: end,
-      totalCollected: roundMoney(activePayments.reduce((s, p) => s + p.amount, 0)),
+      totalCollected: roundMoney(
+        activePayments.reduce((s, p) => s + p.amount, 0)
+      ),
       paymentCount: activePayments.length,
       byMethod,
+      classSummary,
       payments,
     },
   });
@@ -1236,6 +2146,25 @@ export const previewStudentFee = async (req: Request, res: Response) => {
   const { subtotal, discountAmount, totalAmount } = totalsFromLines(
     resolved.lines
   );
+
+  // If student has never had any fee invoice generated, auto-create their admission bill
+  const totalInvoicesCount = await getPrisma().feeInvoice.count({
+    where: { schoolId, studentId, status: { not: "CANCELLED" } },
+  });
+  if (totalInvoicesCount === 0 && resolved.enrollment) {
+    const studentData = await getPrisma().student.findUnique({
+      where: { id: studentId },
+      select: { admissionDate: true },
+    });
+    await autoGenerateInvoicesForNewStudent({
+      schoolId,
+      studentId,
+      enrollmentId: resolved.enrollment.id,
+      classId: resolved.enrollment.classId,
+      admissionDate: studentData?.admissionDate,
+      academicYear: resolved.enrollment.academicYear,
+    });
+  }
 
   const openInvoices = await getPrisma().feeInvoice.findMany({
     where: {
@@ -1468,7 +2397,7 @@ export const getFeePaymentReceipt = async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
 
   const payment = await getPrisma().feePayment.findFirst({
-    where: { id, schoolId },
+    where: { schoolId, OR: [{ id }, { receiptNo: id }] },
     include: {
       allocations: {
         include: {
