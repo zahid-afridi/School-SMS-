@@ -5,6 +5,7 @@ export type DocumentDensity = "comfortable" | "compact";
 export type DocumentShape = "soft" | "square" | "pill";
 export type IdCardLayout = "midnight" | "clean" | "bold";
 export type ResultCardLayout =
+  | "report-card"
   | "academic"
   | "modern"
   | "minimal"
@@ -15,6 +16,12 @@ export const RESULT_CARD_FORMATS: Array<{
   name: string;
   description: string;
 }> = [
+  {
+    id: "report-card",
+    name: "Classic Report Card",
+    description:
+      "Illustrated 4-term report card with green accents, terms table & teacher feedback",
+  },
   {
     id: "academic",
     name: "Academic",
@@ -95,7 +102,7 @@ export const DESIGN_PRESETS: DesignPreset[] = [
       font: "modern",
       shape: "soft",
       idCardLayout: "midnight",
-      resultCardLayout: "academic",
+      resultCardLayout: "report-card",
       dateSheetLayout: "formal",
     },
   },

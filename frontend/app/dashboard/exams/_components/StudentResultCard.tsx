@@ -16,6 +16,7 @@ import {
   type ResultCardLayout,
   type SchoolDocumentDesign,
 } from "@/lib/schoolDocumentDesign";
+import ProReportCard from "./ProReportCard";
 
 function resolveUrl(path?: string | null) {
   return resolveUploadUrl(path);
@@ -134,7 +135,24 @@ export default function StudentResultCard({
 }) {
   const theme = resolveTheme(template, customStyle);
   const format: ResultCardLayout =
-    layout ?? design?.resultCardLayout ?? "academic";
+    layout ?? design?.resultCardLayout ?? "report-card";
+
+  if (format === "report-card") {
+    return (
+      <div
+        className="result-card-document"
+        data-template={template}
+        data-layout={format}
+      >
+        <ProReportCard
+          card={card}
+          onPrint={onPrint}
+          hideToolbar={hideToolbar}
+          editable={true}
+        />
+      </div>
+    );
+  }
 
   return (
     <div

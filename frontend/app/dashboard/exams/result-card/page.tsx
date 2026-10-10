@@ -23,6 +23,7 @@ import ExamTemplatePicker, {
   type ExamDocumentTemplate,
 } from "../_components/ExamTemplatePicker";
 import StudentResultCard from "../_components/StudentResultCard";
+import ProReportCard from "../_components/ProReportCard";
 import DocumentExportBar from "../_components/DocumentExportBar";
 import ResultCardFormatPicker from "../_components/ResultCardFormatPicker";
 import SchoolDocumentDesigner from "@/app/components/SchoolDocumentDesigner";
@@ -350,21 +351,21 @@ export default function ResultCardPage() {
           </button>
         </div>
 
-        {(card || classCards.length > 0) && (
-          <div className="mb-4">
-            <DocumentExportBar
-              elementId="result-card-print-area"
-              filename={
-                card
-                  ? `result-card-${card.student.name.replace(/\s+/g, "-")}`
-                  : `result-cards-${sheet?.class.className ?? "class"}`
-              }
-              label="Print, PDF, or Word"
-              resultCards={card ? [card] : classCards}
-              design={template === "custom" ? schoolDesign : undefined}
-            />
-          </div>
-        )}
+        <div className="mb-4">
+          <DocumentExportBar
+            elementId="result-card-print-area"
+            filename={
+              card
+                ? `result-card-${card.student.name.replace(/\s+/g, "-")}`
+                : classCards.length > 0
+                ? `result-cards-${sheet?.class.className ?? "class"}`
+                : `result-card-sample`
+            }
+            label="Print, PDF, or Word"
+            resultCards={card ? [card] : classCards.length > 0 ? classCards : undefined}
+            design={template === "custom" ? schoolDesign : undefined}
+          />
+        </div>
 
         <div id="result-card-print-area">
           {card && (
@@ -404,6 +405,71 @@ export default function ResultCardPage() {
                   />
                 </div>
               ))}
+            </div>
+          )}
+
+          {!card && classCards.length === 0 && (
+            <div className="space-y-4">
+              <div className="print:hidden flex items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/60 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white font-extrabold shadow-sm">
+                    ★
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Result Card Live Preview & Interactive Editor
+                    </h4>
+                    <p className="text-xs text-slate-600">
+                      Edit any student details, marks, and teacher remarks directly on the card below. When ready, generate for an exam student above.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <ProReportCard
+                sampleMode={true}
+                card={{
+                  issuedAt: new Date().toISOString(),
+                  school: school
+                    ? {
+                        id: school.id,
+                        name: school.name || "School Name Goes Here",
+                        address: school.address,
+                        phone: school.phone,
+                        email: school.email,
+                        logoUrl: school.logoUrl,
+                      }
+                    : null,
+                  exam: {
+                    id: "",
+                    name: "Annual Examination",
+                    startDate: new Date().toISOString(),
+                    academicYear: "2025 - 2026",
+                  },
+                  student: {
+                    id: "sample-student",
+                    name: "Alexander James Bennett",
+                    registrationNo: "REG-2026-0842",
+                    className: "Grade 6",
+                    sectionName: "Rose",
+                    rollNo: "12",
+                    academicYear: "2025 - 2026",
+                  },
+                  lines: [],
+                  summary: {
+                    totalMax: 1100,
+                    totalObtained: 998,
+                    overallPercent: 90.7,
+                    grade: "A+",
+                    passedSubjects: 11,
+                    failedSubjects: 0,
+                    absentSubjects: 0,
+                    subjectCount: 11,
+                    overallStatus: "PASS",
+                  },
+                }}
+                onPrint={() => window.print()}
+              />
             </div>
           )}
         </div>

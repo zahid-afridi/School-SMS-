@@ -281,6 +281,7 @@ export default function SchoolDocumentDesigner({
               label="Result card"
               value={design.resultCardLayout}
               options={[
+                ["report-card", "Classic Report Card"],
                 ["academic", "Academic"],
                 ["modern", "Modern"],
                 ["minimal", "Minimal"],

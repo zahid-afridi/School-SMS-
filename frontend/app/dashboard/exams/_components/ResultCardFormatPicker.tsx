@@ -28,7 +28,7 @@ export default function ResultCardFormatPicker({
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {RESULT_CARD_FORMATS.map((format) => {
           const selected = value === format.id;
           return (
@@ -66,6 +66,34 @@ function FormatThumb({
   selected: boolean;
 }) {
   const ring = selected ? "ring-1 ring-slate-400" : "";
+  if (id === "report-card") {
+    return (
+      <span
+        className={`relative block overflow-hidden rounded-lg border border-slate-300 bg-white p-2 ${ring}`}
+      >
+        {/* Top-right lime ribbon */}
+        <span className="absolute top-0 right-0 w-4 h-4 bg-[#7cb342] rounded-bl-full" />
+        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-[#0f223d] rounded-bl-full" />
+        {/* Shield and title */}
+        <span className="flex items-center gap-1 mb-1.5">
+          <span className="w-2.5 h-3 rounded-b-md bg-[#7cb342] shrink-0 inline-block" />
+          <span className="h-1.5 w-12 rounded bg-[#0f223d] inline-block" />
+        </span>
+        {/* Student row */}
+        <span className="flex gap-1 mb-1.5">
+          <span className="h-1 w-1/2 bg-slate-300 rounded" />
+          <span className="h-1 w-1/3 bg-slate-300 rounded" />
+        </span>
+        {/* Navy table header */}
+        <span className="block h-2 bg-[#0f223d] rounded-t-sm" />
+        {/* Table rows */}
+        <span className="block h-3 border-x border-b border-slate-200 bg-slate-50 relative">
+          {/* Mini pencil on the right */}
+          <span className="absolute -right-1 top-0.5 w-0.5 h-3 bg-[#65a30d] rounded-full" />
+        </span>
+      </span>
+    );
+  }
   if (id === "certificate") {
     return (
       <span

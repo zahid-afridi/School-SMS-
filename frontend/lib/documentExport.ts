@@ -834,7 +834,15 @@ export async function exportDocument(
     return;
   }
 
-  if (options.resultCards && options.resultCards.length > 0) {
+  const isReportCardLayout =
+    options.design?.resultCardLayout === "report-card" ||
+    !options.design?.resultCardLayout;
+
+  if (
+    options.resultCards &&
+    options.resultCards.length > 0 &&
+    !isReportCardLayout
+  ) {
     if (format === "pdf") {
       await exportResultCardsToPdf(
         options.resultCards,
